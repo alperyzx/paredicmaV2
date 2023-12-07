@@ -1,47 +1,41 @@
-#### Python Automatic REDIs Cluster MAnager & MAker ####
-## Author					: Mustafa YAVUZ
-## E-mail					: msyavuz@gmail.com, paredicma@gmail.com
-#### Version				: 2.0					####
-## UpdateDate				: 07.12.2023
-## UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) (python2 to python3 conversion)
-## Software Requirement		: Python 3.6 or above, sshd( with passwordless ssh-keygen auth. between servers ), numactl 
-## OS System 				: Redhat/Centos 7+ ( possible Ubuntu, debian )
-#### Python Automatic REDIs Cluster MAnager&MAker ####
+#### Python Automatic REDIs Cluster MAnager & MAker
+## Author				: Mustafa YAVUZ
+## E-mail				: msyavuz@gmail.com, paredicma@gmail.com
 
+#### Version: 2.0 
+## UpdateDate				: 07.12.2023
+## UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) 
+## Release Note				: Python3 support
+## Software Requirement			: Python3.x or above, sshd( with passwordless ssh-keygen auth. between servers ), numactl 
+## OS System 				: Redhat/Centos 7+ ( possible Ubuntu, debian )
+
+
+#### Python Automatic REDIs Cluster MAnager&MAker
 This program is developed by Mustafa YAVUZ (msyavuz@gmail.com) to make Redis Cluster installation, managament, upgrade and maintanence easier, especially for non-Docker environments.
 It includes current redis tar file. If You have, you can try paredicma with newer version redis, with changing redis tar file.
 
 ## Prerequirements:
 sshd ( with passwordless ssh-keygen auth. between servers ),
-
-python (2.6 or above),
-
+python (3.1 or above),
 numactl( if you want to use dedicate cpu-core )
 
 
 ## 1- Download and extract :
-
-Download -> paredicma.zip ( or v1-master.zip )
-
-extract -> unzip paredicma.zip ( or v1-master.zip )
-
-cd paredicma ( or cd v1-master)
+Download -> paredicmaV2-master.zip
+extract -> unzip paredicmaV2-master.zip
+cd paredicmaV2-master
 
 ## 2- Installation :
 You do not need to install it, Just configure and run it.
 
 ## 3- Configuration :
-
 Configure pareNodeList.py file, change ip, port, cpu core and max_memory per node, according to your cluster.
-
 Configure pareConfig.py file, according to your cluster
 
 # 4 - run program
-
-python paredicma-cli.py
+python3.x paredicma-cli.py
 
 # 5- enjoy it :)
-
 
 		PAREDICMA CLI (Python Automatic REDIs Cluster MAker)
         ------------------------------------------------
@@ -133,7 +127,7 @@ If you choose #4
 
         ------------------------------------------------
         What would you like to do? 4
-		Are you sure to make Redis Cluster (yes/no) ? 
+        Are you sure to make Redis Cluster (yes/no) ? 
 
 
 
