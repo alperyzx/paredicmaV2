@@ -86,7 +86,7 @@ def menuMain():
     currentMenu = 'menuMain'
     if os.path.isfile('paredicma.done'):
         print(bcolors.HEADER + '''
-    PAREDICMA CLI (Python Automatic REDIs Cluster MAker)                
+    PAREDICMA CLI (Python3 Automatic REDIs Cluster MAker)                
     ------------------------------------------------
         ***** ''' + pareConfig.projectName + ''' *****
     ------------------------------------------------''' + bcolors.ENDC)
@@ -99,7 +99,7 @@ def menuMain():
     ------------------------------------------------''' + bcolors.ENDC)
     else:
         print(bcolors.HEADER + '''
-    PAREDICMA CLI (Python Automatic REDIs Cluster MAker)
+    PAREDICMA CLI (Python3 Automatic REDIs Cluster MAker)
     ------------------------------------------------
         ***** ''' + pareConfig.projectName + ''' *****
     ------------------------------------------------''' + bcolors.ENDC)
