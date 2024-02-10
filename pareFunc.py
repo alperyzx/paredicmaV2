@@ -17,7 +17,7 @@ def clusterCheck(contactNode):
     clusterString = redisBinaryDir + 'src/redis-cli --cluster check ' + myNodeIP + ':' + myNodePORT + ''
     if redisPwdAuthentication == 'on':
         clusterString += ' -a ' + redisPwd + ' '
-    retVal = 'Unkown'
+    retVal = 'Unknown'
     checkStatus, checkResponse = subprocess.getstatusoutput(clusterString)
     if checkResponse.find('[ERR]') != -1:
         return False
@@ -29,18 +29,18 @@ def clusterFix(contactNode):
     myNodeIP = pareNodes[contactNode - 1][0][0]
     myNodePORT = pareNodes[contactNode - 1][1][0]
     clusterString = redisBinaryDir + 'src/redis-cli --cluster fix ' + myNodeIP + ':' + myNodePORT
-    if (redisPwdAuthentication == 'on'):
+    if redisPwdAuthentication == 'on':
         clusterString += ' -a ' + redisPwd + ' '
-    retVal = 'Unkown'
+    retVal = 'Unknown'
     fixStatus, fixResponse = subprocess.getstatusoutput(clusterString)
-    if (fixResponse.find('[OK]') != -1):
+    if fixResponse.find('[OK]') != -1:
         return True
     else:
         return False
 
 
 def showRedisLogFile(nodeIP, nodeNum, portNumber, myLineNum):
-    if (nodeIP == pareServerIp):
+    if nodeIP == pareServerIp:
         returnCmd, cmdResponse = subprocess.getstatusoutput(
             'tail -' + myLineNum + ' ' + redisLogDir + 'redisN' + nodeNum + '_P' + portNumber + '.log')
         print(bcolors.OKGREEN + cmdResponse + bcolors.ENDC)
@@ -58,7 +58,7 @@ def clusterSlotBalanceMapper(balanceStrategy, maxSlotBarier):
     spResponse = ''
     myNodeInfoList = []
     allSlotNumber = 16386
-    if (maxSlotBarier == 0):
+    if maxSlotBarier == 0:
         maxSlotBarier = 4000
     maxSlotBarier += 1
     for pareNode in pareNodes:
@@ -137,8 +137,7 @@ def clusterSlotBalanceMapper(balanceStrategy, maxSlotBarier):
                                 # stepSize=10
                                 if (myNodeInfoList[myNodeInfoListIndexer][1] > balanceSlotNumber and
                                         myNodeInfoList[myNodeInfoListIndexer][0] != myNodeInfo[0]):
-                                    if (myNodeInfoList[myNodeInfoListIndexer][
-                                        1] > balanceSlotNumber + 30 and slotDiff > 30):
+                                    if myNodeInfoList[myNodeInfoListIndexer][1] > balanceSlotNumber + 30 and slotDiff > 30:
                                         stepSize = 30
                                     elif (myNodeInfoList[myNodeInfoListIndexer][
                                               1] > balanceSlotNumber + 10 and slotDiff > 10):
@@ -148,7 +147,7 @@ def clusterSlotBalanceMapper(balanceStrategy, maxSlotBarier):
                                         stepSize = 5
                                     else:
                                         stepSize = 1
-                                    reshardClusterSlient(contactNode, myNodeInfoList[myNodeInfoListIndexer][0],
+                                    reshardClusterSilent(contactNode, myNodeInfoList[myNodeInfoListIndexer][0],
                                                          myNodeInfo[0], str(stepSize))
                                     print('FROM Node ID' + myNodeInfoList[myNodeInfoListIndexer][
                                         0] + '\n-> TO Node ID :' + myNodeInfo[0] + '\nMoved Slots :' + str(
@@ -157,11 +156,11 @@ def clusterSlotBalanceMapper(balanceStrategy, maxSlotBarier):
                                         myNodeInfo[0]) + '		Slot Diff :' + bcolors.OKBLUE + str(
                                         slotDiff) + bcolors.ENDC)
                                     sleep(3)
-                                    if (clusterCheck(contactNode) == False):
+                                    if not clusterCheck(contactNode):
                                         print(
                                             bcolors.FAIL + '!!! Warning !!! Cluster Check Fail. I will try to fix It' + bcolors.ENDC)
                                         sleep(10)
-                                        if (clusterFix(contactNode)):
+                                        if clusterFix(contactNode):
                                             print(bcolors.OKGREEN + ' OK :) I fixed it ;)' + bcolors.ENDC)
                                             sleep(5)
                                         else:
@@ -170,7 +169,7 @@ def clusterSlotBalanceMapper(balanceStrategy, maxSlotBarier):
                                     myNodeInfo[1] += stepSize
                                     slotDiff -= stepSize
                                     movedSlotsNumber += stepSize
-                                if (slotDiff <= 10):
+                                if slotDiff <= 10:
                                     stepSize = 1
                                 if myNodeInfoListIndexer < len(myNodeInfoList) - 1:
                                     myNodeInfoListIndexer += 1
@@ -204,13 +203,13 @@ def clusterSlotBalanceMapper(balanceStrategy, maxSlotBarier):
         # print '----------***************************------------'
         # print myNodeInfoList
         sleep(1)
-        #		myNodeInfoList[nodeId][SlotNumber]
-        #		myNodeSlotList [nodeNumber][balancedSlotsNumber]
+        # myNodeInfoList[nodeId][SlotNumber]
+        # myNodeSlotList [nodeNumber][balancedSlotsNumber]
         processHealth = True
         stepSize = 1
-        if (myIndexMax == len(myNodeInfoList)):
-            if (movedSlotsNumber < maxSlotBarier):
-                while (myIndexArray1 < myIndexMax and movedSlotsNumber < maxSlotBarier):
+        if myIndexMax == len(myNodeInfoList):
+            if movedSlotsNumber < maxSlotBarier:
+                while myIndexArray1 < myIndexMax and movedSlotsNumber < maxSlotBarier:
                     #					print 'step 1 myIndexArray1 :'+str(myIndexArray1 )+' <  myIndexMax:'+str(myIndexMax)
                     #					print 'step 1 movedSlotsNumber :'+str(movedSlotsNumber )+' <  maxSlotBarier:'+str(maxSlotBarier)
                     stepSize = 1
@@ -247,7 +246,7 @@ def clusterSlotBalanceMapper(balanceStrategy, maxSlotBarier):
                                         stepSize = 5
                                     else:
                                         stepSize = 1
-                                    if (reshardClusterSlient(contactNode, myNodeInfoList[myIndexArray2][0],
+                                    if (reshardClusterSilent(contactNode, myNodeInfoList[myIndexArray2][0],
                                                              myNodeInfoList[myIndexArray1][0], str(stepSize))):
                                         print('FROM Node ID' + myNodeInfoList[myIndexArray2][0] + '\n-> TO Node ID :' +
                                               myNodeInfoList[myIndexArray1][0] + '\nMoved Slots :' + str(
@@ -284,11 +283,11 @@ def clusterSlotBalanceMapper(balanceStrategy, maxSlotBarier):
         return False
 
 
-# def reshardClusterSlientUbuntu(contactNode,fromNodeID,toNodeID,slotNumber): myNodeIP=pareNodes[contactNode-1][0][0]
+# def reshardClusterSilentUbuntu(contactNode,fromNodeID,toNodeID,slotNumber): myNodeIP=pareNodes[contactNode-1][0][0]
 # myNodePORT=pareNodes[contactNode-1][1][0] clusterString=redisBinaryDir+'src/redis-cli --cluster reshard
 # '+myNodeIP+':'+myNodePORT+' --cluster-from '+fromNodeID+' --cluster-to '+toNodeID+' --cluster-slots '+slotNumber+'
 # --cluster-yes' returnCmd=os.system(clusterString) if(returnCmd==0): return True else: return False
-def reshardClusterSlient(contactNode, fromNodeID, toNodeID, slotNumber):
+def reshardClusterSilent(contactNode, fromNodeID, toNodeID, slotNumber):
     myNodeIP = pareNodes[contactNode - 1][0][0]
     myNodePORT = pareNodes[contactNode - 1][1][0]
     clusterString = (redisBinaryDir + 'src/redis-cli --cluster reshard ' + myNodeIP + ':'
@@ -341,7 +340,7 @@ def redisNodesVersionControl():
         nodeIP = pareNode[0][0]
         portNumber = pareNode[1][0]
         nodeNumber = nodeNumber + 1
-        if (pareNode[4]):
+        if pareNode[4]:
             print(bcolors.BOLD + 'Node Number :' + str(
                 nodeNumber) + '  Node IP :' + nodeIP + '  Node Port :' + portNumber + bcolors.ENDC)
             os.system(redisConnectCmd(nodeIP, portNumber, ' info server | grep  redis_version'))
@@ -350,7 +349,7 @@ def redisNodesVersionControl():
 def checkReplicationStatus():
     retCRS = True
     for pareNode in pareNodes:
-        redisBinaryDir = redisBinaryDir.replace('redis-' + redisVersion, 'redis-' + newRedisVersion)
+        pareConfig.redisBinaryDir = redisBinaryDir.replace('redis-' + redisVersion, 'redis-' + newRedisVersion)
         nodeIP = pareNode[0][0]
         portNumber = pareNode[1][0]
         nodeNumber = nodeNumber + 1
@@ -604,7 +603,7 @@ def redisConnectCmdwithTimeout(nodeIP, portNumber, redisCmd):
 
 
 def nodeInfo(nodeIP, nodeNumber, portNumber, infoCmd):
-    retVal = 'Unkown'
+    retVal = 'Unknown'
     listStatus, listResponse = subprocess.getstatusoutput(redisConnectCmd(nodeIP, portNumber, 'info ' + infoCmd))
     if listStatus == 0:
         retVal = listResponse
@@ -839,8 +838,7 @@ def delPareNode(delNodeID):
         redisConnectCmd(serverIP, serverPORT, ' cluster nodes | grep myself'))
     if pingStatus == 0:
         queryRespondList = queryRespond.split(' ')
-        clusterString = redisBinaryDir + 'src/redis-cli --cluster del-node ' + targetIP + ':' + targetPORT + ' ' + \
-                        queryRespondList[0] + ' '
+        clusterString = redisBinaryDir + 'src/redis-cli --cluster del-node ' + targetIP + ':' + targetPORT + ' ' + queryRespondList[0] + ' '
         if redisPwdAuthentication == 'on':
             clusterString += ' -a ' + redisPwd + ' '
         logWrite(pareLogFile,
@@ -1012,7 +1010,7 @@ def switchMasterSlave(nodeIP, nodeNumber, portNumber):
             # sleep(20)
             if spStatus == 0:
                 turnWhile = True
-                while (turnWhile):
+                while turnWhile:
                     spStat, spResp = subprocess.getstatusoutput(
                         redisConnectCmdwithTimeout(slaveIP, slavePort, ' INFO replication '))
                     if spResp.find('role:master') > -1:
@@ -1050,7 +1048,7 @@ def killNode(nodeIP, nodeNumber, portNumber):
         myResponse = input(
             bcolors.FAIL + "\nThis node is Master node( nodeIP:" + nodeIP + " nodePort:" + portNumber + "), Do you want to stop this node (yes/no): " + bcolors.ENDC)
         myResponse = myResponse.lower()
-        if (myResponse) == 'yes':
+        if myResponse == 'yes':
             if isNodeHasSlave(nodeIP, nodeNumber, portNumber):
                 isSwitch = switchMasterSlave(nodeIP, nodeNumber, portNumber)
                 if isSwitch:
@@ -1139,33 +1137,12 @@ def restartNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores):
     startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores)
 
 
-def redisBinaryCopier_v0(myServerIP, myRedisVersion):
-    if myServerIP == pareServerIp:
-        # cmdStatus=os.system('cp -pr redis-'+myRedisVersion+'/* '+redisBinaryDir)
-        cmdStatus, cmdResponse = subprocess.getstatusoutput('cp -pr redis-' + myRedisVersion + '/* ' + redisBinaryDir)
-        if cmdStatus == 0:
-            logWrite(pareLogFile,
-                     bcolors.OKGREEN + ':: ' + myServerIP + ' :: OK -> redis binary was  copied.' + bcolors.ENDC)
-            return True
-        else:
-            logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!! A problem occurred while binary copy process !!!' + bcolors.ENDC)
-            return False
-    else:
-        # cmdStatus=os.system('scp -r redis-'+myRedisVersion+'/* '+pareOSUser+'@'+myServerIP+':'+redisBinaryDir)
-        cmdStatus, cmdResponse = subprocess.getstatusoutput(
-            'scp -r redis-' + myRedisVersion + '/* ' + pareOSUser + '@' + myServerIP + ':' + redisBinaryDir)
-        if cmdStatus == 0:
-            logWrite(pareLogFile,
-                     bcolors.OKGREEN + ':: ' + myServerIP + ' :: OK -> redis binary was copied.' + bcolors.ENDC)
-            return True
-        else:
-            logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!! A problem occurred while binary copy process !!!' + bcolors.ENDC)
-            return False
-
-
 def redisBinaryCopier(myServerIP, myRedisVersion):
+
+    if os.path.exists(redisBinaryDir) and os.listdir(redisBinaryDir):  # Check if the directory exists and has content
+        logWrite(pareLogFile, bcolors.OKBLUE + ':: ' + myServerIP + ' :: Skipping copy - Redis binary already exists.' + bcolors.ENDC)
+        return True  # Skip to the next step
+
     if myServerIP == pareServerIp:
         # Check if the directory exists locally
         if not makeDir(redisBinaryDir):
@@ -1178,7 +1155,7 @@ def redisBinaryCopier(myServerIP, myRedisVersion):
             return True
         else:
             logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!! A problem occurred while binary copy process !!!' + bcolors.ENDC)
+                     bcolors.FAIL + ' !!!redisBinaryCopier: A problem occurred while binary copy process !!!' + bcolors.ENDC)
             return False
     else:
         # Check if the directory exists remotely
@@ -1193,7 +1170,7 @@ def redisBinaryCopier(myServerIP, myRedisVersion):
             return True
         else:
             logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!! A problem occurred while binary copy process !!!' + bcolors.ENDC)
+                     bcolors.FAIL + ' !!!redisBinaryCopier: A problem occurred while binary copy process !!!' + bcolors.ENDC)
             return False
 
 
@@ -1202,11 +1179,15 @@ def redisNewBinaryCopier(myServerIP, myRedisVersion):
     global redisVersion
     redisBinaryDir = redisBinaryDir.replace('redis-' + redisVersion, 'redis-' + myRedisVersion)
 
+    if os.path.exists(redisBinaryDir) and os.listdir(redisBinaryDir):  # Check if the directory exists and has content
+        logWrite(pareLogFile, bcolors.OKBLUE + ':: ' + myServerIP + ' :: Skipping copy - Redis binary already exists.' + bcolors.ENDC)
+        return True  # Skip to the next instance
+
     if myServerIP == pareServerIp:
         # Check if the directory exists locally
         if not makeDir(redisBinaryDir):
             logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!! A problem occurred while creating local binary directory !!!' + bcolors.ENDC)
+                     bcolors.FAIL + ' !!!redisNewBinaryCopier: A problem occurred while creating local binary directory !!!' + bcolors.ENDC)
             return False
 
         cmdStatus = os.system('cp -pr redis-' + myRedisVersion + '/* ' + redisBinaryDir + ' > /dev/null ')
@@ -1216,18 +1197,15 @@ def redisNewBinaryCopier(myServerIP, myRedisVersion):
                      bcolors.OKGREEN + ':: ' + myServerIP + ' :: OK -> redis binary was copied.' + bcolors.ENDC)
             return True
 
-
-
-
         else:
             logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!! A problem occurred while copying binary files !!!' + bcolors.ENDC)
+                     bcolors.FAIL + ' !!!redisNewBinaryCopier: A problem occurred while copying binary files !!!' + bcolors.ENDC)
             return False
     else:
         # Check if the directory exists remotely
         if not makeRemoteDir(redisBinaryDir, myServerIP):
             logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!! A problem occurred while creating remote binary directory !!!' + bcolors.ENDC)
+                     bcolors.FAIL + ' !!!redisNewBinaryCopier: A problem occurred while creating remote binary directory !!!' + bcolors.ENDC)
             return False
 
         cmdStatus = os.system(
@@ -1239,48 +1217,7 @@ def redisNewBinaryCopier(myServerIP, myRedisVersion):
             return True
         else:
             logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!! A problem occurred while copying binary files !!!' + bcolors.ENDC)
-            return False
-
-
-def redisNewBinaryCopier_v0(myServerIP, myRedisVersion):
-    global redisBinaryDir
-    global redisVersion
-    # redisBinaryDir=redisBinaryDir.replace(redisVersion,myRedisVersion)
-    redisBinaryDir = redisBinaryDir.replace('redis-' + redisVersion, 'redis-' + myRedisVersion)
-    if myServerIP == pareServerIp:
-        if makeDir(redisBinaryDir):
-            print('cp -pr redis-' + myRedisVersion + '/* ' + redisBinaryDir)
-            cmdStatus = os.system('cp -pr redis-' + myRedisVersion + '/* ' + redisBinaryDir + ' > /dev/null ')
-            # cmdStatus,cmdResponse = subprocess.getstatusoutput('cp -pr redis-'+myRedisVersion+'/* '+redisBinaryDir)
-            if cmdStatus == 0:
-                logWrite(pareLogFile,
-                         bcolors.OKGREEN + ':: ' + myServerIP + ' :: OK -> redis binary was  copied.' + bcolors.ENDC)
-                return True
-            else:
-                logWrite(pareLogFile,
-                         bcolors.FAIL + ' !!! A problem occurred while binary copy process !!!' + bcolors.ENDC)
-                return False
-        else:
-            logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!! A problem occurred while binary directory making !!!' + bcolors.ENDC)
-            return False
-    else:
-        if makeRemoteDir(redisBinaryDir, myServerIP):
-            print('scp -r redis-' + myRedisVersion + '/* ' + pareOSUser + '@' + myServerIP + ':' + redisBinaryDir)
-            cmdStatus = os.system(
-                'scp -r redis-' + myRedisVersion + '/* ' + pareOSUser + '@' + myServerIP + ':' + redisBinaryDir)
-            if cmdStatus == 0:
-                logWrite(pareLogFile,
-                         bcolors.OKGREEN + ':: ' + myServerIP + ' :: OK -> redis binary was copied.' + bcolors.ENDC)
-                return True
-            else:
-                logWrite(pareLogFile,
-                         bcolors.FAIL + ' !!! A problem occurred while binary copy process !!!' + bcolors.ENDC)
-                return False
-        else:
-            logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!! A problem occurred while binary directory making !!!' + bcolors.ENDC)
+                     bcolors.FAIL + ' !!!redisNewBinaryCopier: A problem occurred while copying binary files !!!' + bcolors.ENDC)
             return False
 
 
@@ -1387,27 +1324,6 @@ def redisDirMaker(nodeIP, nodeNumber):
             directoryDone = True
 
 
-def makeRemoteDirv0(dir_name, nodeIP):
-    try:
-        isOK = subprocess.getoutput(
-            'ssh -q -o "StrictHostKeyChecking no"  ' + pareOSUser + '@' + nodeIP + ' -C  "if [ -d ' + dir_name + ' ]; then echo yesThereIs; else echo noThereIsNot; fi"')
-        if isOK.find('yesThereIs') == -1:
-            comResponse = subprocess.getoutput(
-                'ssh -q -o "StrictHostKeyChecking no"  ' + pareOSUser + '@' + nodeIP + ' -C  "mkdir -p ' + dir_name + '"')
-            logWrite(pareLogFile,
-                     bcolors.OKGREEN + ' ::' + nodeIP + ':: Directory was created = ' + dir_name + bcolors.ENDC)
-            return True
-        else:
-            logWrite(pareLogFile,
-                     bcolors.WARNING + ' ::' + nodeIP + ':: Directory has been already existed  = ' + dir_name + bcolors.ENDC)
-            return True
-
-    except:
-        logWrite(pareLogFile,
-                 bcolors.FAIL + '!!! An error is occurred while writing directory  !!! = ' + dir_name + bcolors.ENDC)
-        return False
-
-
 def makeRemoteDir(dir_name, nodeIP):
     try:
         # Check if the directory exists remotely
@@ -1471,15 +1387,6 @@ def get_datetime():
     return my_year + "." + my_mounth + "." + my_day + " " + my_hour + ":" + my_min + ":" + my_sec
 
 
-def fileAppendWrite_v0(file, writeText):
-    try:
-        fp = open(file, 'ab')
-        fp.write(writeText + '\n')
-        fp.close()
-    except:
-        print(bcolors.FAIL + '!!! An error is occurred while writing file !!!' + bcolors.ENDC)
-
-
 def fileAppendWrite(file, writeText):
     try:
         with open(file, 'a') as fp:  # Open file in append mode ('a' for text mode)
@@ -1510,15 +1417,6 @@ def fileReadFull(file):
     except:
         print(bcolors.FAIL + '!!! An error is occurred while reading file !!!' + bcolors.ENDC)
         return ""
-
-
-def fileClearWrite_v0(file, writeText):
-    try:
-        fp = open(file, 'w')
-        fp.write(writeText + '\n')
-        fp.close()
-    except:
-        print(bcolors.FAIL + '!!! An error is occurred while writing file !!!' + bcolors.ENDC)
 
 
 def fileClearWrite(file, writeText):
