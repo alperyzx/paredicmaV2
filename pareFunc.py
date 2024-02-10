@@ -1,6 +1,5 @@
 # !/usr/bin/python
 
-
 import os
 import subprocess
 from time import *
@@ -153,7 +152,7 @@ def clusterSlotBalanceMapper(balanceStrategy, maxSlotBarier):
                                         0] + '\n-> TO Node ID :' + myNodeInfo[0] + '\nMoved Slots :' + str(
                                         stepSize) + bcolors.OKGREEN + ' OK :)' + bcolors.ENDC)
                                     print('TO Node ID :' + str(
-                                        myNodeInfo[0]) + '		Slot Diff :' + bcolors.OKBLUE + str(
+                                        myNodeInfo[0]) + '              Slot Diff :' + bcolors.OKBLUE + str(
                                         slotDiff) + bcolors.ENDC)
                                     sleep(3)
                                     if not clusterCheck(contactNode):
@@ -210,13 +209,13 @@ def clusterSlotBalanceMapper(balanceStrategy, maxSlotBarier):
         if myIndexMax == len(myNodeInfoList):
             if movedSlotsNumber < maxSlotBarier:
                 while myIndexArray1 < myIndexMax and movedSlotsNumber < maxSlotBarier:
-                    #					print 'step 1 myIndexArray1 :'+str(myIndexArray1 )+' <  myIndexMax:'+str(myIndexMax)
-                    #					print 'step 1 movedSlotsNumber :'+str(movedSlotsNumber )+' <  maxSlotBarier:'+str(maxSlotBarier)
+                    #                                   print 'step 1 myIndexArray1 :'+str(myIndexArray1 )+' <  myIndexMax:'+str(myIndexMax)
+                    #                                   print 'step 1 movedSlotsNumber :'+str(movedSlotsNumber )+' <  maxSlotBarier:'+str(maxSlotBarier)
                     stepSize = 1
-                    #					sleep(1)
+                    #                                   sleep(1)
                     while myNodeInfoList[myIndexArray1][1] < myNodeSlotList[myIndexArray1][1]:
                         print('Node Slot Number :' + str(
-                            myNodeInfoList[myIndexArray1][1]) + '		Slot Diff :' + bcolors.OKBLUE + str(
+                            myNodeInfoList[myIndexArray1][1]) + '               Slot Diff :' + bcolors.OKBLUE + str(
                             myNodeSlotList[myIndexArray1][1] - myNodeInfoList[myIndexArray1][1]) + bcolors.ENDC)
                         # print 'step 2 myNodeInfoList[myIndexArray1][1]:'+str(myNodeInfoList[myIndexArray1][1])+' <
                         # yNodeSlotList[myIndexArray1][1]-1:'+str(myNodeSlotList[myIndexArray1][1]-1)
@@ -657,7 +656,7 @@ def showMemoryUsage():
     # sleep(1)
     print('Memory Usage\n-------------------------------')
     print(
-        bcolors.HEADER + 'nodeID 		NodeIP				 NodePort	Used Mem(GB)	Max Mem(GB)	Usage (%)' + bcolors.ENDC)
+        bcolors.HEADER + 'nodeID                NodeIP                           NodePort       Used Mem(GB)    Max Mem(GB)     Usage (%)' + bcolors.ENDC)
     nodeNumber = 0
     totalMemPer = 0.0
     totalUsedMemByte = 0
@@ -684,44 +683,44 @@ def showMemoryUsage():
                     isMaster = True
                     totalUsedMemByte += usedMemByte
                     totalMaxMemByte += maxMemByte
-                    str(nodeNumber) + '	' + nodeIP + '-( M )			' + portNumber + '		' + str(
-                        usedMem) + '		' + str(maxMem) + '		' + str(usagePerMem) + '%' + bcolors.ENDC + '\n'
+                    str(nodeNumber) + ' ' + nodeIP + '-( M )                    ' + portNumber + '              ' + str(
+                        usedMem) + '            ' + str(maxMem) + '             ' + str(usagePerMem) + '%' + bcolors.ENDC + '\n'
                 else:
                     isMaster = False
-                    str(nodeNumber) + '	' + nodeIP + '-( S )			' + portNumber + '		' + str(
-                        usedMem) + '		' + str(maxMem) + '		' + str(usagePerMem) + '%' + bcolors.ENDC + '\n'
+                    str(nodeNumber) + ' ' + nodeIP + '-( S )                    ' + portNumber + '              ' + str(
+                        usedMem) + '            ' + str(maxMem) + '             ' + str(usagePerMem) + '%' + bcolors.ENDC + '\n'
                 if usagePerMem >= 90.0:
                     if isMaster:
                         printTextMaster += bcolors.FAIL + str(
-                            nodeNumber) + '	' + nodeIP + '-( M )			' + portNumber + '		' + str(
-                            usedMem) + '		' + str(maxMem) + '		' + str(
+                            nodeNumber) + '     ' + nodeIP + '-( M )                    ' + portNumber + '              ' + str(
+                            usedMem) + '                ' + str(maxMem) + '             ' + str(
                             usagePerMem) + '%' + bcolors.ENDC + '\n'
                     else:
                         printTextSlave += bcolors.FAIL + str(
-                            nodeNumber) + '	' + nodeIP + '-( S )			' + portNumber + '		' + str(
-                            usedMem) + '		' + str(maxMem) + '		' + str(
+                            nodeNumber) + '     ' + nodeIP + '-( S )                    ' + portNumber + '              ' + str(
+                            usedMem) + '                ' + str(maxMem) + '             ' + str(
                             usagePerMem) + '%' + bcolors.ENDC + '\n'
                 elif 80.00 <= usagePerMem < 90.00:
                     if isMaster:
                         printTextMaster += bcolors.WARNING + str(
-                            nodeNumber) + '	' + nodeIP + '-( M )			' + portNumber + '		' + str(
-                            usedMem) + '		' + str(maxMem) + '		' + str(
+                            nodeNumber) + '     ' + nodeIP + '-( M )                    ' + portNumber + '              ' + str(
+                            usedMem) + '                ' + str(maxMem) + '             ' + str(
                             usagePerMem) + '%' + bcolors.ENDC + '\n'
                     else:
                         printTextSlave += bcolors.WARNING + str(
-                            nodeNumber) + '	' + nodeIP + '-( S )			' + portNumber + '		' + str(
-                            usedMem) + '		' + str(maxMem) + '		' + str(
+                            nodeNumber) + '     ' + nodeIP + '-( S )                    ' + portNumber + '              ' + str(
+                            usedMem) + '                ' + str(maxMem) + '             ' + str(
                             usagePerMem) + '%' + bcolors.ENDC + '\n'
                 else:
                     if isMaster:
                         printTextMaster += bcolors.OKGREEN + str(
-                            nodeNumber) + '	' + nodeIP + '-( M )			' + portNumber + '		' + str(
-                            usedMem) + '		' + str(maxMem) + '		' + str(
+                            nodeNumber) + '     ' + nodeIP + '-( M )                    ' + portNumber + '              ' + str(
+                            usedMem) + '                ' + str(maxMem) + '             ' + str(
                             usagePerMem) + '%' + bcolors.ENDC + '\n'
                     else:
                         printTextSlave += bcolors.OKGREEN + str(
-                            nodeNumber) + '	' + nodeIP + '-( S )			' + portNumber + '		' + str(
-                            usedMem) + '		' + str(maxMem) + '		' + str(
+                            nodeNumber) + '     ' + nodeIP + '-( S )                    ' + portNumber + '              ' + str(
+                            usedMem) + '                ' + str(maxMem) + '             ' + str(
                             usagePerMem) + '%' + bcolors.ENDC + '\n'
             else:
                 print(
@@ -738,8 +737,8 @@ def showMemoryUsage():
         totalMemPer = round(((totalUsedMem / totalMaxMem) * 100), 2)
     print(
         bcolors.BOLD + '-----------------------------' + bcolors.ENDC)
-    print(bcolors.BOLD + 'TOTAL ( Only Master )						:' + str(totalUsedMem) + 'GB	' + str(
-        totalMaxMem) + 'GB		' + str(totalMemPer) + '% ' + bcolors.ENDC)
+    print(bcolors.BOLD + 'TOTAL ( Only Master )                                         :' + str(totalUsedMem) + 'GB    ' + str(
+        totalMaxMem) + 'GB              ' + str(totalMemPer) + '% ' + bcolors.ENDC)
     input('\n-----------------------------------------\nPress Enter to Return Paredicmon Menu')
 
 
@@ -1141,7 +1140,7 @@ def redisBinaryCopier(myServerIP, myRedisVersion):
 
     if os.path.exists(redisBinaryDir) and os.listdir(redisBinaryDir):  # Check if the directory exists and has content
         logWrite(pareLogFile, bcolors.OKBLUE + ':: ' + myServerIP + ' :: Skipping copy - Redis binary already exists.' + bcolors.ENDC)
-        return True  # Skip to the next step
+        return True  # Skip to the next instance
 
     if myServerIP == pareServerIp:
         # Check if the directory exists locally
@@ -1155,7 +1154,7 @@ def redisBinaryCopier(myServerIP, myRedisVersion):
             return True
         else:
             logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!!redisBinaryCopier: A problem occurred while binary copy process !!!' + bcolors.ENDC)
+                     bcolors.FAIL + ' !!! A problem occurred while binary copy process !!!' + bcolors.ENDC)
             return False
     else:
         # Check if the directory exists remotely
@@ -1170,7 +1169,7 @@ def redisBinaryCopier(myServerIP, myRedisVersion):
             return True
         else:
             logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!!redisBinaryCopier: A problem occurred while binary copy process !!!' + bcolors.ENDC)
+                     bcolors.FAIL + ' !!! A problem occurred while binary copy process !!!' + bcolors.ENDC)
             return False
 
 
@@ -1187,7 +1186,7 @@ def redisNewBinaryCopier(myServerIP, myRedisVersion):
         # Check if the directory exists locally
         if not makeDir(redisBinaryDir):
             logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!!redisNewBinaryCopier: A problem occurred while creating local binary directory !!!' + bcolors.ENDC)
+                     bcolors.FAIL + ' !!! A problem occurred while creating local binary directory !!!' + bcolors.ENDC)
             return False
 
         cmdStatus = os.system('cp -pr redis-' + myRedisVersion + '/* ' + redisBinaryDir + ' > /dev/null ')
@@ -1199,13 +1198,13 @@ def redisNewBinaryCopier(myServerIP, myRedisVersion):
 
         else:
             logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!!redisNewBinaryCopier: A problem occurred while copying binary files !!!' + bcolors.ENDC)
+                     bcolors.FAIL + ' !!! A problem occurred while copying binary files !!!' + bcolors.ENDC)
             return False
     else:
         # Check if the directory exists remotely
         if not makeRemoteDir(redisBinaryDir, myServerIP):
             logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!!redisNewBinaryCopier: A problem occurred while creating remote binary directory !!!' + bcolors.ENDC)
+                     bcolors.FAIL + ' !!! A problem occurred while creating remote binary directory !!!' + bcolors.ENDC)
             return False
 
         cmdStatus = os.system(
@@ -1217,7 +1216,7 @@ def redisNewBinaryCopier(myServerIP, myRedisVersion):
             return True
         else:
             logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!!redisNewBinaryCopier: A problem occurred while copying binary files !!!' + bcolors.ENDC)
+                     bcolors.FAIL + ' !!! A problem occurred while copying binary files !!!' + bcolors.ENDC)
             return False
 
 
