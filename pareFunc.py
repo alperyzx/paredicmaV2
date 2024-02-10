@@ -845,8 +845,8 @@ def delPareNode(delNodeID):
         procStatus, procResult = subprocess.getstatusoutput(clusterString)
         if procResult.find('[ERR]') == -1:
             print(queryRespond)
+            logWrite(pareLogFile, bcolors.OKGREEN + 'Node was deleted !!!: ' + clusterString + bcolors.ENDC)
             return True
-            logWrite(pareLogFile, bcolors.OKGREEN + 'Node was deleted. OK :)!!!: ' + clusterString + bcolors.ENDC)
         else:
             print(queryRespond)
             logWrite(pareLogFile,
