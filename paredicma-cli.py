@@ -539,6 +539,10 @@ def main():
                                     newVal = "pareNodes.append([['" + serverIP + "'],['" + serverPORT + "'],['" + cpuCoreIDs + "'],['" + maxMemSize + "'],False])"
                                     del pareNodes[int(delNodeID) - 1]
                                     changePareNodeListFile(oldVal, newVal)
+                                    try:
+                                        sys.exit("To continue run cli again !!! NodeList will be updated") 
+                                    except SystemExit as e:
+                                        raise SystemExit("\nScript terminated: " + str(e)) 
                                 else:
                                     print('!!! Problem occurred  while processing.. !!!\n')
                             else:
