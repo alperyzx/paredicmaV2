@@ -1,6 +1,7 @@
 # !/usr/bin/python
 
 import os
+import sys
 import subprocess
 from time import *
 from pareConfig import *
@@ -8,6 +9,117 @@ from pareNodeList import *
 import socket
 from string import *
 from screenMenu import *
+import importlib
+
+
+def validIP(IPaddr):
+    try:
+        socket.inet_aton(IPaddr)
+        return True
+    except socket.error:
+        return False
+
+
+def is_ssh_available(serverIP):
+    if serverIP == pareServerIp:
+        return True  # No need for SSH control
+    try:
+        subprocess.run(
+            f"ssh -o PasswordAuthentication=no -o ConnectTimeout=2 {pareOSUser}@{serverIP} exit",
+            shell=True,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return True  # SSH connection succeeded
+    except subprocess.CalledProcessError:
+        return False  # SSH connection failed
+
+
+def pingServer (nodeIP):
+    try:
+        # Use subprocess to execute the ping command
+        # -c 1 sets the count of ping packets to 1
+        # -W 1 sets the timeout to 1 second
+        # The command returns 0 if the server is reachable, else a non-zero value
+        subprocess.run(["ping", "-c", "1", "-W", "1", nodeIP], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True  # Server is reachable
+    except subprocess.CalledProcessError:
+        return False  # Server is not reachable or ping command failed
+
+
+def pingredisNode(nodeIP, portNumber):
+    pingStatus, pingResponse = subprocess.getstatusoutput(redisConnectCmdwithTimeout(nodeIP, portNumber, ' ping '))
+    if pingStatus == 0 & pingResponse.find('PONG') > -1:
+        return True
+    else:
+        return False
+
+
+def getnodeNumbers(serverIP):
+    nodenumbers = []
+    for index, pareNode in enumerate(pareNodes, start=1):
+        if pareNode[0][0] == serverIP:
+            nodenumbers.append(index)
+    return nodenumbers
+
+
+def getNodeList():
+    nodeList = []
+    for pareNode in pareNodes:
+        if pareNode [4]:  # Check if the node is active
+            nodeIP = pareNode[0][0]
+            port = pareNode[1][0]
+            nodeList.append(f"{nodeIP}:{port}")
+    return nodeList
+
+
+def getuniqueServers(pareNodes):
+    servers = set()
+    for pareNode in pareNodes:
+        nodeIp = pareNode[0][0]
+        if pareNode[4]:  # Check if the node is active
+            servers.add(nodeIp)
+    uniqueservers = list(servers)
+    return uniqueservers
+
+
+def redisConnectCmd(nodeIP, portNumber, redisCmd):
+    redisCliCmd = ''
+    if redisPwdAuthentication:
+        redisCliCmd = redisBinaryDir + 'src/redis-cli -h ' + nodeIP + ' -p ' + portNumber + ' --no-auth-warning -a ' + redisPwd + ' ' + redisCmd
+    else:
+        redisCliCmd = redisBinaryDir + '/src/redis-cli -h ' + nodeIP + ' -p ' + portNumber + ' ' + redisCmd
+    return redisCliCmd
+
+
+def redisConnectCmdwithTimeout(nodeIP, portNumber, redisCmd):
+    redisCliCmd = ''
+    if redisPwdAuthentication:
+        redisCliCmd = 'timeout 3  ' + redisBinaryDir + 'src/redis-cli -h ' + nodeIP + ' -p ' + portNumber + ' --no-auth-warning -a ' + redisPwd + ' ' + redisCmd
+    else:
+        redisCliCmd = 'timeout 3  ' + redisBinaryDir + '/src/redis-cli -h ' + nodeIP + ' -p ' + portNumber + ' ' + redisCmd
+    return redisCliCmd
+
+
+def isNodeMaster(nodeIP, nodeNumber, portNumber):
+    queryRespond = '  master'
+    pingStatus, queryRespond = subprocess.getstatusoutput(
+        redisConnectCmd(nodeIP, portNumber, 'info replication | grep role '))
+    if queryRespond.find('master') > 0:
+        return True
+    else:
+        return False
+
+
+
+def isNodeHasSlave(nodeIP, nodeNumber, portNumber):
+    pingStatus, pingResponse = subprocess.getstatusoutput(
+        redisConnectCmd(nodeIP, portNumber, ' info replication | grep connected_slaves '))
+    if pingStatus == 0 & pingResponse.find(':0') > 0:
+        return False
+    else:
+        return True
 
 
 def clusterCheck(contactNode):
@@ -65,7 +177,7 @@ def clusterSlotBalanceMapper(balanceStrategy, maxSlotBarier):
         portNumber = pareNode[1][0]
         nodeNumber = nodeNumber + 1
         if pareNode[4]:
-            isPing = pingNode(nodeIP, portNumber)
+            isPing = pingredisNode(nodeIP, portNumber)
             if isPing:
                 if contactNode == -1:
                     contactNode = nodeNumber
@@ -511,7 +623,7 @@ def funcNodesList():
         portNumber = pareNode[1][0]
         nodeNumber = nodeNumber + 1
         if pareNode[4]:
-            returnVal = slaveORMasterNode(nodeIP, nodeNumber, portNumber)
+            returnVal = slaveORMasterNode(nodeIP, portNumber)
             if returnVal == 'M':
                 masterNodeList += bcolors.OKGREEN + 'Node Number :' + str(
                     nodeNumber) + ' Server IP :' + nodeIP + ' Port:' + portNumber + ' UP\n' + bcolors.ENDC
@@ -551,28 +663,32 @@ def serverInfo(serverIP):
         print('\n------- Disk Usage-------------------------------\n')
         os.system('ssh -q -o "StrictHostKeyChecking no"  ' + pareOSUser + '@' + serverIP + ' -C  "df -h"')
         print('\n------- Redis  Nodes ----------------------------\n')
+
     masterNodeList = ''
     slaveNodeList = ''
     unknownNodeList = ''
-    nodeNumber = 0
+    nodenumbers = getnodeNumbers(serverIP)
+
     for pareNode in pareNodes:
         if pareNode[0][0] == serverIP:
-            nodeNumber += 1
+						   
             portNumber = pareNode[1][0]
-            nodeNumber = nodeNumber + 1
+									   
             if pareNode[4]:
-                returnVal = slaveORMasterNode(serverIP, nodeNumber, portNumber)
+                returnVal = slaveORMasterNode(serverIP, portNumber)
+                nodeNumber = nodenumbers.pop(0)
                 if returnVal == 'M':
-                    masterNodeList += bcolors.OKGREEN + 'Node Number :' + str(
-                        nodeNumber) + ' Server IP :' + serverIP + ' Port:' + portNumber + ' UP\n' + bcolors.ENDC
+																			  
+                    masterNodeList += bcolors.OKGREEN + f'Node Number: {nodeNumber} Server IP: {serverIP} Port: {portNumber} UP\n' + bcolors.ENDC
                 elif returnVal == 'S':
-                    slaveNodeList += bcolors.OKBLUE + 'Node Number :' + str(
-                        nodeNumber) + ' Server IP :' + serverIP + ' Port:' + portNumber + ' UP\n' + bcolors.ENDC
+																			
+                    slaveNodeList += bcolors.OKBLUE + f'Node Number: {nodeNumber} Server IP: {serverIP} Port: {portNumber} UP\n' + bcolors.ENDC
                 else:
-                    unknownNodeList += bcolors.FAIL + 'Node Number :' + str(
-                        nodeNumber) + ' Server IP :' + serverIP + ' Port:' + portNumber + '\n DOWN' + bcolors.ENDC
+                    unknownNodeList += bcolors.FAIL + f'Node Number: {nodeNumber} Server IP: {serverIP} Port: {portNumber} DOWN\n' + bcolors.ENDC
+
     input(
         bcolors.BOLD + '\n------- Master Nodes -------\n' + bcolors.ENDC + masterNodeList + bcolors.BOLD + '\n------- Slave Nodes -------\n' + bcolors.ENDC + slaveNodeList + bcolors.BOLD + '\n------- Unknown Nodes -------\n' + bcolors.ENDC + unknownNodeList + bcolors.BOLD + '\n--------------\nPress Enter to Return Paredicmon Menu' + bcolors.ENDC)
+
 
 
 def validIP(IPaddr):
@@ -611,7 +727,7 @@ def nodeInfo(nodeIP, nodeNumber, portNumber, infoCmd):
     return retVal
 
 
-def slaveORMasterNode(nodeIP, nodeNumber, portNumber):
+def slaveORMasterNode(nodeIP, portNumber):
     retVal = 'U'
     listStatus, listResponse = subprocess.getstatusoutput(
         redisConnectCmdwithTimeout(nodeIP, portNumber, 'cluster nodes | grep myself'))
@@ -742,22 +858,22 @@ def showMemoryUsage():
     input('\n-----------------------------------------\nPress Enter to Return Paredicmon Menu')
 
 
-def pingNode(nodeIP, portNumber):
-    pingStatus, pingResponse = subprocess.getstatusoutput(redisConnectCmd(nodeIP, portNumber, ' ping '))
-    if pingStatus == 0 & pingResponse.find('PONG') > -1:
-        return True
-    else:
-        return False
+								 
+																										
+														
+				   
+		 
+					
 
 
-def isNodeMaster(nodeIP, nodeNumber, portNumber):
-    queryRespond = '  master'
-    pingStatus, queryRespond = subprocess.getstatusoutput(
-        redisConnectCmd(nodeIP, portNumber, 'info replication | grep role '))
-    if queryRespond.find('master') > 0:
-        return True
-    else:
-        return False
+												 
+							 
+														  
+																			 
+									   
+				   
+		 
+					
 
 
 def migrateDataFrom(toIP, toPort, fromIP, fromPORT, fromPWD):
@@ -801,13 +917,13 @@ def migrateDataFrom(toIP, toPort, fromIP, fromPORT, fromPWD):
                 os.system(redisConnectCmd(nodeIP, portNumber, ' CONFIG SET requirepass ' + redisPwd))
 
 
-def isNodeHasSlave(nodeIP, nodeNumber, portNumber):
-    pingStatus, pingResponse = subprocess.getstatusoutput(
-        redisConnectCmd(nodeIP, portNumber, ' info replication | grep connected_slaves '))
-    if pingStatus == 0 & pingResponse.find(':0') > 0:
-        return False
-    else:
-        return True
+												   
+														  
+																						  
+													 
+					
+		 
+				   
 
 
 def makeRedisCluster(nodesString, redisReplicationNumber):
@@ -871,7 +987,7 @@ def addMasterNode(serverIP, serverPORT):
     clusterString = redisBinaryDir + 'src/redis-cli --cluster add-node ' + serverIP + ':' + serverPORT + ' ' + targetIP + ':' + targetPORT
     if redisPwdAuthentication == 'on':
         clusterString += ' -a ' + redisPwd + ' '
-    if pingNode(serverIP, serverPORT):
+    if pingredisNode(serverIP, serverPORT):
         logWrite(pareLogFile,
                  bcolors.BOLD + 'Adding new master node to redis cluster : ' + clusterString + bcolors.ENDC)
         if os.system(clusterString) == 0:
@@ -898,7 +1014,7 @@ def addSlaveNode(serverIP, serverPORT):
     clusterString = redisBinaryDir + 'src/redis-cli --cluster add-node ' + serverIP + ':' + serverPORT + ' ' + targetIP + ':' + targetPORT + ' --cluster-slave'
     if redisPwdAuthentication == 'on':
         clusterString += ' -a ' + redisPwd + ' '
-    if pingNode(serverIP, serverPORT):
+    if pingredisNode(serverIP, serverPORT):
         logWrite(pareLogFile, bcolors.BOLD + 'Adding new slave node to redis cluster : ' + clusterString + bcolors.ENDC)
         if os.system(clusterString) == 0:
             return True
@@ -922,7 +1038,7 @@ def addSpecificSlaveNode(serverIP, serverPORT, cMasterID):
     clusterString = redisBinaryDir + 'src/redis-cli --cluster add-node ' + serverIP + ':' + serverPORT + ' ' + targetIP + ':' + targetPORT + ' --cluster-slave --cluster-master-id ' + cMasterID
     if redisPwdAuthentication == 'on':
         clusterString += ' -a ' + redisPwd + ' '
-    if pingNode(serverIP, serverPORT):
+    if pingredisNode(serverIP, serverPORT):
         logWrite(pareLogFile, bcolors.BOLD + 'Adding new slave node to redis cluster : ' + clusterString + bcolors.ENDC)
         if os.system(clusterString) == 0:
             return True
@@ -940,7 +1056,7 @@ def getMasterNodesID():
         nodeIP = pareNode[0][0]
         portNumber = pareNode[1][0]
         if pareNode[4]:
-            isPing = pingNode(nodeIP, portNumber)
+            isPing = pingredisNode(nodeIP, portNumber)
             if isPing:
                 os.system(redisConnectCmd(nodeIP, portNumber, ' cluster nodes | grep master'))
                 break
@@ -948,7 +1064,7 @@ def getMasterNodesID():
 
 def startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores):
     startResult = 1
-    if pingNode(nodeIP, portNumber):
+    if pingredisNode(nodeIP, portNumber):
         logWrite(pareLogFile,
                  bcolors.WARNING + ':: ' + nodeIP + ' :: WARNING !!! redis node  ' + nodeNumber + ' has been  already started. The process was canceled.' + bcolors.ENDC)
     else:
@@ -1121,7 +1237,7 @@ def killNode(nodeIP, nodeNumber, portNumber):
 
 def stopNode(nodeIP, nodeNumber, portNumber):
     stopResult = 1
-    if pingNode(nodeIP, portNumber):
+    if pingredisNode(nodeIP, portNumber):
         killNode(nodeIP, nodeNumber, portNumber)
     else:
         logWrite(pareLogFile,
