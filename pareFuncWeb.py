@@ -33,27 +33,33 @@ def nodeInfo_wv(redisNode, cmd):
 
 
 def serverInfo_wv(serverIP):
-    try:
-        server_name = socket.gethostbyaddr(serverIP)[0]
-    except socket.herror:
-        server_name = "Unknown"  # Handle the case where hostname lookup fails
+    # Ping the server to check if it's reachable
+    if pingServer(serverIP):
+        try:
+            server_name = socket.gethostbyaddr(serverIP)[0]
+        except socket.herror:
+            server_name = "Unknown"  # Handle the case where hostname lookup fails
 
-    if is_ssh_available(serverIP):
-        html_content = f"""
-        <h2>Server Information ({serverIP} - {server_name})</h2>
-        <h3>CPU Cores</h3>
-        <pre>{getcmdOutput_wv(serverIP, "numactl --hardware")}</pre>
-        <h3>Memory Usage</h3>
-        <pre>{getcmdOutput_wv(serverIP, "free -g")}</pre>
-        <h3>Disk Usage</h3>
-        <pre>{getcmdOutput_wv(serverIP, "df -h")}</pre>
-        <h3>Redis Nodes</h3>
-        {getredisnodeInfo_wv(serverIP)}
-        """
+        # Check SSH availability
+        if is_ssh_available(serverIP):
+            html_content = f"""
+            <h2>Server Information ({serverIP} - {server_name})</h2>
+            <h3>CPU Cores</h3>
+            <pre>{getcmdOutput_wv(serverIP, "numactl --hardware")}</pre>
+            <h3>Memory Usage</h3>
+            <pre>{getcmdOutput_wv(serverIP, "free -g")}</pre>
+            <h3>Disk Usage</h3>
+            <pre>{getcmdOutput_wv(serverIP, "df -h")}</pre>
+            <h3>Redis Nodes</h3>
+            {getredisnodeInfo_wv(serverIP)}
+            """
+        else:
+            html_content = f"<p> {serverIP} SSH connection not working!</p>"
     else:
-        html_content = f"<p> {serverIP} SSH connection not working!</p>"
-    return html_content
-    
+        html_content = f"<p> Server: {serverIP} Unreachable !!!!</p>"
+
+    return html_content 
+
 
 def getcmdOutput_wv(serverIP, command):
         if serverIP == pareServerIp:
