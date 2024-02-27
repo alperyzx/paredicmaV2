@@ -1,6 +1,4 @@
 # !/usr/bin/python
-
-
 import os
 import sys
 from time import *
@@ -16,7 +14,7 @@ def main():
     while ans:
         if MenuState == 0:
             menuMain()
-            ans = input("	What would you like to do? ")
+            ans = input(" What would you like to do? ")
         if ans == "1" or MenuState == 1:
             if not os.path.isfile('paredicma.done'):
                 resCluster = input(
@@ -28,7 +26,7 @@ def main():
                 MenuState = 1
                 menuMon()
                 nodeNumber = 0
-                returnVAl = input("	What would you like to do? :")
+                returnVAl = input(" What would you like to do? :")
                 if returnVAl == "1":  # ping Cluster nodes
                     print('Pinging Nodes...')
                     pongNumber = 0
@@ -38,7 +36,7 @@ def main():
                         portNumber = pareNode[1][0]
                         nodeNumber = nodeNumber + 1
                         if pareNode[4]:
-                            isPing = pingNode(nodeIP, portNumber)
+                            isPing = pingredisNode(nodeIP, portNumber)
                             if isPing:
                                 print(bcolors.OKGREEN + 'OK -> Node Number :' + str(
                                     nodeNumber) + ' Server IP :' + nodeIP + ' Port:' + portNumber + bcolors.ENDC)
@@ -106,7 +104,7 @@ def main():
                         portNumber = pareNode[1][0]
                         nodeNumber = nodeNumber + 1
                         if pareNode[4]:
-                            isPing = pingNode(nodeIP, portNumber)
+                            isPing = pingredisNode(nodeIP, portNumber)
                             if isPing:
                                 slotInfo(nodeIP, portNumber)
                                 break
@@ -117,7 +115,7 @@ def main():
                         portNumber = pareNode[1][0]
                         nodeNumber = nodeNumber + 1
                         if pareNode[4]:
-                            isPing = pingNode(nodeIP, portNumber)
+                            isPing = pingredisNode(nodeIP, portNumber)
                             if isPing:
                                 clusterStateInfo(nodeIP, nodeNumber, portNumber)
                     input('\n----------------------\nPress Enter to Return Paredicmon Menu')
@@ -146,7 +144,7 @@ def main():
             else:
                 MenuState = 2
                 menuMan()
-                returnVAl = input("	What would you like to do? :")
+                returnVAl = input(" What would you like to do? :")
                 if returnVAl == "1":  # Start/Stop/Restart Redis Node
                     print(bcolors.BOLD + 'Start/Stop/Restart Redis Node\n------------------\n' + bcolors.ENDC)
                     funcNodesList()
@@ -213,7 +211,7 @@ def main():
                         if int(myNodeNum) <= len(pareNodes) and pareNodes[int(myNodeNum) - 1][4]:
                             myConfigParameter = input(
                                 bcolors.BOLD + '\nPlease Enter Configuration  parameter (for example: "slowlog-max-len'
-                                               '10" ,"maxmemory 3gb" ext.) \n	: ' + bcolors.ENDC)
+                                               '10" ,"maxmemory 3gb" ext.) \n  : ' + bcolors.ENDC)
                             yesNo = input(
                                 bcolors.WARNING + '\nAre you sure to set this parameter -> ' + myConfigParameter + '(yes/no):' + bcolors.ENDC)
                             yesNo = yesNo.lower()
@@ -231,7 +229,7 @@ def main():
                     elif myNodeNum == 'all':
                         myConfigParameter = input(
                             '\nPlease Enter Configuration  parameter (for example: "slowlog-max-len 10" ,"maxmemory '
-                            '3gb" ext.) \n	: ')
+                            '3gb" ext.) \n  : ')
                         yesNo = input('\nAre you sure to set this parameter -> ' + myConfigParameter + '  (yes/no):')
                         yesNo = yesNo.lower()
                         if yesNo == 'yes':
@@ -420,7 +418,7 @@ def main():
                                 if (maxMemSize[:len(maxMemSize) - 2].isdigit() and (
                                         (maxMemSize[len(maxMemSize) - 2:]) == 'gb' or (
                                         maxMemSize[len(maxMemSize) - 2:]) == 'mb')):
-                                    if pingNode(serverIP, serverPORT) and cpuCoreOK:
+                                    if pingredisNode(serverIP, serverPORT) and cpuCoreOK:
                                         print(
                                             bcolors.FAIL + '!!! This IP(' + serverIP + '):Port(' + serverPORT + ') is '
                                                                                                                 'already used by Redis Cluster !!!\n Operation canceled !!!' + bcolors.ENDC)
@@ -560,7 +558,7 @@ def main():
                         portNumber = pareNode[1][0]
                         nodeNumber = nodeNumber + 1
                         if pareNode[4]:
-                            isPing = pingNode(nodeIP, portNumber)
+                            isPing = pingredisNode(nodeIP, portNumber)
                             if isPing:
                                 slotInfo(nodeIP, portNumber)
                                 break
