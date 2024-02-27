@@ -1,15 +1,16 @@
 # !/usr/bin/python
-
+  
 from pareNodeList import *
 
-projectName = 'redis11'+'Cache'
-redisDataDir = '/data/redisuser/projects/'+projectName+'/'
-redisConfigDir = '/data/redisuser/projects/'+projectName+'/conf/'
-redisLogDir = '/data/redisuser/projects/'+projectName+'/log/'
+projectName = 'releaseTest'+'Cache'
+pareOSUser = 'redisuser'
+redisDataDir = '/data/'+pareOSUser+'/projects/'+projectName+'/'
+redisConfigDir = '/data/'+pareOSUser+'/projects/'+projectName+'/conf/'
+redisLogDir = '/data/'+pareOSUser+'/projects/'+projectName+'/log/'
 redisVersion = '7.2.3'
 redisTarFile = 'redis-7.2.3.tar.gz'
-redisBinaryDir = '/data/redisuser/reBin/redis-'+redisVersion+'/'
-dedicateCore = False   # True/False
+redisBinaryDir = '/data/'+pareOSUser+'/reBin/redis-'+redisVersion+'/'
+dedicateCore = True   # True/False
 doCompile = True
 doStartNodes = True
 unixSocketDir = '/tmp/'
@@ -18,11 +19,10 @@ writePareLogFile = True
 pareLogFile = ''+projectName+'.log'
 pareTmpDir = 'temparedicma/'
 pareServerIp = '192.168.1.5'  # paredicma console server
-pareOSUser = 'redisuser'
-rdb = 'on'   # on/off
+rdb = 'on'   # on/off if not needed turn off after creating cluster.  
 # dbfilename "dumpN1_P9773.rdb"
 rdbValue = 'save 3600 1000\nsave 1800 10000\nsave 600 100000'
-aof = 'on'   # on/off
+aof = 'on'   # on/off  if not needed turn off after creating cluster.
 # appendfilename "appendonlyN1_P9773.aof"
 aofValue = 'appendfsync everysec'
 redisCluster = 'on'   # on/off
