@@ -9,6 +9,10 @@
 ## Software Requirement			: Python3.x or above, sshd( with passwordless ssh-keygen auth. between servers ), numactl 
 ## OS System 				: Redhat/Centos 7+ ( possible Ubuntu, debian )
 
+#### Version: 2.1
+## UpdateDate				: 27.02.2024
+## UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) 
+## Release Note				: Web View Support with FastAPI (Monitoring Section)
 
 #### Python Automatic REDIs Cluster MAnager&MAker
 This program is developed by Mustafa YAVUZ (msyavuz@gmail.com) to make Redis Cluster installation, managament, upgrade and maintanence easier, especially for non-Docker environments.
@@ -16,9 +20,10 @@ It includes current redis tar file. If You have, you can try paredicma with newe
 
 ## Prerequirements:
 sshd ( with passwordless ssh-keygen auth. between servers ),
-python (3.1 or above),
 numactl( if you want to use dedicate cpu-core )
 
+cli: python 3.1,
+webview: python 3.8, fastapi, uvicorn
 
 ## 1- Download and extract :
 Download -> paredicmaV2-master.zip
@@ -33,7 +38,8 @@ Configure pareNodeList.py file, change ip, port, cpu core and max_memory per nod
 Configure pareConfig.py file, according to your cluster
 
 # 4 - run program
-python3.x paredicma-cli.py
+cli: python3.x paredicma-cli.py
+webview: python3.x parewebMon.py
 
 # 5- enjoy it :)
 
