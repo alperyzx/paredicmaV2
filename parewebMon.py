@@ -175,12 +175,12 @@ async def monitor_cluster_state_info():
                 # Determine the color based on the cluster state
                 color = "green" if "ok" in cluster_state_info.lower() else "red"
                 # Append the cluster state information to the overall information
-                all_cluster_state_info += f"{css_style}<p style='color: {color};'>Node {nodeIP}, Port: {portNumber} :: <b>{cluster_state_info}</b> </p>"
+                all_cluster_state_info += f"{css_style}<p style='color: {color};'>RedisNode: {nodeIP}:{portNumber} :: <b>{cluster_state_info}</b> </p>"
             else:
                 # Node is unreachable, add it to the response with a label
-                all_cluster_state_info += f"{css_style}<p style='color: gray;'>Node {nodeIP}, Port: {portNumber} :: Unreachable</p>"
+                all_cluster_state_info += f"{css_style}<p style='color: gray;'>RedisNode: {nodeIP}:{portNumber} :: Unreachable</p>"
           except Exception as e:
-            print(f"Error retrieving cluster information for Node IP: {nodeIP}, Port: {portNumber}")
+            print(f"Error retrieving cluster information for RedisNode: {nodeIP}:{portNumber}")
             print(f"Error message: {str(e)}")
             continue  # Continue to the next node
 
