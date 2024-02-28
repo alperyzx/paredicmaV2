@@ -1,20 +1,20 @@
-#### Python Automatic REDIs Cluster MAnager & MAker
-## Author				: Mustafa YAVUZ
-## E-mail				: msyavuz@gmail.com, paredicma@gmail.com
+# Python Automatic REDIs Cluster MAnager & MAker
+#### Author				: Mustafa YAVUZ
+#### E-mail				: msyavuz@gmail.com, paredicma@gmail.com
 
-#### Version: 2.0 
-## UpdateDate				: 07.12.2023
-## UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) 
-## Release Note				: Python3 support
-## Software Requirement			: Python3.x or above, sshd( with passwordless ssh-keygen auth. between servers ), numactl 
-## OS System 				: Redhat/Centos 7+ ( possible Ubuntu, debian )
+## Version: 2.0 
+#### UpdateDate				: 07.12.2023
+#### UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) 
+#### Release Note			: Python3 support
+#### Software Requirement		: Python3.x or above, sshd( with passwordless ssh-keygen auth. between servers ), numactl 
+#### OS System 				: Redhat/Centos 7+ ( possible Ubuntu, debian )
 
-#### Version: 2.1
-## UpdateDate				: 27.02.2024
-## UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) 
-## Release Note				: Web View Support with FastAPI (Monitoring Section)
+## Version: 2.1
+#### UpdateDate				: 27.02.2024
+#### UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) 
+#### Release Note			: Web View Support with FastAPI (Monitoring Section)
 
-#### Python Automatic REDIs Cluster MAnager&MAker
+## Python Automatic REDIs Cluster MAnager&MAker
 This program is developed by Mustafa YAVUZ (msyavuz@gmail.com) to make Redis Cluster installation, managament, upgrade and maintanence easier, especially for non-Docker environments.
 It includes current redis tar file. If You have, you can try paredicma with newer version redis, with changing redis tar file.
 
@@ -37,11 +37,11 @@ You do not need to install it, Just configure and run it.
 Configure pareNodeList.py file, change ip, port, cpu core and max_memory per node, according to your cluster.
 Configure pareConfig.py file, according to your cluster
 
-# 4 - run program
+## 4 - run program
 cli: python3.x paredicma-cli.py
 webview: python3.x parewebMon.py
 
-# 5- enjoy it :)
+## 5- enjoy it :)
 
 		PAREDICMA CLI (Python Automatic REDIs Cluster MAker)
         ------------------------------------------------
