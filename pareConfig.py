@@ -4,6 +4,7 @@ from pareNodeList import *
 
 projectName = 'releaseTest'+'Cache'
 pareOSUser = 'redisuser'
+pareWebPort = 8000
 redisDataDir = '/data/'+pareOSUser+'/projects/'+projectName+'/'
 redisConfigDir = '/data/'+pareOSUser+'/projects/'+projectName+'/conf/'
 redisLogDir = '/data/'+pareOSUser+'/projects/'+projectName+'/log/'
