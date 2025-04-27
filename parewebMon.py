@@ -482,6 +482,16 @@ async def manager():
     Displays the Redis Cluster Manager UI.
     """
     nodeList = getNodeList()
+
+    # Get only master nodes for the switch master/slave feature
+    masterNodes = []
+    for pareNode in pareNodes:
+        nodeIP = pareNode[0][0]
+        portNumber = pareNode[1][0]
+        if pareNode[4]:  # If node is active
+            if slaveORMasterNode(nodeIP, portNumber) == 'M':  # If node is a master
+                masterNodes.append(f"{nodeIP}:{portNumber}")
+
     actionsAvailable = ['Start', 'Stop', 'Restart']
 
     # Generate the HTML content for the manager page
@@ -511,7 +521,17 @@ async def manager():
     <hr>
 
     <h2>2 - Switch Master/Slave Nodes</h2>
-    <p><i>(Not Implemented Yet)</i></p>
+    
+        <form id="switch-master-slave-form" action="/manager/switch-master-slave/" method="get">
+        <label for="masterNode">Select Master Node:</label>
+        <select id="masterNode" name="redisNode">
+            {''.join([f"<option value='{node}'>{node}</option>" for node in masterNodes])}
+        </select>
+        <br><br>
+        <input type="submit" value="Switch Master/Slave">
+    </form>
+    <p><i>This will promote one of the master's</p>
+    
     <hr>
 
     <h2>3 - Change Redis Configuration Parameter</h2>
