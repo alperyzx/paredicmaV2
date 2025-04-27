@@ -361,6 +361,8 @@ async def monitor():
     {css_style}
     <h1>Monitoring Endpoints</h1>
     <ul>
+        <li><a href="/manager">Go to Manager (paredicman)</a></li>
+        <li><a href="/maintain">Go to Maintenance (paredicmaint)</a></li>
         <li><a href="/monitor/ping-nodes/">Ping Nodes</a></li>
         <li><a href="/monitor/list-nodes/">List Nodes</a></li>
         <li>
@@ -732,6 +734,7 @@ async def manager():
     <body>
     <h1>Redis Cluster Manager (paredicman)</h1>
     <a href="/monitor">Go to Monitor (paredicmon)</a>
+    <a href="/maintain">Go to Maintenance (paredicmaint)</a>
     <hr>
 
     <h2>1 - Start/Stop/Restart Redis Node</h2>
@@ -1000,9 +1003,65 @@ async def manager():
 
 
 # #############################################
+# Maintenance Section
+# #############################################
+
+@app.get("/maintain", response_class=HTMLResponse)
+async def maintain():
+    """
+    Displays the Redis Cluster Maintenance UI.
+    """
+    nodeList = getNodeList()
+
+    # Generate the HTML content for the maintenance page
+    html_content = f"""
+    {css_style}
+    <html>
+    <head><title>Redis Cluster Maintenance</title></head>
+    <body>
+    <h1>Redis Cluster Maintenance (paredicmaint)</h1>
+    <div class="nav-buttons">
+        <a href="/monitor">Go to Monitor (paredicmon)</a>
+        <a href="/manager">Go to Manager (paredicman)</a>
+    </div>
+    <hr>
+
+    <h2>1 - Add/Delete Redis Node</h2>
+    <p><i>(Not Implemented Yet)</i></p>
+    <hr>
+
+    <h2>2 - Move Slot(s)</h2>
+    <p><i>(Not Implemented Yet)</i></p>
+    <hr>
+
+    <h2>3 - Redis Cluster Nodes Version Upgrade</h2>
+    <p><i>(Not Implemented Yet)</i></p>
+    <hr>
+
+    <h2>4 - Redis Cluster Nodes Version Control</h2>
+    <p><i>(Not Implemented Yet)</i></p>
+    <hr>
+
+    <h2>5 - Maintain Server</h2>
+    <p><i>(Not Implemented Yet)</i></p>
+    <hr>
+
+    <h2>6 - Migrate Data From Remote Redis</h2>
+    <p><i>(Not Implemented Yet)</i></p>
+    <hr>
+
+    <h2>7 - Cluster Slot(load) Balancer</h2>
+    <p><i>(Not Implemented Yet)</i></p>
+    <hr>
+
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
+
+
+# #############################################
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
-
-
