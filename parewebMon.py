@@ -542,6 +542,32 @@ async def get_config(redisNode: str, parameter: str = "*"):
     """
     return HTMLResponse(content=response_message)
 
+@app.get("/manager/save-config/", response_class=HTMLResponse)
+async def save_config(redisNode: str):
+    """
+    Endpoint to save Redis configuration to redis.conf file.
+    Can be a specific node (IP:PORT) or "all" for all nodes.
+    """
+    result_html = save_config_wv(redisNode)
+
+    # Construct the response message
+    response_message = f"""
+    {css_style}
+    <html>
+    <head><title>Save Redis Configuration</title></head>
+    <body>
+        <h2>Save Redis Configuration Result</h2>
+        <p><b>Target:</b> {redisNode}</p>
+        <div>{result_html}</div>
+        <div class="nav-buttons">
+            <a href="/manager">Back to Manager</a>
+            <a href="/monitor">Back to Monitor</a>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=response_message)
+
 @app.get("/manager", response_class=HTMLResponse)
 async def manager():
     """
@@ -641,7 +667,16 @@ async def manager():
     <hr>
 
     <h2>4 - Save Redis Configuration to redis.conf</h2>
-    <p><i>(Not Implemented Yet)</i></p>
+    <form id="save-config-form" action="/manager/save-config/" method="get">
+        <label for="saveConfigNode">Select Node or "All Nodes":</label>
+        <select id="saveConfigNode" name="redisNode">
+            <option value="all">All Nodes</option>
+            {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
+        </select>
+        <br><br>
+        <input type="submit" value="Save Configuration">
+    </form>
+    <p><i>This will save the current Redis configuration to redis.conf file</i></p>
     <hr>
 
     <h2>5 - Rolling Restart</h2>
@@ -727,6 +762,22 @@ async def manager():
             const fullUrl = `${{url}}?${{queryParams}}`;
             window.location.href = fullUrl;
         }});
+        
+        // Capture form submission for save-config form
+        document.getElementById('save-config-form').addEventListener('submit', function(event) {{
+            event.preventDefault();
+            const formData = new FormData(this);
+            const trimmedData = {{}};
+            
+            for (const [key, value] of formData.entries()) {{
+                trimmedData[key] = value.trim();
+            }}
+            
+            const url = this.getAttribute('action');
+            const queryParams = new URLSearchParams(trimmedData).toString();
+            const fullUrl = `${{url}}?${{queryParams}}`;
+            window.location.href = fullUrl;
+        }});
     </script>
     </body>
     </html>
@@ -739,4 +790,5 @@ async def manager():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+
 

@@ -571,3 +571,66 @@ def get_config_wv(redisNode, parameter="*"):
     except Exception as e:
         return f"<p style='color: red;'>An unexpected error occurred: {str(e)}</p>"
 
+
+def save_config_wv(redisNode):
+    """
+    Saves Redis configuration to redis.conf file for a given node or all nodes.
+
+    Args:
+        redisNode: The Redis node in format IP:Port or "all" for all nodes
+
+    Returns:
+        HTML-formatted result of the operation
+    """
+    results = []
+
+    try:
+        if redisNode == "all":
+            # For all nodes, iterate through active nodes
+            for node in pareNodes:
+                if node[4]:  # Check if node is active
+                    nodeIP = node[0][0]
+                    portNumber = node[1][0]
+                    results.append(save_single_node_config(nodeIP, portNumber))
+        else:
+            # For single node
+            nodeIP, portNumber = redisNode.split(':')
+            results.append(save_single_node_config(nodeIP, portNumber))
+
+        # Format results in HTML
+        result_html = "<div class='results'>"
+        success_count = sum(1 for result in results if "success" in result.lower())
+        error_count = len(results) - success_count
+
+        result_html += f"<p>Summary: {success_count} successful, {error_count} failed</p>"
+
+        for result in results:
+            result_html += f"<div class='result-item'>{result}</div>"
+
+        result_html += "</div>"
+        return result_html
+
+    except Exception as e:
+        return f"<p style='color: red;'>An unexpected error occurred: {str(e)}</p>"
+
+def save_single_node_config(nodeIP, portNumber):
+    """
+    Helper function to save configuration for a single node.
+    """
+    try:
+        # Check if node is reachable
+        if not pingredisNode(nodeIP, portNumber):
+            return f"<p style='color: red;'>Error: Cannot connect to node {nodeIP}:{portNumber}.</p>"
+
+        # Execute the CONFIG REWRITE command
+        cmd_status, cmd_response = subprocess.getstatusoutput(
+            redisConnectCmd(nodeIP, portNumber, ' CONFIG REWRITE'))
+
+        if cmd_status == 0 and 'OK' in cmd_response:
+            return f"<p style='color: green;'>Successfully saved configuration for {nodeIP}:{portNumber} to redis.conf</p>"
+        else:
+            return f"<p style='color: red;'>Failed to save configuration for {nodeIP}:{portNumber}: {cmd_response}</p>"
+
+    except Exception as e:
+        return f"<p style='color: red;'>Error saving configuration for {nodeIP}:{portNumber}: {str(e)}</p>"
+
