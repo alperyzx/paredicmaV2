@@ -794,3 +794,98 @@ def rolling_restart_wv(wait_minutes=0, restart_masters=True):
 
     except Exception as e:
         return f"<p style='color: red;'>An unexpected error occurred: {str(e)}</p>"
+
+
+def execute_command_wv(command, only_masters=False, wait_seconds=0):
+    """
+    Executes a Redis command on all nodes or only on master nodes.
+
+    Args:
+        command: The Redis command to execute
+        only_masters: If True, execute only on master nodes
+        wait_seconds: Wait time in seconds between node executions
+
+    Returns:
+        HTML-formatted result of the command execution
+    """
+    if not command:
+        return "<p style='color: red;'>Error: No command specified.</p>"
+
+    results = []
+    node_count = 0
+    success_count = 0
+
+    try:
+        results.append(f"<h3>Executing command: <code>{command}</code></h3>")
+
+        for node_index, pareNode in enumerate(pareNodes, start=1):
+            nodeIP = pareNode[0][0]
+            portNumber = pareNode[1][0]
+
+            if pareNode[4]:  # Check if node is active
+                # Check if we should run on this node (masters only filter)
+                if only_masters:
+                    is_master = slaveORMasterNode(nodeIP, portNumber) == 'M'
+                    if not is_master:
+                        continue
+
+                node_count += 1
+                is_master = slaveORMasterNode(nodeIP, portNumber) == 'M'
+                node_type = "Master" if is_master else "Slave"
+
+                # Check if node is reachable
+                if pingredisNode(nodeIP, portNumber):
+                    try:
+                        # Execute the command
+                        cmd_status, cmd_output = subprocess.getstatusoutput(
+                            redisConnectCmd(nodeIP, portNumber, command))
+
+                        # Format output for display
+                        output_lines = cmd_output.strip().split('\n')
+                        formatted_output = "<br>".join(output_lines)
+
+                        if cmd_status == 0:
+                            success_count += 1
+                            results.append(f"""
+                            <div style='margin: 10px 0; padding: 10px; background-color: #f0f0f0; border-left: 4px solid green;'>
+                                <h4>Node {nodeIP}:{portNumber} ({node_type}) - Success</h4>
+                                <pre style='margin: 5px 0;'>{formatted_output}</pre>
+                            </div>
+                            """)
+                        else:
+                            results.append(f"""
+                            <div style='margin: 10px 0; padding: 10px; background-color: #f0f0f0; border-left: 4px solid orange;'>
+                                <h4>Node {nodeIP}:{portNumber} ({node_type}) - Command returned non-zero status</h4>
+                                <pre style='margin: 5px 0;'>{formatted_output}</pre>
+                            </div>
+                            """)
+
+                    except Exception as e:
+                        results.append(f"""
+                        <div style='margin: 10px 0; padding: 10px; background-color: #f0f0f0; border-left: 4px solid red;'>
+                            <h4>Node {nodeIP}:{portNumber} ({node_type}) - Error</h4>
+                            <p style='color: red;'>Error executing command: {str(e)}</p>
+                        </div>
+                        """)
+                else:
+                    results.append(f"""
+                    <div style='margin: 10px 0; padding: 10px; background-color: #f0f0f0; border-left: 4px solid gray;'>
+                        <h4>Node {nodeIP}:{portNumber} ({node_type}) - Not Reachable</h4>
+                        <p>Could not connect to this node.</p>
+                    </div>
+                    """)
+
+                # Wait between commands if specified
+                if wait_seconds > 0 and node_index < len(pareNodes):
+                    results.append(f"<p><em>Waiting {wait_seconds} seconds before next execution...</em></p>")
+                    sleep(wait_seconds)
+
+        # Add a summary
+        filter_text = "master nodes" if only_masters else "nodes"
+        results.append(f"<h3>Summary</h3>")
+        results.append(f"<p>Command executed on {success_count} of {node_count} active {filter_text}.</p>")
+
+        return "".join(results)
+
+    except Exception as e:
+        return f"<p style='color: red;'>An unexpected error occurred: {str(e)}</p>"

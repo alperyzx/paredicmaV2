@@ -623,6 +623,33 @@ async def rolling_restart(wait_minutes: int = 0, restart_masters: bool = True, c
     """
     return HTMLResponse(content=response_message)
 
+@app.get("/manager/execute-command/", response_class=HTMLResponse)
+async def execute_command(command: str, only_masters: bool = False, wait_seconds: int = 0):
+    """
+    Endpoint to execute a Redis command on all nodes or only on master nodes.
+    """
+    result_html = execute_command_wv(command, only_masters, wait_seconds)
+
+    # Construct the response message
+    response_message = f"""
+    {css_style}
+    <html>
+    <head><title>Execute Redis Command</title></head>
+    <body>
+        <h2>Redis Command Execution Results</h2>
+        <p><b>Command:</b> {command}<br>
+        <b>Only Masters:</b> {'Yes' if only_masters else 'No'}<br>
+        <b>Wait Between Nodes:</b> {wait_seconds} seconds</p>
+        <div>{result_html}</div>
+        <div class="nav-buttons">
+            <a href="/manager">Back to Manager</a>
+            <a href="/monitor">Back to Monitor</a>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=response_message)
+
 @app.get("/manager", response_class=HTMLResponse)
 async def manager():
     """
@@ -748,7 +775,19 @@ async def manager():
     <hr>
 
     <h2>6 - Command for all nodes</h2>
-    <p><i>(Not Implemented Yet)</i></p>
+    <form id="execute-command-form" action="/manager/execute-command/" method="get">
+        <label for="command">Redis Command:</label>
+        <input type="text" id="command" name="command" placeholder="e.g., INFO MEMORY" required style="width: 300px;">
+        <br><br>
+        <label for="only_masters">Execute only on master nodes:</label>
+        <input type="checkbox" id="only_masters" name="only_masters" value="true">
+        <br><br>
+        <label for="wait_seconds">Wait time between nodes (seconds):</label>
+        <input type="number" id="wait_seconds" name="wait_seconds" min="0" value="0">
+        <br><br>
+        <input type="submit" value="Execute Command">
+    </form>
+    <p><i>This will execute the Redis command on selected nodes and display the results</i></p>
     <hr>
 
     <h2>7 - Show Redis Log File</h2>
@@ -863,6 +902,27 @@ async def manager():
             const fullUrl = `${{url}}?${{queryParams}}`;
             window.location.href = fullUrl;
         }});
+        
+        // Capture form submission for execute-command form
+        document.getElementById('execute-command-form').addEventListener('submit', function(event) {{
+            event.preventDefault();
+            const formData = new FormData(this);
+            const trimmedData = {{}};
+            
+            for (const [key, value] of formData.entries()) {{
+                trimmedData[key] = value.trim();
+            }}
+            
+            // Set only_masters to false if not checked
+            if (!formData.has('only_masters')) {{
+                trimmedData['only_masters'] = 'false';
+            }}
+            
+            const url = this.getAttribute('action');
+            const queryParams = new URLSearchParams(trimmedData).toString();
+            const fullUrl = `${{url}}?${{queryParams}}`;
+            window.location.href = fullUrl;
+        }});
     </script>
     </body>
     </html>
@@ -875,3 +935,4 @@ async def manager():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+
