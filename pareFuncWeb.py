@@ -413,3 +413,161 @@ def switch_master_slave_wv(redisNode):
     except Exception as e:
         return f"<p style='color: red;'>An unexpected error occurred: {e}</p>"
 
+
+def change_config_wv(redisNode, parameter, value, persist=False):
+    """
+    Changes a Redis configuration parameter for a given node.
+
+    Args:
+        redisNode: The Redis node in format IP:Port
+        parameter: The Redis configuration parameter to change
+        value: The new value for the parameter
+        persist: If True, persist the changes to redis.conf file
+
+    Returns:
+        HTML-formatted result of the operation
+    """
+    try:
+        nodeIP, portNumber = redisNode.split(':')
+        node_details = None
+        node_index = -1
+
+        # Find the node details in pareNodes
+        for i, node in enumerate(pareNodes):
+            if node[0][0] == nodeIP and node[1][0] == portNumber and node[4]:  # Check if active
+                node_details = node
+                node_index = i + 1  # Node number is index + 1
+                break
+
+        if not node_details:
+            return f"<p style='color: red;'>Error: Node {redisNode} not found or is inactive in configuration.</p>"
+
+        # Validation for parameter and value
+        if not parameter or not value:
+            return f"<p style='color: red;'>Error: Parameter and value must be specified.</p>"
+
+        # Check if node is reachable
+        if not pingredisNode(nodeIP, portNumber):
+            return f"<p style='color: red;'>Error: Cannot connect to node {redisNode}.</p>"
+
+        # Execute the CONFIG SET command
+        cmd_status, cmd_response = subprocess.getstatusoutput(
+            redisConnectCmd(nodeIP, portNumber, f' CONFIG SET {parameter} "{value}"'))
+
+        if cmd_status != 0 or 'OK' not in cmd_response:
+            return f"""
+            <div>
+                <p style='color: red;'>Failed to set configuration parameter '{parameter}' to '{value}'</p>
+                <p>Response: {cmd_response}</p>
+            </div>
+            """
+
+        # If persist is True, save the configuration to the config file
+        conf_saved = False
+        if persist:
+            # Send CONFIG REWRITE command to make the change persistent
+            rewrite_status, rewrite_response = subprocess.getstatusoutput(
+                redisConnectCmd(nodeIP, portNumber, ' CONFIG REWRITE'))
+
+            conf_saved = (rewrite_status == 0 and 'OK' in rewrite_response)
+
+        # Get current value to confirm the change
+        get_status, get_response = subprocess.getstatusoutput(
+            redisConnectCmd(nodeIP, portNumber, f' CONFIG GET {parameter}'))
+
+        if get_status == 0 and parameter in get_response:
+            current_value = get_response.split('\n')[1] if '\n' in get_response else get_response.split(' ')[1]
+
+            result = f"""
+            <div>
+                <p style='color: green;'>Successfully changed configuration parameter</p>
+                <ul>
+                    <li><strong>Node:</strong> {redisNode}</li>
+                    <li><strong>Parameter:</strong> {parameter}</li>
+                    <li><strong>New Value:</strong> {current_value}</li>
+                    <li><strong>Persisted to config file:</strong> {'Yes' if conf_saved else 'No'}</li>
+                </ul>
+                <p><strong>Note:</strong> Some configuration parameters require a restart to take effect.</p>
+            </div>
+            """
+        else:
+            result = f"""
+            <div>
+                <p style='color: orange;'>Configuration changed but couldn't verify current value.</p>
+                <ul>
+                    <li><strong>Node:</strong> {redisNode}</li>
+                    <li><strong>Parameter:</strong> {parameter}</li>
+                    <li><strong>Set Value:</strong> {value}</li>
+                    <li><strong>Persisted to config file:</strong> {'Yes' if conf_saved else 'No'}</li>
+                </ul>
+            </div>
+            """
+
+        return result
+
+    except Exception as e:
+        return f"<p style='color: red;'>An unexpected error occurred: {str(e)}</p>"
+
+
+def get_config_wv(redisNode, parameter="*"):
+    """
+    Gets Redis configuration parameters for a given node.
+
+    Args:
+        redisNode: The Redis node in format IP:Port
+        parameter: The Redis configuration parameter to get, defaults to "*" for all parameters
+
+    Returns:
+        HTML-formatted display of current configuration
+    """
+    try:
+        nodeIP, portNumber = redisNode.split(':')
+
+        # Check if node is reachable
+        if not pingredisNode(nodeIP, portNumber):
+            return f"<p style='color: red;'>Error: Cannot connect to node {redisNode}.</p>"
+
+        # Execute the CONFIG GET command
+        cmd_status, cmd_response = subprocess.getstatusoutput(
+            redisConnectCmd(nodeIP, portNumber, f' CONFIG GET {parameter}'))
+
+        if cmd_status != 0:
+            return f"""
+            <div>
+                <p style='color: red;'>Failed to get configuration parameter(s)</p>
+                <p>Response: {cmd_response}</p>
+            </div>
+            """
+
+        # Parse the response into key-value pairs
+        lines = cmd_response.strip().split('\n')
+        config_items = []
+
+        # Redis returns config in alternating key-value format
+        for i in range(0, len(lines), 2):
+            if i + 1 < len(lines):
+                config_items.append((lines[i], lines[i+1]))
+
+        # Format the configuration items as an HTML table
+        result = f"""
+        <div>
+            <h3>Configuration for {redisNode}</h3>
+            <table class="config-table" border="1">
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join([f"<tr><td>{item[0]}</td><td>{item[1]}</td></tr>" for item in config_items])}
+                </tbody>
+            </table>
+        </div>
+        """
+
+        return result
+
+    except Exception as e:
+        return f"<p style='color: red;'>An unexpected error occurred: {str(e)}</p>"
+

@@ -331,6 +331,22 @@ css_style = """
             padding: 20px;
             margin: 20px 0;
         }
+        .config-table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .config-table th, .config-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .config-table th {
+            background-color: #f2f2f2;
+        }
+        .config-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
     </style>
 """
 
@@ -476,6 +492,56 @@ async def switch_master_slave(redisNode: str):
     """
     return HTMLResponse(content=response_message)
 
+@app.get("/manager/change-config/", response_class=HTMLResponse)
+async def change_config(redisNode: str, parameter: str, value: str, persist: bool = False):
+    """
+    Endpoint to change a Redis configuration parameter.
+    """
+    result_html = change_config_wv(redisNode, parameter, value, persist)
+
+    # Construct the response message
+    response_message = f"""
+    {css_style}
+    <html>
+    <head><title>Change Redis Configuration</title></head>
+    <body>
+        <h2>Change Redis Configuration Result</h2>
+        <p><b>Node:</b> {redisNode}<br><b>Parameter:</b> {parameter}<br><b>Value:</b> {value}</p>
+        <div>{result_html}</div>
+        <div class="nav-buttons">
+            <a href="/manager/get-config/?redisNode={redisNode}">View Configuration</a>
+            <a href="/manager">Back to Manager</a>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=response_message)
+
+@app.get("/manager/get-config/", response_class=HTMLResponse)
+async def get_config(redisNode: str, parameter: str = "*"):
+    """
+    Endpoint to get Redis configuration parameters.
+    """
+    result_html = get_config_wv(redisNode, parameter)
+
+    # Construct the response message
+    response_message = f"""
+    {css_style}
+    <html>
+    <head><title>Redis Configuration</title></head>
+    <body>
+        <h2>Redis Configuration</h2>
+        <p><b>Node:</b> {redisNode}</p>
+        <div>{result_html}</div>
+        <div class="nav-buttons">
+            <a href="/manager">Back to Manager</a>
+            <a href="/monitor">Back to Monitor</a>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=response_message)
+
 @app.get("/manager", response_class=HTMLResponse)
 async def manager():
     """
@@ -493,6 +559,20 @@ async def manager():
                 masterNodes.append(f"{nodeIP}:{portNumber}")
 
     actionsAvailable = ['Start', 'Stop', 'Restart']
+
+    # Common Redis configuration parameters for quick selection
+    common_configs = [
+        "maxmemory",
+        "maxmemory-policy",
+        "timeout",
+        "maxclients",
+        "requirepass",
+        "appendonly",
+        "appendfsync",
+        "cluster-node-timeout",
+        "slowlog-log-slower-than",
+        "slowlog-max-len"
+    ]
 
     # Generate the HTML content for the manager page
     html_content = f"""
@@ -521,8 +601,7 @@ async def manager():
     <hr>
 
     <h2>2 - Switch Master/Slave Nodes</h2>
-    
-        <form id="switch-master-slave-form" action="/manager/switch-master-slave/" method="get">
+            <form id="switch-master-slave-form" action="/manager/switch-master-slave/" method="get">
         <label for="masterNode">Select Master Node:</label>
         <select id="masterNode" name="redisNode">
             {''.join([f"<option value='{node}'>{node}</option>" for node in masterNodes])}
@@ -535,7 +614,30 @@ async def manager():
     <hr>
 
     <h2>3 - Change Redis Configuration Parameter</h2>
-    <p><i>(Not Implemented Yet)</i></p>
+    <form id="change-config-form" action="/manager/change-config/" method="get">
+        <label for="configNode">Select Node:</label>
+        <select id="configNode" name="redisNode">
+            {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
+        </select>
+        <br><br>
+        <label for="parameter">Parameter:</label>
+        <select id="parameter" name="parameter">
+            <option value="">--- Select or type below ---</option>
+            {''.join([f"<option value='{param}'>{param}</option>" for param in common_configs])}
+        </select>
+        <br><br>
+        <label for="custom-parameter">Or type parameter:</label>
+        <input type="text" id="custom-parameter" placeholder="e.g., maxmemory">
+        <br><br>
+        <label for="value">New Value:</label>
+        <input type="text" id="value" name="value" placeholder="e.g., 2gb">
+        <br><br>
+        <label for="persist">Persist to config:</label>
+        <input type="checkbox" id="persist" name="persist" value="true">
+        <br><br>
+        <input type="submit" value="Apply Change">
+    </form>
+    <p><a href="#" onclick="viewConfig()">View current configuration</a></p>
     <hr>
 
     <h2>4 - Save Redis Configuration to redis.conf</h2>
@@ -555,6 +657,29 @@ async def manager():
     <hr>
 
     <script>
+        // Handling the custom parameter input
+        document.getElementById('custom-parameter').addEventListener('input', function(e) {{
+            // If user types in the custom field, update the select dropdown
+            if (e.target.value) {{
+                document.getElementById('parameter').value = e.target.value;
+            }}
+        }});
+
+        document.getElementById('parameter').addEventListener('change', function(e) {{
+            // If user selects from dropdown, clear the custom field
+            document.getElementById('custom-parameter').value = '';
+        }});
+
+        // Function to view configuration for a node
+        function viewConfig() {{
+            const node = document.getElementById('configNode').value;
+            if (node) {{
+                window.location.href = `/manager/get-config/?redisNode=${{node}}`;
+            }} else {{
+                alert('Please select a node first.');
+            }}
+        }}
+        
         // Capture form submission and navigate to the corresponding endpoint
         document.getElementById('node-action-form').addEventListener('submit', function(event) {{
             event.preventDefault(); // Prevent default form submission behavior
@@ -569,6 +694,39 @@ async def manager():
             const fullUrl = `${{url}}?${{queryParams}}`; // Combine URL with query string
             window.location.href = fullUrl; // Redirect to the new URL
         }});
+        
+        // Similarly for the change-config form, ensure we use the parameter from either the dropdown or custom input
+        document.getElementById('change-config-form').addEventListener('submit', function(event) {{
+            event.preventDefault();
+            const formData = new FormData(this);
+            const trimmedData = {{}};
+            
+            for (const [key, value] of formData.entries()) {{
+                if (key !== 'parameter') {{ // Handle parameter separately
+                    trimmedData[key] = value.trim();
+                }}
+            }}
+            
+            // Get the parameter from either the dropdown or custom input
+            const selectedParam = document.getElementById('parameter').value;
+            const customParam = document.getElementById('custom-parameter').value;
+            trimmedData['parameter'] = customParam || selectedParam;
+            
+            if (!trimmedData['parameter']) {{
+                alert('Please select or enter a parameter.');
+                return;
+            }}
+            
+            if (!trimmedData['value']) {{
+                alert('Please enter a value for the parameter.');
+                return;
+            }}
+
+            const url = this.getAttribute('action');
+            const queryParams = new URLSearchParams(trimmedData).toString();
+            const fullUrl = `${{url}}?${{queryParams}}`;
+            window.location.href = fullUrl;
+        }});
     </script>
     </body>
     </html>
@@ -581,5 +739,4 @@ async def manager():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
-
 
