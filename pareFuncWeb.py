@@ -634,3 +634,163 @@ def save_single_node_config(nodeIP, portNumber):
     except Exception as e:
         return f"<p style='color: red;'>Error saving configuration for {nodeIP}:{portNumber}: {str(e)}</p>"
 
+
+def rolling_restart_wv(wait_minutes=0, restart_masters=True):
+    """
+    Performs a rolling restart of Redis cluster nodes, first slaves then masters.
+
+    Args:
+        wait_minutes: Wait time in minutes between node restarts
+        restart_masters: Whether to restart master nodes after slaves
+
+    Returns:
+        HTML-formatted result of the operation
+    """
+    results = []
+    restarted_nodes = []
+    wait_seconds = int(wait_minutes) * 60
+
+    try:
+        # First restart all slave nodes
+        results.append("<h3>Restarting Slave Nodes</h3>")
+        for node_index, pareNode in enumerate(pareNodes, start=1):
+            nodeIP = pareNode[0][0]
+            portNumber = pareNode[1][0]
+            dedicateCpuCores = pareNode[2][0]
+
+            if pareNode[4]:  # Check if node is active
+                # Check if node is reachable
+                if pingredisNode(nodeIP, portNumber):
+                    # Is this a slave node?
+                    if slaveORMasterNode(nodeIP, portNumber) == 'S':
+                        # Perform restart
+                        results.append(f"<p>Restarting slave node {nodeIP}:{portNumber} (Node #{node_index})...</p>")
+
+                        try:
+                            # Store original logWrite function
+                            original_logWrite = logWrite
+
+                            # Temporarily redirect logWrite
+                            log_messages = []
+                            def capture_log(*args):
+                                if len(args) > 1:
+                                    log_text = str(args[1])
+                                    log_messages.append(log_text)
+
+                            # Replace logWrite temporarily
+                            globals()['logWrite'] = capture_log
+
+                            # Perform restart
+                            restartNode(nodeIP, str(node_index), portNumber, dedicateCpuCores)
+
+                            # Restore original logWrite
+                            globals()['logWrite'] = original_logWrite
+
+                            # Add node to restarted list
+                            restarted_nodes.append(f"Node#{node_index} ({nodeIP}:{portNumber})")
+
+                            # Format log messages
+                            log_output = "<br>".join([msg for msg in log_messages if msg])
+                            results.append(f"<div style='margin-left: 20px; background-color: #f0f0f0; padding: 10px;'>{log_output}</div>")
+
+                            # Add status check
+                            if pingredisNode(nodeIP, portNumber):
+                                results.append(f"<p style='color: green;'>Node {nodeIP}:{portNumber} restarted successfully.</p>")
+                            else:
+                                results.append(f"<p style='color: red;'>Node {nodeIP}:{portNumber} failed to restart!</p>")
+
+                            # Wait between restarts if specified
+                            if wait_seconds > 0 and node_index < len(pareNodes):
+                                results.append(f"<p>Waiting {wait_minutes} minute(s) before next restart...</p>")
+
+                        except Exception as e:
+                            # Restore original logWrite in case of error
+                            globals()['logWrite'] = original_logWrite
+                            results.append(f"<p style='color: red;'>Error restarting node {nodeIP}:{portNumber}: {str(e)}</p>")
+
+        # Then restart master nodes if requested
+        if restart_masters:
+            results.append("<h3>Restarting Master Nodes</h3>")
+            for node_index, pareNode in enumerate(pareNodes, start=1):
+                nodeIP = pareNode[0][0]
+                portNumber = pareNode[1][0]
+                dedicateCpuCores = pareNode[2][0]
+
+                if pareNode[4]:  # Check if node is active
+                    # Check if node is reachable
+                    if pingredisNode(nodeIP, portNumber):
+                        # Is this a master node?
+                        if slaveORMasterNode(nodeIP, portNumber) == 'M':
+                            # Check if we've already restarted this node (might have been promoted from slave)
+                            node_key = f"Node#{node_index} ({nodeIP}:{portNumber})"
+                            if node_key in restarted_nodes:
+                                results.append(f"<p>Skipping master node {nodeIP}:{portNumber} (Node #{node_index}) - already restarted.</p>")
+                                continue
+
+                            # Perform restart
+                            results.append(f"<p>Restarting master node {nodeIP}:{portNumber} (Node #{node_index})...</p>")
+
+                            try:
+                                # Store original logWrite function
+                                original_logWrite = logWrite
+
+                                # Temporarily redirect logWrite
+                                log_messages = []
+                                def capture_log(*args):
+                                    if len(args) > 1:
+                                        log_text = str(args[1])
+                                        log_messages.append(log_text)
+
+                                # Replace logWrite temporarily
+                                globals()['logWrite'] = capture_log
+
+                                # First check if the master has slaves
+                                has_slaves = isNodeHasSlave(nodeIP, node_index, portNumber)
+                                if has_slaves:
+                                    results.append(f"<p>Master node has slaves - will attempt failover before restart.</p>")
+                                    # Trigger failover before restarting
+                                    if switchMasterSlave(nodeIP, node_index, portNumber):
+                                        results.append(f"<p style='color: green;'>Master/Slave failover successful.</p>")
+                                    else:
+                                        results.append(f"<p style='color: red;'>Master/Slave failover failed! Proceeding with restart.</p>")
+
+                                # Perform restart
+                                restartNode(nodeIP, str(node_index), portNumber, dedicateCpuCores)
+
+                                # Restore original logWrite
+                                globals()['logWrite'] = original_logWrite
+
+                                # Format log messages
+                                log_output = "<br>".join([msg for msg in log_messages if msg])
+                                results.append(f"<div style='margin-left: 20px; background-color: #f0f0f0; padding: 10px;'>{log_output}</div>")
+
+                                # Add status check
+                                if pingredisNode(nodeIP, portNumber):
+                                    results.append(f"<p style='color: green;'>Node {nodeIP}:{portNumber} restarted successfully.</p>")
+                                else:
+                                    results.append(f"<p style='color: red;'>Node {nodeIP}:{portNumber} failed to restart!</p>")
+
+                                # Wait between restarts if specified
+                                if wait_seconds > 0 and node_index < len(pareNodes):
+                                    results.append(f"<p>Waiting {wait_minutes} minute(s) before next restart...</p>")
+
+                            except Exception as e:
+                                # Restore original logWrite in case of error
+                                globals()['logWrite'] = original_logWrite
+                                results.append(f"<p style='color: red;'>Error restarting node {nodeIP}:{portNumber}: {str(e)}</p>")
+
+        # Check final cluster state
+        results.append("<h3>Final Cluster State</h3>")
+        # Find an active node to check cluster state
+        for pareNode in pareNodes:
+            nodeIP = pareNode[0][0]
+            portNumber = pareNode[1][0]
+            if pareNode[4] and pingredisNode(nodeIP, portNumber):
+                cluster_state = clusterStateInfo_wv(nodeIP, portNumber)
+                results.append(f"<p>Cluster state: {cluster_state}</p>")
+                break
+
+        return "".join(results)
+
+    except Exception as e:
+        return f"<p style='color: red;'>An unexpected error occurred: {str(e)}</p>"

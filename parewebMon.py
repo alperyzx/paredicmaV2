@@ -568,6 +568,61 @@ async def save_config(redisNode: str):
     """
     return HTMLResponse(content=response_message)
 
+@app.get("/manager/rolling-restart/", response_class=HTMLResponse)
+async def rolling_restart(wait_minutes: int = 0, restart_masters: bool = True, confirmed: bool = False):
+    """
+    Endpoint to perform a rolling restart of Redis Cluster nodes.
+    """
+    if not confirmed:
+        # Return a confirmation page
+        return HTMLResponse(content=f"""
+        {css_style}
+        <html>
+        <head>
+            <title>Confirm Rolling Restart</title>
+        </head>
+        <body>
+            <h2>Rolling Restart Confirmation</h2>
+            <div class="confirmation-needed">
+                <p style='color: orange; font-weight: bold;'>Warning: You are about to perform a rolling restart of the Redis Cluster!</p>
+                <p>This will restart all nodes in the cluster with the following settings:</p>
+                <ul>
+                    <li><strong>Wait time between restarts:</strong> {wait_minutes} minute(s)</li>
+                    <li><strong>Restart master nodes:</strong> {'Yes' if restart_masters else 'No (only slaves)'}</li>
+                </ul>
+                <p>Do you want to continue?</p>
+                <form id="confirm-action-form" action="/manager/rolling-restart/" method="get">
+                    <input type="hidden" name="wait_minutes" value="{wait_minutes}">
+                    <input type="hidden" name="restart_masters" value="{str(restart_masters).lower()}">
+                    <input type="hidden" name="confirmed" value="true">
+                    <button type="submit" class="confirm-btn">Yes, Perform Rolling Restart</button>
+                    <a href="/manager" class="cancel-btn">Cancel</a>
+                </form>
+            </div>
+        </body>
+        </html>
+        """)
+
+    # If confirmed, perform the rolling restart
+    result_html = rolling_restart_wv(wait_minutes, restart_masters)
+
+    # Construct the response message
+    response_message = f"""
+    {css_style}
+    <html>
+    <head><title>Rolling Restart</title></head>
+    <body>
+        <h2>Rolling Restart Results</h2>
+        <div>{result_html}</div>
+        <div class="nav-buttons">
+            <a href="/manager">Back to Manager</a>
+            <a href="/monitor">Back to Monitor</a>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=response_message)
+
 @app.get("/manager", response_class=HTMLResponse)
 async def manager():
     """
@@ -680,7 +735,16 @@ async def manager():
     <hr>
 
     <h2>5 - Rolling Restart</h2>
-    <p><i>(Not Implemented Yet)</i></p>
+    <form id="rolling-restart-form" action="/manager/rolling-restart/" method="get">
+        <label for="wait_minutes">Wait time between node restarts (minutes):</label>
+        <input type="number" id="wait_minutes" name="wait_minutes" min="0" value="1">
+        <br><br>
+        <label for="restart_masters">Restart master nodes:</label>
+        <input type="checkbox" id="restart_masters" name="restart_masters" value="true" checked>
+        <br><br>
+        <input type="submit" value="Start Rolling Restart">
+    </form>
+    <p><i>This will restart all slave nodes first, then master nodes if selected</i></p>
     <hr>
 
     <h2>6 - Command for all nodes</h2>
@@ -778,6 +842,27 @@ async def manager():
             const fullUrl = `${{url}}?${{queryParams}}`;
             window.location.href = fullUrl;
         }});
+        
+        // Capture form submission for rolling-restart form
+        document.getElementById('rolling-restart-form').addEventListener('submit', function(event) {{
+            event.preventDefault();
+            const formData = new FormData(this);
+            const trimmedData = {{}};
+            
+            for (const [key, value] of formData.entries()) {{
+                trimmedData[key] = value.trim();
+            }}
+            
+            // Set restart_masters to false if not checked
+            if (!formData.has('restart_masters')) {{
+                trimmedData['restart_masters'] = 'false';
+            }}
+            
+            const url = this.getAttribute('action');
+            const queryParams = new URLSearchParams(trimmedData).toString();
+            const fullUrl = `${{url}}?${{queryParams}}`;
+            window.location.href = fullUrl;
+        }});
     </script>
     </body>
     </html>
@@ -790,5 +875,3 @@ async def manager():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
-
-
