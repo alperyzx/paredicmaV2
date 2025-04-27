@@ -889,3 +889,97 @@ def execute_command_wv(command, only_masters=False, wait_seconds=0):
 
     except Exception as e:
         return f"<p style='color: red;'>An unexpected error occurred: {str(e)}</p>"
+
+
+def show_redis_log_wv(redisNode, line_count=100):
+    """
+    Shows Redis log file content for a given node.
+
+    Args:
+        redisNode: The Redis node in format IP:Port
+        line_count: Number of lines to show from the end of the file
+
+    Returns:
+        HTML-formatted log content
+    """
+    try:
+        # Validate line count
+        try:
+            line_count = int(line_count)
+            if line_count <= 0:
+                return "<p style='color: red;'>Error: Line count must be greater than 0.</p>"
+            if line_count > 10000:
+                return "<p style='color: red;'>Error: Line count cannot exceed 10000 for performance reasons.</p>"
+        except ValueError:
+            return "<p style='color: red;'>Error: Invalid line count specified.</p>"
+
+        nodeIP, portNumber = redisNode.split(':')
+
+        # Find the node details in pareNodes
+        node_details = None
+        node_index = -1
+
+        for i, node in enumerate(pareNodes):
+            if node[0][0] == nodeIP and node[1][0] == portNumber and node[4]:  # Check if active
+                node_details = node
+                node_index = i + 1  # Node number is index + 1
+                break
+
+        if not node_details:
+            return f"<p style='color: red;'>Error: Node {redisNode} not found or is inactive in configuration.</p>"
+
+        # Construct the log file path based on node information
+        log_file_path = f"{redisLogDir}redisN{node_index}_P{portNumber}.log"
+
+        # Check if server is reachable
+        if not pingServer(nodeIP):
+            return f"<p style='color: red;'>Error: Server {nodeIP} is not reachable.</p>"
+
+        # Get the log content
+        if nodeIP == pareServerIp:
+            # Local server
+            cmd = f"tail -n {line_count} {log_file_path}"
+            status, output = subprocess.getstatusoutput(cmd)
+        else:
+            # Remote server
+            cmd = f"ssh -q -o \"StrictHostKeyChecking no\" {pareOSUser}@{nodeIP} -C \"tail -n {line_count} {log_file_path}\""
+            status, output = subprocess.getstatusoutput(cmd)
+
+        if status != 0:
+            return f"""
+            <div style="margin-bottom: 20px;">
+                <p style='color: red;'>Error retrieving log file: {log_file_path}</p>
+                <p>Error message: {output}</p>
+                <p>Make sure the Redis log file exists and is accessible.</p>
+            </div>
+            """
+
+        # Format the log content for HTML display
+        log_lines = output.splitlines()
+        formatted_logs = []
+
+        for line in log_lines:
+            # Apply some basic formatting for different log levels
+            if "warning" in line.lower():
+                formatted_line = f"<span style='color: orange;'>{line}</span>"
+            elif "error" in line.lower() or "fail" in line.lower():
+                formatted_line = f"<span style='color: red;'>{line}</span>"
+            else:
+                formatted_line = line.replace(" ", "&nbsp;")  # Preserve spaces
+
+            formatted_logs.append(formatted_line)
+
+        log_content = "<br>".join(formatted_logs)
+
+        return f"""
+        <div>
+            <h3>Log File: {log_file_path}</h3>
+            <p>Showing last {line_count} lines from {nodeIP}:{portNumber}</p>
+            <div style="background-color: #f5f5f5; border: 1px solid #ddd; padding: 10px; font-family: monospace; overflow-x: auto; white-space: nowrap;">
+                {log_content}
+            </div>
+        </div>
+        """
+
+    except Exception as e:
+        return f"<p style='color: red;'>An unexpected error occurred: {str(e)}</p>"

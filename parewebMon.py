@@ -650,6 +650,48 @@ async def execute_command(command: str, only_masters: bool = False, wait_seconds
     """
     return HTMLResponse(content=response_message)
 
+@app.get("/manager/show-log/", response_class=HTMLResponse)
+async def show_log(redisNode: str, line_count: int = 100):
+    """
+    Endpoint to display Redis log file content.
+    """
+    result_html = show_redis_log_wv(redisNode, line_count)
+
+    # Construct the response message
+    response_message = f"""
+    {css_style}
+    <html>
+    <head>
+        <title>Redis Log File</title>
+        <style>
+            pre {{
+                white-space: pre-wrap;       /* Since CSS 2.1 */
+                white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+                white-space: -pre-wrap;      /* Opera 4-6 */
+                white-space: -o-pre-wrap;    /* Opera 7 */
+                word-wrap: break-word;       /* Internet Explorer 5.5+ */
+                overflow-x: auto;
+            }}
+        </style>
+    </head>
+    <body>
+        <h2>Redis Log File</h2>
+        <p><b>Node:</b> {redisNode}</p>
+        <div>{result_html}</div>
+        <div class="nav-buttons">
+            <form id="refresh-form" action="/manager/show-log/" method="get">
+                <input type="hidden" name="redisNode" value="{redisNode}">
+                <input type="hidden" name="line_count" value="{line_count}">
+                <input type="submit" value="Refresh Log">
+            </form>
+            <a href="/manager">Back to Manager</a>
+            <a href="/monitor">Back to Monitor</a>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=response_message)
+
 @app.get("/manager", response_class=HTMLResponse)
 async def manager():
     """
@@ -791,7 +833,18 @@ async def manager():
     <hr>
 
     <h2>7 - Show Redis Log File</h2>
-    <p><i>(Not Implemented Yet)</i></p>
+    <form id="show-log-form" action="/manager/show-log/" method="get">
+        <label for="logNode">Select Node:</label>
+        <select id="logNode" name="redisNode">
+            {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
+        </select>
+        <br><br>
+        <label for="line_count">Number of lines to show:</label>
+        <input type="number" id="line_count" name="line_count" min="10" max="10000" value="100">
+        <br><br>
+        <input type="submit" value="View Log File">
+    </form>
+    <p><i>This will display the Redis log file for the selected node</i></p>
     <hr>
 
     <script>
@@ -923,6 +976,22 @@ async def manager():
             const fullUrl = `${{url}}?${{queryParams}}`;
             window.location.href = fullUrl;
         }});
+        
+        // Capture form submission for show-log form
+        document.getElementById('show-log-form').addEventListener('submit', function(event) {{
+            event.preventDefault();
+            const formData = new FormData(this);
+            const trimmedData = {{}};
+            
+            for (const [key, value] of formData.entries()) {{
+                trimmedData[key] = value.trim();
+            }}
+            
+            const url = this.getAttribute('action');
+            const queryParams = new URLSearchParams(trimmedData).toString();
+            const fullUrl = `${{url}}?${{queryParams}}`;
+            window.location.href = fullUrl;
+        }});
     </script>
     </body>
     </html>
@@ -935,4 +1004,5 @@ async def manager():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+
 
