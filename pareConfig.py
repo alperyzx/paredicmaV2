@@ -3,13 +3,13 @@
 from pareNodeList import *
 
 projectName = 'releaseTest'+'Cache'
-pareOSUser = 'redisuser'
+pareOSUser = 'alper'
 pareWebPort = 8000
 redisDataDir = '/data/'+pareOSUser+'/projects/'+projectName+'/'
 redisConfigDir = '/data/'+pareOSUser+'/projects/'+projectName+'/conf/'
 redisLogDir = '/data/'+pareOSUser+'/projects/'+projectName+'/log/'
-redisVersion = '7.2.3'
-redisTarFile = 'redis-7.2.3.tar.gz'
+redisVersion = '7.4.2'
+redisTarFile = 'redis-7.4.2.tar.gz'
 redisBinaryDir = '/data/'+pareOSUser+'/reBin/redis-'+redisVersion+'/'
 dedicateCore = True   # True/False
 doCompile = True
@@ -19,7 +19,7 @@ pidFileDir = '/var/run/'
 writePareLogFile = True
 pareLogFile = ''+projectName+'.log'
 pareTmpDir = 'temparedicma/'
-pareServerIp = '192.168.1.5'  # paredicma console server
+pareServerIp = '127.0.0.1'  # paredicma console server
 rdb = 'on'   # on/off if not needed turn off after creating cluster.  
 # dbfilename "dumpN1_P9773.rdb"
 rdbValue = 'save 3600 1000\nsave 1800 10000\nsave 600 100000'

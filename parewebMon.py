@@ -15,6 +15,7 @@ from pareFuncWeb import *
 from fastapi import *
 from fastapi.responses import HTMLResponse  # Import HTMLResponse
 from subprocess import getstatusoutput
+from time import sleep  # Import sleep
 
 # Create an instance of FastAPI
 app = FastAPI()
@@ -281,15 +282,54 @@ css_style = """
             border: 1px solid #cccccc;
             border-radius: 5px;
         }
-        input[type="submit"], a {
+        input[type="submit"] {
             padding: 5px 10px;
             background-color: #007bff;
             color: #ffffff;
             text-decoration: none;
             border-radius: 5px;
         }
-        input[type="submit"]:hover, a:hover {
+        input[type="submit"]:hover {
             background-color: #0056b3;
+        }
+        a {
+            padding: 5px 10px;
+            background-color: #007bff;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 5px;
+            display: inline-block;
+            margin-right: 10px;
+            margin-bottom: 5px;
+        }
+        a:hover {
+            background-color: #0056b3;
+        }
+        .nav-buttons {
+            margin-top: 15px;
+        }
+        .confirm-btn {
+            background-color: #d9534f;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        .cancel-btn {
+            background-color: #5bc0de;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            text-decoration: none;
+        }
+        .confirmation-needed {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            padding: 20px;
+            margin: 20px 0;
         }
     </style>
 """
@@ -354,9 +394,172 @@ async def monitor():
     return HTMLResponse(content=html_content)
 
 
+# #############################################
+# Manager Section
+# #############################################
+
+@app.get("/manager/node-action/", response_class=HTMLResponse)
+async def node_action(redisNode: str, action: str, confirmed: bool = False):
+    """
+    Endpoint to start, stop, or restart a Redis node.
+    Includes confirmation handling for stopping master nodes.
+    """
+    result_html = node_action_wv(redisNode, action, confirmed)
+    
+    # Check if this is a confirmation request (when result contains confirmation-needed)
+    if "confirmation-needed" in result_html:
+        # Return a simplified response with just the confirmation dialog
+        response_message = f"""
+        {css_style}
+        <html>
+        <head>
+            <title>Confirm {action.capitalize()} Node {redisNode}</title>
+        </head>
+        <body>
+            <h2>Node Action Confirmation Required</h2>
+            {result_html}
+        </body>
+        </html>
+        """
+    else:
+        # Construct the standard response message
+        response_message = f"""
+        {css_style}
+        <html>
+        <head><title>Node Action: {action} {redisNode}</title></head>
+        <body>
+            <h2>Node Action Result</h2>
+            <p><b>Node:</b> {redisNode}<br><b>Action:</b> {action}</p>
+            <div>{result_html}</div>
+            <div class="nav-buttons">
+                <a href="/manager">Back to Manager</a>
+                <a href="/monitor">Back to Monitor</a>
+            </div>
+        </body>
+        </html>
+        """
+    return HTMLResponse(content=response_message)
+
+@app.get("/manager/switch-master-slave/", response_class=HTMLResponse)
+async def switch_master_slave(redisNode: str):
+    """
+    Endpoint to switch roles between a master node and one of its slaves.
+    """
+    result_html = switch_master_slave_wv(redisNode)
+    
+    # Construct the response message
+    response_message = f"""
+    {css_style}
+    <html>
+    <head>
+        <title>Switch Master/Slave Nodes</title>
+        <style>
+            .node-info {{
+                background-color: #f8f9fa;
+                padding: 10px;
+                margin: 10px 0;
+                border-radius: 4px;
+                border-left: 4px solid #007bff;
+            }}
+        </style>
+    </head>
+    <body>
+        <h2>Master/Slave Switch Result</h2>
+        <p><b>Selected Node:</b> {redisNode}</p>
+        <div>{result_html}</div>
+        <div class="nav-buttons">
+            <a href="/manager">Back to Manager</a>
+            <a href="/monitor">Back to Monitor</a>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=response_message)
+
+@app.get("/manager", response_class=HTMLResponse)
+async def manager():
+    """
+    Displays the Redis Cluster Manager UI.
+    """
+    nodeList = getNodeList()
+    actionsAvailable = ['Start', 'Stop', 'Restart']
+
+    # Generate the HTML content for the manager page
+    html_content = f"""
+    {css_style}
+    <html>
+    <head><title>Redis Cluster Manager</title></head>
+    <body>
+    <h1>Redis Cluster Manager (paredicman)</h1>
+    <a href="/monitor">Go to Monitor (paredicmon)</a>
+    <hr>
+
+    <h2>1 - Start/Stop/Restart Redis Node</h2>
+    <form id="node-action-form" action="/manager/node-action/" method="get">
+        <label for="redisNodeAction">Select Node:</label>
+        <select id="redisNodeAction" name="redisNode">
+            {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
+        </select>
+        <br><br>
+        <label for="action">Select Action:</label>
+        <select id="action" name="action">
+            {''.join([f"<option value='{action.lower()}'>{action}</option>" for action in actionsAvailable])}
+        </select>
+        <br><br>
+        <input type="submit" value="Perform Action">
+    </form>
+    <hr>
+
+    <h2>2 - Switch Master/Slave Nodes</h2>
+    <p><i>(Not Implemented Yet)</i></p>
+    <hr>
+
+    <h2>3 - Change Redis Configuration Parameter</h2>
+    <p><i>(Not Implemented Yet)</i></p>
+    <hr>
+
+    <h2>4 - Save Redis Configuration to redis.conf</h2>
+    <p><i>(Not Implemented Yet)</i></p>
+    <hr>
+
+    <h2>5 - Rolling Restart</h2>
+    <p><i>(Not Implemented Yet)</i></p>
+    <hr>
+
+    <h2>6 - Command for all nodes</h2>
+    <p><i>(Not Implemented Yet)</i></p>
+    <hr>
+
+    <h2>7 - Show Redis Log File</h2>
+    <p><i>(Not Implemented Yet)</i></p>
+    <hr>
+
+    <script>
+        // Capture form submission and navigate to the corresponding endpoint
+        document.getElementById('node-action-form').addEventListener('submit', function(event) {{
+            event.preventDefault(); // Prevent default form submission behavior
+            const formData = new FormData(this); // Get form data
+            const trimmedData = {{}}; // Object to hold trimmed data
+            // Iterate over form data and trim input values
+            for (const [key, value] of formData.entries()) {{
+                trimmedData[key] = value.trim(); // Trim whitespace from input values
+            }}
+            const url = this.getAttribute('action'); // Get form action URL
+            const queryParams = new URLSearchParams(trimmedData).toString(); // Convert form data to query string
+            const fullUrl = `${{url}}?${{queryParams}}`; // Combine URL with query string
+            window.location.href = fullUrl; // Redirect to the new URL
+        }});
+    </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
+
 
 # #############################################
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=(pareWebPort))
+    uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+
+
