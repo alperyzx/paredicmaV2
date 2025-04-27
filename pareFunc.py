@@ -429,10 +429,73 @@ def reshardCluster(contactNode, fromNodeID, toNodeID, slotNumber):
 
 
 def changePareNodeListFile(oldValue, newValue):
-    fileContent = fileReadFull("pareNodeList.py")
-    newFileContent = fileContent.replace(oldValue, newValue)
-    fileClearWrite("pareNodeList.py",
-                   newFileContent + '\n#### Node list File was Changed by paredicma at ' + get_datetime() + '\n#### old value:' + oldValue + '\n#### new value:' + newValue)
+    """
+    Updates the pareNodeList.py file by replacing oldValue with newValue.
+    Now handles variations in spacing within array notation.
+    Returns True if file was updated successfully, False otherwise.
+    """
+    try:
+        fileContent = fileReadFull("pareNodeList.py")
+        match_found = False
+        updated_content = False
+        newFileContent = fileContent
+
+        # First try exact match
+        if oldValue in fileContent:
+            newFileContent = fileContent.replace(oldValue, newValue)
+            match_found = True
+            logWrite(pareLogFile, f"Found exact match for: {oldValue}")
+
+            # Immediately write the file with changes
+            try:
+                with open("pareNodeList.py", 'w') as f:
+                    f.write(newFileContent + '\n#### Node list File was Changed by paredicma at ' + get_datetime() +
+                            '\n#### old value:' + oldValue + '\n#### new value:' + newValue)
+                f.flush()
+                os.fsync(f.fileno())  # Ensure write is committed to disk
+                updated_content = True
+                logWrite(pareLogFile, f"File updated successfully with new content")
+            except Exception as e:
+                logWrite(pareLogFile, f"Error writing to file after exact match: {str(e)}")
+                return False
+        else:
+            # Try other pattern matching approaches
+            # ...existing pattern matching code...
+
+            # If all else fails, just do the straight replacement and hope for the best
+            if not match_found:
+                logWrite(pareLogFile, f"No match found, falling back to direct replacement for: {oldValue}")
+                newFileContent = fileContent.replace(oldValue, newValue)
+
+            # Write out the file with the change note - ALWAYS write the file
+            try:
+                with open("pareNodeList.py", 'w') as f:
+                    f.write(newFileContent + '\n#### Node list File was Changed by paredicma at ' + get_datetime() +
+                            '\n#### old value:' + oldValue + '\n#### new value:' + newValue)
+                f.flush()
+                os.fsync(f.fileno())  # Ensure write is committed to disk
+                updated_content = True
+                logWrite(pareLogFile, f"File updated successfully with new content")
+            except Exception as e:
+                logWrite(pareLogFile, f"Error writing to file: {str(e)}")
+                return False
+
+        # Verify content was actually changed in file
+        try:
+            verification = fileReadFull("pareNodeList.py")
+            if newValue in verification:
+                logWrite(pareLogFile, f"Verification: File contains the new value")
+                return True
+            else:
+                logWrite(pareLogFile, f"Verification FAILED: File does not contain the new value!")
+                return False
+        except Exception as e:
+            logWrite(pareLogFile, f"Error verifying file changes: {str(e)}")
+            return updated_content
+
+    except Exception as e:
+        logWrite(pareLogFile, f"Error in changePareNodeListFile: {str(e)}")
+        return False
 
 
 def changePareConfigFile(oldValue, newValue):
@@ -939,37 +1002,118 @@ def makeRedisCluster(nodesString, redisReplicationNumber):
 
 
 def delPareNode(delNodeID):
-    serverIP = pareNodes[int(delNodeID) - 1][0][0]
-    serverPORT = pareNodes[int(delNodeID) - 1][1][0]
-    nodeNumber = 0
-    for pareNode in pareNodes:
-        if pareNode[4]:
-            if isNodeMaster(pareNode[0][0], str(nodeNumber + 1), pareNode[1][0]):
-                targetIP = pareNode[0][0]
-                targetPORT = pareNode[1][0]
-                break
-        nodeNumber += 1
-    pingStatus, queryRespond = subprocess.getstatusoutput(
-        redisConnectCmd(serverIP, serverPORT, ' cluster nodes | grep myself'))
-    if pingStatus == 0:
-        queryRespondList = queryRespond.split(' ')
-        clusterString = redisBinaryDir + 'src/redis-cli --cluster del-node ' + targetIP + ':' + targetPORT + ' ' + queryRespondList[0] + ' '
-        if redisPwdAuthentication == 'on':
-            clusterString += ' -a ' + redisPwd + ' '
-        logWrite(pareLogFile,
-                 bcolors.BOLD + 'deleting cluster node from redis cluster : ' + clusterString + bcolors.ENDC)
-        procStatus, procResult = subprocess.getstatusoutput(clusterString)
-        if procResult.find('[ERR]') == -1:
-            print(queryRespond)
-            logWrite(pareLogFile, bcolors.OKGREEN + 'Node was deleted !!!: ' + clusterString + bcolors.ENDC)
-            return True
-        else:
-            print(queryRespond)
-            logWrite(pareLogFile,
-                     bcolors.FAIL + '!!! deleting cluster node was canceled !!!: ' + clusterString + bcolors.ENDC)
-            logWrite(pareLogFile, bcolors.FAIL + '!!! This node might be NON-empty master node !!!' + bcolors.ENDC)
+    try:
+        # Validate the node ID
+        node_id_int = int(delNodeID)
+        if node_id_int < 1 or node_id_int > len(pareNodes):
+            logWrite(pareLogFile, bcolors.FAIL + f'Error: Invalid node ID {delNodeID}. Valid range is 1-{len(pareNodes)}' + bcolors.ENDC)
             return False
-    else:
+
+        # Check if the node is active
+        if not pareNodes[node_id_int - 1][4]:
+            logWrite(pareLogFile, bcolors.FAIL + f'Error: Node {delNodeID} is already marked as inactive' + bcolors.ENDC)
+            return False
+
+        try:
+            serverIP = pareNodes[node_id_int - 1][0][0]
+            serverPORT = pareNodes[node_id_int - 1][1][0]
+        except (IndexError, TypeError) as e:
+            logWrite(pareLogFile, bcolors.FAIL + f'Error accessing node details for node {delNodeID}: {str(e)}' + bcolors.ENDC)
+            return False
+
+        nodeNumber = 0
+        contactNodeIP = ""
+        contactNodePort = ""
+
+        # First, find a healthy node to serve as contact point for the cluster operation
+        for pareNode in pareNodes:
+            if pareNode[4]:
+                if isNodeMaster(pareNode[0][0], str(nodeNumber + 1), pareNode[1][0]):
+                    contactNodeIP = pareNode[0][0]
+                    contactNodePort = pareNode[1][0]
+                    break
+            nodeNumber += 1
+
+        # If we couldn't find a contact node, report error
+        if not contactNodeIP or not contactNodePort:
+            logWrite(pareLogFile, bcolors.FAIL + 'Error: Could not find an active master node to use as contact point' + bcolors.ENDC)
+            return False
+
+        # Check if the node to delete is reachable
+        if not pingredisNode(serverIP, serverPORT):
+            logWrite(pareLogFile, bcolors.WARNING + f'Warning: Node {delNodeID} ({serverIP}:{serverPORT}) is not responding. Will attempt to delete from cluster anyway.' + bcolors.ENDC)
+
+        # Get the cluster node ID of the node we want to delete
+        pingStatus, queryRespond = subprocess.getstatusoutput(
+            redisConnectCmd(serverIP, serverPORT, ' cluster nodes | grep myself'))
+
+        if pingStatus == 0:
+            queryRespondList = queryRespond.split(' ')
+            nodeId = queryRespondList[0]
+
+            clusterString = redisBinaryDir + 'src/redis-cli --cluster del-node ' + contactNodeIP + ':' + contactNodePort + ' ' + nodeId + ' '
+            if redisPwdAuthentication == 'on':
+                clusterString += ' -a ' + redisPwd + ' '
+
+            logWrite(pareLogFile,
+                     bcolors.BOLD + 'Deleting node ' + serverIP + ':' + serverPORT + ' (ID: ' + nodeId + ') from cluster using contact node ' +
+                     contactNodeIP + ':' + contactNodePort + bcolors.ENDC)
+            logWrite(pareLogFile, bcolors.BOLD + 'Command: ' + clusterString + bcolors.ENDC)
+
+            procStatus, procResult = subprocess.getstatusoutput(clusterString)
+            if procResult.find('[ERR]') == -1:
+                logWrite(pareLogFile, queryRespond)
+                logWrite(pareLogFile,
+                         bcolors.OKGREEN + 'Node ' + serverIP + ':' + serverPORT + ' was successfully deleted from the cluster' + bcolors.ENDC)
+                return True
+            else:
+                logWrite(pareLogFile, queryRespond)
+                logWrite(pareLogFile,
+                         bcolors.FAIL + '!!! Failed to delete node ' + serverIP + ':' + serverPORT + ' !!!' + bcolors.ENDC)
+                logWrite(pareLogFile, bcolors.FAIL + '!!! This node might be a NON-empty master node !!!' + bcolors.ENDC)
+                logWrite(pareLogFile, bcolors.FAIL + 'Error: ' + procResult + bcolors.ENDC)
+                return False
+        else:
+            logWrite(pareLogFile,
+                     bcolors.FAIL + '!!! Failed to get node ID for ' + serverIP + ':' + serverPORT + ' !!!' + bcolors.ENDC)
+
+            # Special case: Try to get the node ID from a contact node instead
+            # This helps when the node is unreachable but still in the cluster config
+            altLookupCmd = redisConnectCmd(contactNodeIP, contactNodePort, f' cluster nodes | grep "{serverIP}:{serverPORT}"')
+            lookupStatus, lookupResult = subprocess.getstatusoutput(altLookupCmd)
+
+            if lookupStatus == 0 and lookupResult.strip():
+                # We found the node info - extract the ID
+                try:
+                    nodeId = lookupResult.strip().split(' ')[0]
+
+                    logWrite(pareLogFile,
+                         bcolors.WARNING + f'Node {serverIP}:{serverPORT} is unreachable but found in cluster config. Using node ID: {nodeId}' + bcolors.ENDC)
+
+                    clusterString = redisBinaryDir + 'src/redis-cli --cluster del-node ' + contactNodeIP + ':' + contactNodePort + ' ' + nodeId + ' '
+                    if redisPwdAuthentication == 'on':
+                        clusterString += ' -a ' + redisPwd + ' '
+
+                    logWrite(pareLogFile, bcolors.BOLD + 'Command: ' + clusterString + bcolors.ENDC)
+
+                    procStatus, procResult = subprocess.getstatusoutput(clusterString)
+                    if procResult.find('[ERR]') == -1:
+                        logWrite(pareLogFile,
+                                 bcolors.OKGREEN + 'Node ' + serverIP + ':' + serverPORT + ' was successfully deleted from the cluster' + bcolors.ENDC)
+                        return True
+                    else:
+                        logWrite(pareLogFile,
+                                 bcolors.FAIL + '!!! Failed to delete node ' + serverIP + ':' + serverPORT + ' !!!' + bcolors.ENDC)
+                        logWrite(pareLogFile, bcolors.FAIL + 'Error: ' + procResult + bcolors.ENDC)
+                except Exception as e:
+                    logWrite(pareLogFile,
+                             bcolors.FAIL + f'Error processing alternate node lookup: {str(e)}' + bcolors.ENDC)
+
+            return False
+    except Exception as e:
+        import traceback
+        logWrite(pareLogFile, bcolors.FAIL + f'Unexpected error in delPareNode: {str(e)}' + bcolors.ENDC)
+        logWrite(pareLogFile, bcolors.FAIL + traceback.format_exc() + bcolors.ENDC)
         return False
 
 
@@ -1028,6 +1172,13 @@ def addSpecificSlaveNode(serverIP, serverPORT, cMasterID):
     targetIP = ''
     targetPORT = ''
     nodeNumber = 0
+
+    # Validate master ID format (should be 40 character hex string)
+    if not (len(cMasterID) == 40 and all(c in '0123456789abcdef' for c in cMasterID.lower())):
+        logWrite(pareLogFile, bcolors.FAIL + 'Invalid master node ID format: ' + cMasterID + '. Expected 40 character hex string.' + bcolors.ENDC)
+        return False
+
+    # Find a contact node to use as entry point to the cluster
     for pareNode in pareNodes:
         if pareNode[4]:
             if isNodeMaster(pareNode[0][0], str(nodeNumber + 1), pareNode[1][0]):
@@ -1035,16 +1186,38 @@ def addSpecificSlaveNode(serverIP, serverPORT, cMasterID):
                 targetPORT = pareNode[1][0]
                 break
         nodeNumber += 1
+
+    # Verify the master ID exists in the cluster
+    verifyCmd = redisConnectCmd(targetIP, targetPORT, ' CLUSTER NODES | grep ' + cMasterID)
+    verifyStatus, verifyOutput = subprocess.getstatusoutput(verifyCmd)
+
+    if verifyStatus != 0 or not verifyOutput or len(verifyOutput.strip()) == 0:
+        logWrite(pareLogFile, bcolors.FAIL + 'Master node ID ' + cMasterID + ' not found in the cluster' + bcolors.ENDC)
+        return False
+
+    # Make sure the target is actually a master
+    if 'master' not in verifyOutput:
+        logWrite(pareLogFile, bcolors.FAIL + 'Node ID ' + cMasterID + ' is not a master node' + bcolors.ENDC)
+        return False
+
+    # Build the cluster command
     clusterString = redisBinaryDir + 'src/redis-cli --cluster add-node ' + serverIP + ':' + serverPORT + ' ' + targetIP + ':' + targetPORT + ' --cluster-slave --cluster-master-id ' + cMasterID
     if redisPwdAuthentication == 'on':
         clusterString += ' -a ' + redisPwd + ' '
+
+    # Execute the command only if the node is pingable
     if pingredisNode(serverIP, serverPORT):
         logWrite(pareLogFile, bcolors.BOLD + 'Adding new slave node to redis cluster : ' + clusterString + bcolors.ENDC)
-        if os.system(clusterString) == 0:
+        cmdStatus, cmdOutput = subprocess.getstatusoutput(clusterString)
+
+        if cmdStatus == 0:
+            logWrite(pareLogFile, bcolors.OKGREEN + 'Successfully added slave node to master ' + cMasterID + bcolors.ENDC)
             return True
         else:
+            logWrite(pareLogFile, bcolors.FAIL + 'Failed to add slave node: ' + cmdOutput + bcolors.ENDC)
             return False
     else:
+        logWrite(pareLogFile, bcolors.FAIL + 'Cannot ping the new node at ' + serverIP + ':' + serverPORT + bcolors.ENDC)
         return False
 
 
@@ -1070,22 +1243,47 @@ def startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores):
     else:
         if nodeIP == pareServerIp:
             if dedicateCore:
-                startResult, startOutput = subprocess.getstatusoutput(
-                    'cd ' + redisDataDir + ';numactl --physcpubind=' + dedicateCpuCores + ' --localalloc ' + redisBinaryDir + 'src/redis-server ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf')
-                print(
-                    'numactl --physcpubind=' + dedicateCpuCores + ' --localalloc ' + redisBinaryDir + 'src/redis-server ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf')
+                start_cmd = 'cd ' + redisDataDir + ';numactl --physcpubind=' + dedicateCpuCores + ' --localalloc ' + redisBinaryDir + 'src/redis-server ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf'
+                print(start_cmd)  # Print the command for debugging
+                startResult, startOutput = subprocess.getstatusoutput(start_cmd)
+
+                # Log both success and error output
+                if startResult != 0:
+                    logWrite(pareLogFile,
+                        bcolors.FAIL + ':: ' + nodeIP + ' :: ERROR starting redis node ' + nodeNumber + ': ' + startOutput + bcolors.ENDC)
+                    print(bcolors.FAIL + 'Error output: ' + startOutput + bcolors.ENDC)
             else:
-                startResult, startOutput = subprocess.getstatusoutput(
-                    'cd ' + redisDataDir + ';' + redisBinaryDir + 'src/redis-server ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf')
+                start_cmd = 'cd ' + redisDataDir + ';' + redisBinaryDir + 'src/redis-server ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf'
+                print(start_cmd)  # Print the command for debugging
+                startResult, startOutput = subprocess.getstatusoutput(start_cmd)
+
+                # Log both success and error output
+                if startResult != 0:
+                    logWrite(pareLogFile,
+                        bcolors.FAIL + ':: ' + nodeIP + ' :: ERROR starting redis node ' + nodeNumber + ': ' + startOutput + bcolors.ENDC)
+                    print(bcolors.FAIL + 'Error output: ' + startOutput + bcolors.ENDC)
         else:
             if dedicateCore:
-                startResult, startOutput = subprocess.getstatusoutput(
-                    'ssh -q -o "StrictHostKeyChecking no"  ' + pareOSUser + '@' + nodeIP + ' -C  "cd ' + redisDataDir
-                    + ';numactl --physcpubind=' + dedicateCpuCores + ' --localalloc ' + redisBinaryDir + 'src/redis-server '
-                    + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf"')
+                start_cmd = 'ssh -q -o "StrictHostKeyChecking no"  ' + pareOSUser + '@' + nodeIP + ' -C  "cd ' + redisDataDir + ';numactl --physcpubind=' + dedicateCpuCores + ' --localalloc ' + redisBinaryDir + 'src/redis-server ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf"'
+                print(start_cmd)  # Print the command for debugging
+                startResult, startOutput = subprocess.getstatusoutput(start_cmd)
+
+                # Log both success and error output
+                if startResult != 0:
+                    logWrite(pareLogFile,
+                        bcolors.FAIL + ':: ' + nodeIP + ' :: ERROR starting redis node ' + nodeNumber + ': ' + startOutput + bcolors.ENDC)
+                    print(bcolors.FAIL + 'Error output: ' + startOutput + bcolors.ENDC)
             else:
-                startResult, startOutput = subprocess.getstatusoutput(
-                    'ssh -q -o "StrictHostKeyChecking no"  ' + pareOSUser + '@' + nodeIP + ' -C  "cd ' + redisDataDir + ';' + redisBinaryDir + 'src/redis-server ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf"')
+                start_cmd = 'ssh -q -o "StrictHostKeyChecking no"  ' + pareOSUser + '@' + nodeIP + ' -C  "cd ' + redisDataDir + ';' + redisBinaryDir + 'src/redis-server ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf"'
+                print(start_cmd)  # Print the command for debugging
+                startResult, startOutput = subprocess.getstatusoutput(start_cmd)
+
+                # Log both success and error output
+                if startResult != 0:
+                    logWrite(pareLogFile,
+                        bcolors.FAIL + ':: ' + nodeIP + ' :: ERROR starting redis node ' + nodeNumber + ': ' + startOutput + bcolors.ENDC)
+                    print(bcolors.FAIL + 'Error output: ' + startOutput + bcolors.ENDC)
+
         if startResult == 0:
             logWrite(pareLogFile,
                      bcolors.OKGREEN + ':: ' + nodeIP + ' :: OK -> redis node  ' + nodeNumber + ' started.' + bcolors.ENDC)
@@ -1100,8 +1298,35 @@ def startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores):
                 logWrite(pareLogFile,
                          bcolors.FAIL + ':: ' + nodeIP + ' :: WARNING !!! redis node  ' + nodeNumber + ' WAS NOT PING. CHECK IT.' + bcolors.ENDC)
         else:
+            # Enhanced error reporting
             logWrite(pareLogFile,
-                     bcolors.FAIL + ':: ' + nodeIP + ' :: WARNING !!! redis node  ' + nodeNumber + ' DID NOT started. CHECK IT.' + bcolors.ENDC)
+                     bcolors.FAIL + ':: ' + nodeIP + ' :: WARNING !!! redis node  ' + nodeNumber + ' DID NOT start. CHECK IT.' + bcolors.ENDC)
+
+            # Check for common error conditions
+            try:
+                # Verify directory and file permissions
+                if nodeIP == pareServerIp:
+                    config_path = redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf'
+                    if not os.path.exists(config_path):
+                        logWrite(pareLogFile,
+                                bcolors.FAIL + 'ERROR: Config file does not exist: ' + config_path + bcolors.ENDC)
+
+                    # Check if the binary exists
+                    redis_binary = redisBinaryDir + 'src/redis-server'
+                    if not os.path.exists(redis_binary):
+                        logWrite(pareLogFile,
+                                bcolors.FAIL + 'ERROR: Redis server binary does not exist: ' + redis_binary + bcolors.ENDC)
+
+                    # Try to get more info by running redis-server with the config directly
+                    check_cmd = redis_binary + ' ' + config_path + ' --test-conf'
+                    logWrite(pareLogFile,
+                            bcolors.BOLD + 'Running config check: ' + check_cmd + bcolors.ENDC)
+                    check_status, check_output = subprocess.getstatusoutput(check_cmd)
+                    logWrite(pareLogFile,
+                            bcolors.BOLD + 'Config check result: ' + check_output + bcolors.ENDC)
+            except Exception as e:
+                logWrite(pareLogFile,
+                        bcolors.FAIL + 'Error during troubleshooting: ' + str(e) + bcolors.ENDC)
 
 
 def switchMasterSlave(nodeIP, nodeNumber, portNumber):
@@ -1159,7 +1384,9 @@ def killNode(nodeIP, nodeNumber, portNumber):
     processID = 'NULL'
     killNode = 'NO'
     hasSlave = False
-    if isNodeMaster(nodeIP, nodeNumber, portNumber):
+
+    # Use slaveORMasterNode instead of isNodeMaster for more reliable role identification
+    if slaveORMasterNode(nodeIP, portNumber) == 'M':
         myResponse = input(
             bcolors.FAIL + "\nThis node is Master node( nodeIP:" + nodeIP + " nodePort:" + portNumber + "), Do you want to stop this node (yes/no): " + bcolors.ENDC)
         myResponse = myResponse.lower()
@@ -1198,7 +1425,9 @@ def killNode(nodeIP, nodeNumber, portNumber):
         else:
             print(bcolors.FAIL + 'You entered wrong value :' + myResponse + bcolors.ENDC)
     else:
+        # This is a slave node, no need to confirm
         killNode = 'YES'
+
     processStatus, processResponse = subprocess.getstatusoutput(
         redisConnectCmd(nodeIP, portNumber, ' info server | grep process_id:'))
     prCursor = processResponse.find('process_id:')
@@ -1235,16 +1464,79 @@ def killNode(nodeIP, nodeNumber, portNumber):
         print('!!!The process canceled!!!')
 
 
-def stopNode(nodeIP, nodeNumber, portNumber):
+def stopNode(nodeIP, nodeNumber, portNumber, non_interactive=False):
     stopResult = 1
     if pingredisNode(nodeIP, portNumber):
-        killNode(nodeIP, nodeNumber, portNumber)
+        if non_interactive:
+            # Non-interactive version for web interface
+            kill_node_non_interactive(nodeIP, nodeNumber, portNumber)
+        else:
+            killNode(nodeIP, nodeNumber, portNumber)
     else:
         logWrite(pareLogFile,
                  bcolors.FAIL + ':: ' + nodeIP + ' :: WARNING !!! redis node  ' + nodeNumber + 'has been already '
                                                                                                'stopped. The process '
                                                                                                'was canceled.' +
                  bcolors.ENDC)
+
+
+def kill_node_non_interactive(nodeIP, nodeNumber, portNumber):
+    """Non-interactive version of killNode for web interface"""
+    processID = 'NULL'
+
+    # Get the process ID
+    processStatus, processResponse = subprocess.getstatusoutput(
+        redisConnectCmd(nodeIP, portNumber, ' info server | grep process_id:'))
+
+    if processStatus == 0 and 'process_id:' in processResponse:
+        prCursor = processResponse.find('process_id:')
+        processID = processResponse[prCursor + 11:].strip()  # Extract process ID
+
+        logWrite(pareLogFile, f'Stopping Redis node {nodeIP}:{portNumber} (process ID: {processID})')
+
+        if nodeIP == pareServerIp:
+            # Local node
+            killResult = os.system(f'kill {processID}')
+            wait_for_process_end(processID)
+        else:
+            # Remote node
+            killResult = os.system(
+                f'ssh -q -o "StrictHostKeyChecking no" {pareOSUser}@{nodeIP} -C "kill {processID}"')
+            wait_for_remote_process_end(nodeIP, processID)
+
+        logWrite(pareLogFile, bcolors.BOLD + '!!! Redis Node Stopped !!! ' + bcolors.ENDC)
+
+
+def wait_for_process_end(processID, max_attempts=12):
+    """Wait for a process to end, checking every 5 seconds"""
+    for i in range(max_attempts):
+        killResult, killOutput = subprocess.getstatusoutput(
+            f'ps -ef | grep redis-server | grep "{processID} " | grep -v "grep"')
+
+        if killOutput.find(processID) == -1:
+            return True  # Process has ended
+
+        logWrite(pareLogFile, bcolors.WARNING + f'!!! Redis Node Stopping process continue... (attempt {i+1}/{max_attempts}) !!! Please wait.' + bcolors.ENDC)
+        sleep(5)
+
+    logWrite(pareLogFile, bcolors.FAIL + f'!!! Redis Node may still be running (PID: {processID}) after {max_attempts} attempts !!!' + bcolors.ENDC)
+    return False
+
+
+def wait_for_remote_process_end(nodeIP, processID, max_attempts=12):
+    """Wait for a process to end on a remote server, checking every 5 seconds"""
+    for i in range(max_attempts):
+        killResult, killOutput = subprocess.getstatusoutput(
+            f'ssh -q -o "StrictHostKeyChecking no" {pareOSUser}@{nodeIP} -C "ps -ef | grep redis-server | grep {processID} | grep -v grep"')
+
+        if not killOutput.strip():
+            return True  # Process has ended
+
+        logWrite(pareLogFile, bcolors.WARNING + f'!!! Remote Redis Node Stopping process continue... (attempt {i+1}/{max_attempts}) !!! Please wait.' + bcolors.ENDC)
+        sleep(5)
+
+    logWrite(pareLogFile, bcolors.FAIL + f'!!! Remote Redis Node may still be running (PID: {processID}) after {max_attempts} attempts !!!' + bcolors.ENDC)
+    return False
 
 
 def restartNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores):
@@ -1406,79 +1698,169 @@ def redisConfMaker(nodeIP, nodeNumber, portNumber, maxMemorySize):
     fileClearWrite(pareTmpDir + 'redisN' + nodeNumber + '_P' + portNumber + '.conf', redisConfigText)
     logWrite(pareLogFile,
              bcolors.OKGREEN + ' ::' + nodeIP + '::' + pareTmpDir + 'redisN' + nodeNumber + '_P' + portNumber + '.conf file was created.' + bcolors.ENDC)
-    if nodeIP == pareServerIp:
-        comResponse = subprocess.getoutput(
-            'cp -f ' + pareTmpDir + 'redisN' + nodeNumber + '_P' + portNumber + '.conf ' + redisConfigDir + 'node' + nodeNumber + '/')
-        logWrite(pareLogFile,
-                 bcolors.OKGREEN + ' ::' + nodeIP + ':: redisN' + nodeNumber + '_P' + portNumber + '.conf file was copied.' + bcolors.ENDC)
 
-    else:
-        isOK, comResponse = subprocess.getstatusoutput(
-            'scp ' + pareTmpDir + 'redisN' + nodeNumber + '_P' + portNumber + '.conf ' + pareOSUser + '@' + nodeIP + ':' + redisConfigDir + 'node' + nodeNumber + '/')
-        if isOK == 0:
-            logWrite(pareLogFile,
+    targetDir = redisConfigDir + 'node' + nodeNumber + '/'
+
+    if nodeIP == pareServerIp:
+        # First verify target directory exists
+        if not os.path.exists(targetDir):
+            try:
+                os.makedirs(targetDir)
+                logWrite(pareLogFile,
+                         bcolors.OKGREEN + ' ::' + nodeIP + ':: Directory created: ' + targetDir + bcolors.ENDC)
+            except Exception as e:
+                logWrite(pareLogFile,
+                         bcolors.FAIL + ' ::' + nodeIP + ':: ERROR creating directory: ' + targetDir + ' - ' + str(e) + bcolors.ENDC)
+                return False
+
+        # Now copy the file
+        copyStatus, copyOutput = subprocess.getstatusoutput(
+            'cp -f ' + pareTmpDir + 'redisN' + nodeNumber + '_P' + portNumber + '.conf ' + targetDir)
+
+        if copyStatus == 0:
+            # Verify file was actually copied
+            if os.path.exists(targetDir + 'redisN' + nodeNumber + '_P' + portNumber + '.conf'):
+                logWrite(pareLogFile,
                      bcolors.OKGREEN + ' ::' + nodeIP + ':: redisN' + nodeNumber + '_P' + portNumber + '.conf file was copied.' + bcolors.ENDC)
+                return True
+            else:
+                logWrite(pareLogFile,
+                     bcolors.FAIL + ' ::' + nodeIP + ':: File copy appeared to succeed but file not found in destination! Check permissions.' + bcolors.ENDC)
+                return False
         else:
             logWrite(pareLogFile,
-                     bcolors.FAIL + ' ::' + nodeIP + ':: redisN' + nodeNumber + '_P' + portNumber + '.conf !!!ERROR when file copy.' + bcolors.ENDC)
+                     bcolors.FAIL + ' ::' + nodeIP + ':: ERROR copying file: ' + copyOutput + bcolors.ENDC)
+            return False
+    else:
+        # For remote nodes, first make sure the directory exists
+        mkdirStatus, mkdirOutput = subprocess.getstatusoutput(
+            'ssh -q -o "StrictHostKeyChecking no" ' + pareOSUser + '@' + nodeIP + ' -C "mkdir -p ' + targetDir + '"')
+
+        if mkdirStatus != 0:
+            logWrite(pareLogFile,
+                     bcolors.FAIL + ' ::' + nodeIP + ':: ERROR creating directory on remote server: ' + mkdirOutput + bcolors.ENDC)
+            return False
+
+        # Now copy the file
+        copyStatus, copyOutput = subprocess.getstatusoutput(
+            'scp ' + pareTmpDir + 'redisN' + nodeNumber + '_P' + portNumber + '.conf ' + pareOSUser + '@' + nodeIP + ':' + targetDir)
+
+        if copyStatus == 0:
+            # Verify file was copied
+            verifyStatus, verifyOutput = subprocess.getstatusoutput(
+                'ssh -q -o "StrictHostKeyChecking no" ' + pareOSUser + '@' + nodeIP + ' -C "ls ' + targetDir + 'redisN' + nodeNumber + '_P' + portNumber + '.conf"')
+
+            if verifyStatus == 0:
+                logWrite(pareLogFile,
+                         bcolors.OKGREEN + ' ::' + nodeIP + ':: redisN' + nodeNumber + '_P' + portNumber + '.conf file was copied.' + bcolors.ENDC)
+                return True
+            else:
+                logWrite(pareLogFile,
+                         bcolors.FAIL + ' ::' + nodeIP + ':: File copy appeared to succeed but file not found in destination! Check permissions. ' + verifyOutput + bcolors.ENDC)
+                return False
+        else:
+            logWrite(pareLogFile,
+                     bcolors.FAIL + ' ::' + nodeIP + ':: redisN' + nodeNumber + '_P' + portNumber + '.conf ERROR when file copy: ' + copyOutput + bcolors.ENDC)
+            return False
 
 
 def redisDirMaker(nodeIP, nodeNumber):
-    directoryDone = False
+    """
+    Creates the necessary directories for Redis on local or remote server.
+    Returns True if all directories were successfully created, False otherwise.
+    """
+    directoryDone = True
+
     if nodeIP == pareServerIp:
-        if (makeDir(redisDataDir) & makeDir(redisConfigDir) & makeDir(redisLogDir) & makeDir(redisBinaryDir) & makeDir(
-                unixSocketDir) & makeDir(pidFileDir) & makeDir(redisConfigDir + 'node' + nodeNumber)):
-            directoryDone = True
+        # Local server
+        directories = [
+            redisDataDir,
+            redisConfigDir,
+            redisLogDir,
+            redisBinaryDir,
+            unixSocketDir,
+            pidFileDir,
+            redisConfigDir + 'node' + nodeNumber
+        ]
+
+        for directory in directories:
+            if not makeDir(directory):
+                logWrite(pareLogFile,
+                         bcolors.FAIL + ' ::' + nodeIP + ':: Failed to create directory: ' + directory + bcolors.ENDC)
+                directoryDone = False
     else:
+        # Remote server
         print(bcolors.WARNING + 'Working on remote server...' + bcolors.ENDC)
-        if (makeRemoteDir(redisDataDir, nodeIP) & makeRemoteDir(redisConfigDir, nodeIP) & makeRemoteDir(redisLogDir,
-                                                                                                        nodeIP) & makeRemoteDir(
-            redisBinaryDir, nodeIP) & makeRemoteDir(unixSocketDir, nodeIP) & makeRemoteDir(pidFileDir,
-                                                                                           nodeIP) & makeRemoteDir(
-            redisConfigDir + 'node' + nodeNumber, nodeIP)):
-            directoryDone = True
+        directories = [
+            redisDataDir,
+            redisConfigDir,
+            redisLogDir,
+            redisBinaryDir,
+            unixSocketDir,
+            pidFileDir,
+            redisConfigDir + 'node' + nodeNumber
+        ]
+
+        for directory in directories:
+            if not makeRemoteDir(directory, nodeIP):
+                logWrite(pareLogFile,
+                         bcolors.FAIL + ' ::' + nodeIP + ':: Failed to create directory: ' + directory + bcolors.ENDC)
+                directoryDone = False
+
+    return directoryDone
 
 
 def makeRemoteDir(dir_name, nodeIP):
     try:
         # Check if the directory exists remotely
-        isOK = subprocess.getoutput(
-            'ssh -q -o "StrictHostKeyChecking no" ' + pareOSUser + '@' + nodeIP + ' -C "if [ -d ' + dir_name + ' ]; then echo yesThereIs; else echo no ThereIsNot; fi"'
+        isOK, checkOutput = subprocess.getstatusoutput(
+            'ssh -q -o "StrictHostKeyChecking no" ' + pareOSUser + '@' + nodeIP + ' -C "if [ -d \'' + dir_name + '\' ]; then echo yesThereIs; else echo noThereIsNot; fi"'
         )
 
-        if isOK.find('yesThereIs') == -1:
-            # Directory doesn't exist, create it remotely
-            comResponse = subprocess.getoutput(
-                'ssh -q -o "StrictHostKeyChecking no" ' + pareOSUser + '@' + nodeIP + ' -C "mkdir -p ' + dir_name + '"'
-            )
+        # Check for connection issues
+        if isOK != 0:
             logWrite(pareLogFile,
-                     bcolors.OKGREEN + ' ::' + nodeIP + ':: Directory was created = ' + dir_name + bcolors.ENDC)
-            return True
-        else:
+                     bcolors.FAIL + ' ::' + nodeIP + ':: SSH connection failed when checking directory: ' + dir_name + ' - ' + checkOutput + bcolors.ENDC)
+            return False
+
+        if 'yesThereIs' in checkOutput:
             # Directory already exists remotely
             logWrite(pareLogFile,
-                     bcolors.WARNING + ' ::' + nodeIP + ':: Directory has already existed = ' + dir_name + bcolors.ENDC)
+                     bcolors.WARNING + ' ::' + nodeIP + ':: Directory already exists = ' + dir_name + bcolors.ENDC)
             return True
+        else:
+            # Directory doesn't exist, create it remotely
+            mkdirStatus, mkdirOutput = subprocess.getstatusoutput(
+                'ssh -q -o "StrictHostKeyChecking no" ' + pareOSUser + '@' + nodeIP + ' -C "mkdir -p \'' + dir_name + '\'"'
+            )
+
+            if mkdirStatus == 0:
+                logWrite(pareLogFile,
+                         bcolors.OKGREEN + ' ::' + nodeIP + ':: Directory was created = ' + dir_name + bcolors.ENDC)
+                return True
+            else:
+                logWrite(pareLogFile,
+                         bcolors.FAIL + ' ::' + nodeIP + ':: Failed to create directory: ' + dir_name + ' - ' + mkdirOutput + bcolors.ENDC)
+                return False
 
     except Exception as e:
         logWrite(pareLogFile,
-                 bcolors.FAIL + '!!! An error occurred while creating directory !!! = ' + dir_name + bcolors.ENDC)
-        logWrite(pareLogFile, str(e))  # Log the specific error for debugging
+                 bcolors.FAIL + ' ::' + nodeIP + ':: Error occurred while creating directory: ' + dir_name + ' - ' + str(e) + bcolors.ENDC)
         return False
 
 
 def makeDir(dir_name):
     try:
         if os.path.isdir(dir_name):
-            logWrite(pareLogFile, bcolors.WARNING + 'Directory has been already existed = ' + dir_name + bcolors.ENDC)
+            logWrite(pareLogFile, bcolors.WARNING + 'Directory already exists = ' + dir_name + bcolors.ENDC)
             return True
         else:
-            os.makedirs(dir_name)
+            os.makedirs(dir_name, exist_ok=True)
             logWrite(pareLogFile, bcolors.OKGREEN + 'Directory was created = ' + dir_name + bcolors.ENDC)
             return True
-    except:
+    except Exception as e:
         logWrite(pareLogFile,
-                 bcolors.FAIL + '!!! An error is occurred while writing directory  !!! = ' + dir_name + bcolors.ENDC)
+                 bcolors.FAIL + '!!! Error occurred while creating directory !!! = ' + dir_name + ' - ' + str(e) + bcolors.ENDC)
         return False
 
 
@@ -1549,3 +1931,8 @@ def logWrite(logFile, logText):
         fileAppendWrite(logFile, logText)
     else:
         print(logText)
+
+
+
+
+

@@ -13,6 +13,7 @@ from pareFunc import *
 import socket
 from subprocess import getstatusoutput
 from time import sleep
+import sys
 
 
 def nodeInfo_wv(redisNode, cmd):
@@ -137,7 +138,9 @@ def check_if_master(nodeIP, portNumber):
     has_slave = False
 
     try:
+        # Use slaveORMasterNode directly for consistent role identification across code
         is_master = slaveORMasterNode(nodeIP, portNumber) == 'M'
+
         if is_master:
             # Check if it has slaves
             pingStatus, pingResponse = subprocess.getstatusoutput(
@@ -148,6 +151,27 @@ def check_if_master(nodeIP, portNumber):
         print(f"Error checking master status: {e}")
 
     return (is_master, has_slave)
+
+
+def reload_pare_nodes():
+    """
+    Reloads the pareNodes configuration from the pareNodeList.py file.
+    This allows updating the node list without restarting the application.
+    """
+    global pareNodes
+    try:
+        # Reload the pareNodeList module to get the updated configuration
+        import importlib
+        importlib.reload(sys.modules['pareNodeList'])
+        from pareNodeList import pareNodes as fresh_pareNodes
+
+        # Update the global pareNodes variable
+        globals()['pareNodes'] = fresh_pareNodes
+        pareNodes = fresh_pareNodes
+
+        return True, f"Node configuration reloaded successfully. {len([node for node in pareNodes if node[4]])} active nodes."
+    except Exception as e:
+        return False, f"Error reloading node configuration: {str(e)}"
 
 
 def node_action_wv(redisNode, action, confirmed=False):
@@ -411,7 +435,7 @@ def switch_master_slave_wv(redisNode):
             return f"<p style='color: red;'>Error during master/slave switch: {e}</p><pre>{log_output_error}</pre>"
 
     except Exception as e:
-        return f"<p style='color: red;'>An unexpected error occurred: {e}</p>"
+        return f"<p style='color: red;'>An unexpected error occurred: {str(e)}</p>"
 
 
 def change_config_wv(redisNode, parameter, value, persist=False):
@@ -983,3 +1007,458 @@ def show_redis_log_wv(redisNode, line_count=100):
 
     except Exception as e:
         return f"<p style='color: red;'>An unexpected error occurred: {str(e)}</p>"
+
+
+def add_delete_node_wv(operation, node_info=None):
+    """
+    Adds or deletes a Redis node from the cluster via web interface.
+
+    Args:
+        operation: Either 'add' or 'del'
+        node_info: For 'add', a dictionary containing node details
+                  For 'del', a string with the node ID to delete
+
+    Returns:
+        HTML-formatted result of the operation
+    """
+    # Declare logWrite as global before any use of it
+    global logWrite
+    global pareNodes
+
+    try:
+        if operation == 'add':
+            if not node_info:
+                return "<p style='color: red;'>Error: Missing node information</p>"
+
+            serverIP = node_info.get('serverIP', '')
+            serverPORT = node_info.get('serverPORT', '')
+            maxMemSize = node_info.get('maxMemSize', '')
+            cpuCoreIDs = node_info.get('cpuCoreIDs', '')
+            nodeType = node_info.get('nodeType', '')
+            masterID = node_info.get('masterID', '')
+
+            # Input validation
+            if not validIP(serverIP):
+                return "<p style='color: red;'>Error: Invalid server IP</p>"
+
+            if not serverPORT.isdigit():
+                return "<p style='color: red;'>Error: Invalid port number</p>"
+
+            if not maxMemSize or not (maxMemSize[:-2].isdigit() and maxMemSize[-2:] in ['gb', 'mb']):
+                return "<p style='color: red;'>Error: Invalid memory size format. Use format like '1gb' or '500mb'</p>"
+
+            # Validate CPU core IDs
+            if not all(id.strip().isdigit() for id in cpuCoreIDs.split(',')):
+                return "<p style='color: red;'>Error: Invalid CPU core IDs. Use format like '1' or '3,4'</p>"
+
+            # Check if node is already in use
+            if pingredisNode(serverIP, serverPORT):
+                return "<p style='color: red;'>Error: This IP:PORT is already used by Redis Cluster</p>"
+
+            # Check if node is in pareNodes config
+            isActive = False
+            isNewServer = True
+            nodeNumber = len(pareNodes) + 1
+
+            for pareNode in pareNodes:
+                nodeIP = pareNode[0][0]
+                portNumber = pareNode[1][0]
+                if pareNode[4]:  # If active
+                    if nodeIP == serverIP:
+                        isNewServer = False
+                        if portNumber == serverPORT:
+                            isActive = True
+
+            if isActive:
+                return "<p style='color: red;'>Error: This IP:PORT is already configured in pareNodes</p>"
+
+            # Additional validation for masterID when adding a slave to specific master
+            if nodeType == 'slave-specific' and (not masterID or len(masterID.strip()) == 0):
+                return """
+                <div>
+                    <p style='color: red;'>Error: Master ID is required when adding a slave to a specific master</p>
+                    <p>Please use the "View Master Nodes" button to select a valid master node ID.</p>
+                </div>
+                """
+
+            # Capture the original logWrite function to record output
+            original_logWrite = logWrite
+            log_messages = []
+
+            def capture_log(*args):
+                if len(args) > 1:
+                    log_text = str(args[1])
+                    log_messages.append(log_text)
+                original_logWrite(*args)
+
+            # Set our capturing function
+            globals()['logWrite'] = capture_log
+
+            try:
+                # Create directories and configuration files
+                dirs_created = True
+                if isNewServer:
+                    dirs_created = redisDirMaker(serverIP, str(nodeNumber))
+                    if not dirs_created:
+                        # Restore original logWrite
+                        globals()['logWrite'] = original_logWrite
+
+                        # Format captured logs
+                        log_output = "<br>".join([msg for msg in log_messages if msg])
+
+                        return f"""
+                        <div>
+                            <h3 style='color: red;'>Failed to create directories for Redis node</h3>
+                            <p>Could not create required directories on {serverIP}. Check the following:</p>
+                            <ul>
+                                <li>SSH access and permissions to the server</li>
+                                <li>Disk space availability</li>
+                                <li>Network connectivity between servers</li>
+                            </ul>
+                            <h4>Logs:</h4>
+                            <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
+                            <p>Please fix the issue and try again.</p>
+                        </div>
+                        """
+
+                    redisBinCopied = redisBinaryCopier(serverIP, redisVersion)
+                    if not redisBinCopied:
+                        # Restore original logWrite
+                        globals()['logWrite'] = original_logWrite
+
+                        # Format captured logs
+                        log_output = "<br>".join([msg for msg in log_messages if msg])
+
+                        return f"""
+                        <div>
+                            <h3 style='color: red;'>Failed to copy Redis binaries</h3>
+                            <p>Could not copy Redis binaries to {serverIP}. Check the following:</p>
+                            <ul>
+                                <li>SSH access and permissions to the server</li>
+                                <li>Disk space availability</li>
+                                <li>Ensure Redis binaries exist locally</li>
+                            </ul>
+                            <h4>Logs:</h4>
+                            <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
+                            <p>Please fix the issue and try again.</p>
+                        </div>
+                        """
+
+                # Create and copy the config file
+                conf_created = redisConfMaker(serverIP, str(nodeNumber), serverPORT, maxMemSize)
+                if not conf_created:
+                    # Restore original logWrite
+                    globals()['logWrite'] = original_logWrite
+
+                    # Format captured logs
+                    log_output = "<br>".join([msg for msg in log_messages if msg])
+
+                    return f"""
+                    <div>
+                        <h3 style='color: red;'>Failed to create or copy configuration file</h3>
+                        <p>Could not create or copy the Redis configuration file to {serverIP}. Check the following:</p>
+                        <ul>
+                            <li>SSH access and permissions to the server</li>
+                            <li>Disk space availability</li>
+                            <li>Ensure the target directory exists and is writable</li>
+                        </ul>
+                        <h4>Logs:</h4>
+                        <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
+                        <p>Please fix the issue and try again.</p>
+                    </div>
+                    """
+
+                # Start the node
+                startNode(serverIP, str(nodeNumber), serverPORT, cpuCoreIDs)
+
+                # Check if node actually started
+                node_started = pingredisNode(serverIP, serverPORT)
+
+                if not node_started:
+                    # Restore original logWrite
+                    globals()['logWrite'] = original_logWrite
+
+                    # Format captured logs
+                    log_output = "<br>".join([msg for msg in log_messages if msg])
+
+                    return f"""
+                    <div>
+                        <h3 style='color: red;'>Failed to start Redis node</h3>
+                        <p>The Redis node could not be started. Check the following:</p>
+                        <ul>
+                            <li>Verify that Redis binary exists at configured path: {redisBinaryDir}src/redis-server</li>
+                            <li>Check disk space and permissions</li>
+                            <li>Verify that the specified CPU cores ({cpuCoreIDs}) are valid and available</li>
+                            <li>Check if the port {serverPORT} is available</li>
+                            <li>Verify the configuration file was properly created and copied</li>
+                        </ul>
+                        <h4>Logs:</h4>
+                        <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
+                        <p>Please fix the issue and try again.</p>
+                    </div>
+                    """
+
+                result = False
+                error_message = ""
+
+                # Add to cluster based on type
+                if nodeType == 'master':
+                    result = addMasterNode(serverIP, serverPORT)
+                elif nodeType == 'slave-specific':
+                    if masterID:
+                        result = addSpecificSlaveNode(serverIP, serverPORT, masterID)
+                    else:
+                        result = addSlaveNode(serverIP, serverPORT)
+
+                # Restore original logWrite
+                globals()['logWrite'] = original_logWrite
+
+                if result:
+                    # Add node to pareNodes
+                    nodeStr = f"pareNodes.append([['{serverIP}'],['{serverPORT}'],['{cpuCoreIDs}'],['{maxMemSize}'],True])"
+                    fileAppendWrite("pareNodeList.py", f'#### This node was added by paredicma web UI at {get_datetime()}\n{nodeStr}')
+
+                    # Reload the node configuration
+                    reload_success, reload_msg = reload_pare_nodes()
+                    reload_note = ""
+                    if not reload_success:
+                        reload_note = f"<p style='color: orange;'><strong>Note:</strong> {reload_msg}. You may need to refresh the page or use the Refresh Configuration button.</p>"
+
+                    return f"""
+                    <div>
+                        <p style='color: green;'>Successfully added node to cluster</p>
+                        <ul>
+                            <li><strong>IP:PORT:</strong> {serverIP}:{serverPORT}</li>
+                            <li><strong>Type:</strong> {nodeType}</li>
+                            <li><strong>Memory:</strong> {maxMemSize}</li>
+                            <li><strong>CPU Cores:</strong> {cpuCoreIDs}</li>
+                        </ul>
+                        <p>The node has been added to the Redis cluster and the configuration has been updated.</p>
+                        {reload_note}
+                        <div style="margin-top: 15px; padding: 10px; background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px;">
+                            <p><strong>Important:</strong> To see this node in the Monitor Node Info dropdown:</p>
+                            <ol>
+                                <li>Click the "Refresh Configuration" button below</li>
+                                <li>Or navigate back to the Monitor page</li>
+                            </ol>
+                        </div>
+                        <p><a href="/refresh-config" class="btn" style="background-color: #28a745; color: white;">Refresh Configuration</a>
+                        <a href="/monitor" class="btn" style="background-color: #007bff; color: white;">Go to Monitor</a></p>
+                    </div>
+                    """
+                else:
+                    # Format captured logs
+                    log_output = "<br>".join([msg for msg in log_messages if msg])
+
+                    return f"""
+                    <div>
+                        <p style='color: red;'>Failed to add node to cluster</p>
+                        <p>The Redis node was started successfully, but could not be added to the cluster.</p>
+                        <h4>Logs:</h4>
+                        <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
+                    </div>
+                    """
+            finally:
+                # Ensure we restore the original logWrite function
+                globals()['logWrite'] = original_logWrite
+
+        elif operation == 'del':
+            node_id = node_info  # For delete, node_info is the node ID
+
+            if not node_id or not node_id.isdigit():
+                return "<p style='color: red;'>Error: Invalid node ID - must be a number</p>"
+
+            node_id_int = int(node_id)
+
+            # Verify node index exists and node is active
+            if node_id_int < 1 or node_id_int > len(pareNodes):
+                return f"<p style='color: red;'>Error: Node ID {node_id} doesn't exist. Valid range is 1-{len(pareNodes)}</p>"
+
+            if not pareNodes[node_id_int - 1][4]:
+                return f"<p style='color: red;'>Error: Node {node_id} is already marked as inactive</p>"
+
+            # Get node details before deletion
+            try:
+                serverIP = pareNodes[node_id_int - 1][0][0]
+                serverPORT = pareNodes[node_id_int - 1][1][0]
+                cpuCoreIDs = pareNodes[node_id_int - 1][2][0]
+                maxMemSize = pareNodes[node_id_int - 1][3][0]
+            except (IndexError, KeyError) as e:
+                return f"<p style='color: red;'>Error accessing node details for node {node_id}: {str(e)}</p>"
+
+            # Capture logs during deletion
+            original_logWrite = logWrite
+            log_messages = []
+
+            def capture_log(*args):
+                if len(args) > 1:
+                    log_text = str(args[1])
+                    log_messages.append(log_text)
+                original_logWrite(*args)
+
+            # Set capturing function
+            globals()['logWrite'] = capture_log
+
+            try:
+                # Check if the node is a master or slave before deletion
+                is_master = False
+                has_slave = False
+                node_role = "unknown"
+
+                # Only check if the node is pingable
+                if pingredisNode(serverIP, serverPORT):
+                    role_status = slaveORMasterNode(serverIP, serverPORT)
+                    is_master = (role_status == 'M')
+                    node_role = "master" if is_master else "slave" if role_status == 'S' else "unknown"
+
+                    if is_master:
+                        # Check if master has slaves
+                        pingStatus, pingResponse = subprocess.getstatusoutput(
+                            redisConnectCmd(serverIP, serverPORT, ' info replication | grep connected_slaves '))
+                        has_slave = (pingStatus == 0 and pingResponse.find(':0') == -1)
+
+                log_messages.append(f"Detected node {serverIP}:{serverPORT} as: {node_role}")
+                if is_master:
+                    log_messages.append(f"Master has slaves: {'Yes' if has_slave else 'No'}")
+
+                # Attempt to delete from cluster
+                deletion_successful = delPareNode(node_id)
+
+                # If deletion was successful, stop the Redis process without interactive prompts
+                process_stopped = False
+                if deletion_successful:
+                    log_messages.append(f"Stopping Redis process for node {serverIP}:{serverPORT}...")
+                    try:
+                        # Call stopNode with non_interactive=True
+                        stopNode(serverIP, str(node_id_int), serverPORT, non_interactive=True)
+                        process_stopped = True
+                        log_messages.append(f"Redis process for node {serverIP}:{serverPORT} successfully terminated.")
+                    except Exception as stop_error:
+                        log_messages.append(f"Warning: Could not stop Redis process: {str(stop_error)}")
+
+                # Restore original logWrite
+                globals()['logWrite'] = original_logWrite
+
+                # Format log messages
+                log_output = "<br>".join([msg for msg in log_messages if msg])
+
+                if deletion_successful:
+                    # Update pareNodeList.py file
+                    try:
+                        # Construct old and new values
+                        oldVal = f"pareNodes.append([['{serverIP}'],['{serverPORT}'],['{cpuCoreIDs}'],['{maxMemSize}'],True])"
+                        newVal = f"pareNodes.append([['{serverIP}'],['{serverPORT}'],['{cpuCoreIDs}'],['{maxMemSize}'],False])"
+
+                        log_messages.append(f"Attempting to update pareNodeList.py...")
+
+                        # Apply the file change with more robust approach
+                        file_updated = changePareNodeListFile(oldVal, newVal)
+
+                        if file_updated:
+                            log_messages.append("File update operation successful")
+
+                            # Set the node as inactive in memory immediately
+                            pareNodes[node_id_int - 1][4] = False
+
+                            # Double-check the file was updated by reading it back
+                            check_content = fileReadFull("pareNodeList.py")
+                            if newVal in check_content:
+                                log_messages.append(f"Verified file update was successful")
+                            else:
+                                log_messages.append(f"Warning: File update verification failed! Manual inspection needed.")
+                                # Try a last-ditch approach - direct file edit
+                                try:
+                                    with open("pareNodeList.py", "r") as f:
+                                        content = f.read()
+
+                                    # Force the replacement
+                                    content = content.replace(oldVal, newVal)
+
+                                    with open("pareNodeList.py", "w") as f:
+                                        f.write(content + '\n#### Emergency file edit at ' + get_datetime())
+                                        f.flush()
+                                        os.fsync(f.fileno())
+
+                                    log_messages.append(f"Attempted emergency direct file edit")
+                                except Exception as emergency_error:
+                                    log_messages.append(f"Emergency edit failed: {str(emergency_error)}")
+                        else:
+                            log_messages.append("Warning: changePareNodeListFile reported failure!")
+                            log_messages.append("Manual update of pareNodeList.py may be required")
+
+                            # Try a direct approach as fallback
+                            try:
+                                current_content = fileReadFull("pareNodeList.py")
+                                updated_content = current_content.replace(oldVal, newVal)
+
+                                with open("pareNodeList.py", "w") as f:
+                                    f.write(updated_content + '\n#### Fallback file edit at ' + get_datetime())
+                                    f.flush()
+                                    os.fsync(f.fileno())
+
+                                log_messages.append("Attempted fallback direct file update")
+                            except Exception as fallback_error:
+                                log_messages.append(f"Fallback update failed: {str(fallback_error)}")
+
+                    except Exception as config_error:
+                        return f"""
+                        <div>
+                            <p style='color: orange;'>Node was deleted from cluster, but failed to update config file</p>
+                            <p>Error: {str(config_error)}</p>
+                            <p>You may need to manually update the pareNodeList.py file.</p>
+                            <h4>Deletion Details:</h4>
+                            <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
+                        </div>
+                        """
+
+                    # Reload the node configuration to ensure all references are updated
+                    reload_success, reload_msg = reload_pare_nodes()
+                    reload_note = ""
+                    if not reload_success:
+                        reload_note = f"<p style='color: orange;'><strong>Note:</strong> {reload_msg}. You may need to refresh the page or use the Refresh Configuration button.</p>"
+
+                    # Add node role info to the message
+                    node_type = f"<span style='color: {'blue' if node_role == 'slave' else 'green' if node_role == 'master' else 'gray'};'>{node_role.capitalize()}</span>"
+                    process_status = "<span style='color: green;'>Redis process successfully terminated</span>" if process_stopped else "<span style='color: orange;'>Redis process may still be running</span>"
+
+                    return f"""
+                    <div>
+                        <p style='color: green;'>Successfully deleted node from cluster</p>
+                        <ul>
+                            <li><strong>Node ID:</strong> {node_id}</li>
+                            <li><strong>IP:PORT:</strong> {serverIP}:{serverPORT}</li>
+                            <li><strong>Node Type:</strong> {node_type}</li>
+                            <li><strong>Process Status:</strong> {process_status}</li>
+                        </ul>
+                        <p>The node has been deleted from the Redis cluster and pareNodeList.py has been updated.</p>
+                        {reload_note}
+                        <p><a href="/refresh-config" class="btn" style="background-color: #28a745; color: white;">Refresh Configuration</a></p>
+                        <h4>Deletion Details:</h4>
+                        <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
+                    </div>
+                    """
+                else:
+                    return f"""
+                    <div>
+                        <p style='color: red;'>Failed to delete node from cluster.</p>
+                        <p>This could be because the node is a non-empty master node. Try to migrate data away from this node first or use the CLI tool for more options.</p>
+                        <h4>Error Details:</h4>
+                        <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
+                    </div>
+                    """
+            finally:
+                # Ensure we restore the original logWrite function
+                globals()['logWrite'] = original_logWrite
+        else:
+            return "<p style='color: red;'>Error: Invalid operation. Must be 'add' or 'del'.</p>"
+
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return f"""
+        <div>
+            <p style='color: red;'>An unexpected error occurred: {str(e)}</p>
+            <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto; font-size: 12px;'>{trace}</pre>
+            <p>Please report this error to the administrator.</p>
+        </div>
+        """

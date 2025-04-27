@@ -5,7 +5,7 @@
 
 
 import os
-import sys
+import sys  # Ensure sys is imported for module reloading
 
 from pareConfig import *
 from pareNodeList import *
@@ -21,6 +21,93 @@ from time import sleep  # Import sleep
 app = FastAPI()
 router = APIRouter()
 
+@app.middleware("http")
+async def reload_nodes_middleware(request, call_next):
+    """
+    Middleware that reloads the pareNodes configuration before processing certain paths.
+    This ensures the UI always shows the latest node configuration.
+    """
+    # List of paths that should trigger a configuration reload
+    reload_paths = [
+        "/monitor",  # Added main monitor page
+        "/monitor/list-nodes/",
+        "/monitor/ping-nodes/",
+        "/monitor/node-info/",  # Added node-info endpoint
+        "/monitor/slot-info/",
+        "/monitor/cluster-state-info",
+        "/monitor/memory-usage",
+        "/maintain",
+        "/manager"
+    ]
+
+    # Check if the current path should trigger a reload
+    if any(request.url.path.startswith(path) for path in reload_paths):
+        try:
+            # Reload the pareNodeList module
+            import importlib
+            importlib.reload(sys.modules['pareNodeList'])
+            from pareNodeList import pareNodes as fresh_pareNodes
+
+            # Update the global pareNodes with the freshly loaded version
+            global pareNodes
+            pareNodes = fresh_pareNodes
+        except Exception as e:
+            print(f"Error reloading node configuration: {str(e)}")
+
+    # Continue processing the request
+    response = await call_next(request)
+    return response
+
+# Add an endpoint to manually refresh the node configuration
+@app.get("/refresh-config", response_class=HTMLResponse)
+async def refresh_config():
+    """
+    Endpoint to manually refresh the node configuration.
+    """
+    try:
+        # Reload the pareNodeList module
+        import importlib
+        importlib.reload(sys.modules['pareNodeList'])
+        from pareNodeList import pareNodes as fresh_pareNodes
+
+        # Update the global pareNodes
+        global pareNodes
+        pareNodes = fresh_pareNodes
+
+        # Generate the response message
+        response_message = f"""
+        {css_style}
+        <html>
+        <head><title>Configuration Refreshed</title></head>
+        <body>
+            <h2>Node Configuration Refreshed</h2>
+            <p>The node configuration has been successfully reloaded.</p>
+            <p>Current active nodes: {sum(1 for node in pareNodes if node[4])}</p>
+            <div class="nav-buttons">
+                <a href="/monitor">Back to Monitor</a>
+                <a href="/maintain">Back to Maintenance</a>
+                <a href="/manager">Back to Manager</a>
+            </div>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=response_message)
+    except Exception as e:
+        response_message = f"""
+        {css_style}
+        <html>
+        <head><title>Configuration Refresh Failed</title></head>
+        <body>
+            <h2>Node Configuration Refresh Failed</h2>
+            <p style='color: red;'>Error: {str(e)}</p>
+            <div class="nav-buttons">
+                <a href="/monitor">Back to Monitor</a>
+            </div>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=response_message)
+
 # Define the ping-nodes endpoint
 @app.get("/monitor/ping-nodes/")
 def ping_nodes():
@@ -31,7 +118,7 @@ def ping_nodes():
     for pareNode in pareNodes:
         node_ip = pareNode[0][0]
         port_number = pareNode[1][0]
-        
+
         if pareNode[4]:
             isPing = pingredisNode(node_ip, port_number)
             if isPing:
@@ -106,6 +193,29 @@ def list_nodes():
 # Define the node-info endpoint
 @app.get("/monitor/node-info/")
 def get_node_info(redisNode, command):
+    # Ensure we have the latest node list before processing the request
+    try:
+        import importlib
+        importlib.reload(sys.modules['pareNodeList'])
+        from pareNodeList import pareNodes as fresh_pareNodes
+        global pareNodes
+        pareNodes = fresh_pareNodes
+
+        # Also refresh the nodeList
+        nodeList = getNodeList()
+
+        # Provide a message if the requested node isn't in the list
+        if redisNode not in nodeList:
+            return Response(
+                content=f"{css_style}<html><body><h2>Node Not Found</h2>" +
+                f"<p style='color: red;'>The node {redisNode} was not found in the current node list.</p>" +
+                f"<p>This could happen if you're trying to access a newly added node. Please try refreshing the page or use the Refresh Configuration button.</p>" +
+                f"<p><a href='/refresh-config' class='btn' style='background-color: #28a745; color: white;'>Refresh Configuration</a></p>" +
+                "</body></html>",
+                media_type="text/html"
+            )
+    except Exception as e:
+        print(f"Error refreshing node list in node-info endpoint: {str(e)}")
 
     # Call the nodeInfo function to retrieve information about the node
     node_info_val = nodeInfo_wv(redisNode, command)
@@ -119,7 +229,7 @@ def get_node_info(redisNode, command):
 async def get_server_info(server_ip: str):
         # Call the serverInfo function to retrieve server information
         server_info = serverInfo_wv(server_ip)
-        
+
         # Construct the HTML response
         html_content = f"""
         {css_style}
@@ -353,6 +463,16 @@ css_style = """
 # Define the endpoint for the monitoring page
 @app.get("/monitor", response_class=HTMLResponse)
 async def monitor():
+    # Ensure we have the latest node list before displaying the page
+    try:
+        import importlib
+        importlib.reload(sys.modules['pareNodeList'])
+        from pareNodeList import pareNodes as fresh_pareNodes
+        global pareNodes
+        pareNodes = fresh_pareNodes
+    except Exception as e:
+        print(f"Error refreshing node list: {str(e)}")
+
     uniqueservers = getuniqueServers(pareNodes)
     commandsAvailable = ['server', 'clients', 'memory', 'persistence', 'stats', 'replication', 'cpu', 'cluster']
     nodeList = getNodeList()
@@ -360,9 +480,12 @@ async def monitor():
     html_content = f"""
     {css_style}
     <h1>Monitoring Endpoints</h1>
+    <div style="margin-bottom: 20px;">
+        <a href="/refresh-config" style="background-color: #28a745; color: white;">Refresh Node Configuration</a>
+        <a href="/manager">Go to Manager (paredicman)</a>
+        <a href="/maintain">Go to Maintenance (paredicmaint)</a>
+    </div>
     <ul>
-        <li><a href="/manager">Go to Manager (paredicman)</a></li>
-        <li><a href="/maintain">Go to Maintenance (paredicmaint)</a></li>
         <li><a href="/monitor/ping-nodes/">Ping Nodes</a></li>
         <li><a href="/monitor/list-nodes/">List Nodes</a></li>
         <li>
@@ -423,7 +546,7 @@ async def node_action(redisNode: str, action: str, confirmed: bool = False):
     Includes confirmation handling for stopping master nodes.
     """
     result_html = node_action_wv(redisNode, action, confirmed)
-    
+
     # Check if this is a confirmation request (when result contains confirmation-needed)
     if "confirmation-needed" in result_html:
         # Return a simplified response with just the confirmation dialog
@@ -464,7 +587,7 @@ async def switch_master_slave(redisNode: str):
     Endpoint to switch roles between a master node and one of its slaves.
     """
     result_html = switch_master_slave_wv(redisNode)
-    
+
     # Construct the response message
     response_message = f"""
     {css_style}
@@ -699,6 +822,15 @@ async def manager():
     """
     Displays the Redis Cluster Manager UI.
     """
+    # Ensure we have the latest node list
+    import importlib
+    importlib.reload(sys.modules['pareNodeList'])
+    from pareNodeList import pareNodes as fresh_pareNodes
+
+    # Update the global pareNodes
+    global pareNodes
+    pareNodes = fresh_pareNodes
+
     nodeList = getNodeList()
 
     # Get only master nodes for the switch master/slave feature
@@ -733,8 +865,11 @@ async def manager():
     <head><title>Redis Cluster Manager</title></head>
     <body>
     <h1>Redis Cluster Manager (paredicman)</h1>
-    <a href="/monitor">Go to Monitor (paredicmon)</a>
-    <a href="/maintain">Go to Maintenance (paredicmaint)</a>
+    <div class="nav-buttons">
+        <a href="/refresh-config" style="background-color: #28a745; color: white;">Refresh Node Configuration</a>
+        <a href="/monitor">Go to Monitor (paredicmon)</a>
+        <a href="/maintain">Go to Maintenance (paredicmaint)</a>
+    </div>
     <hr>
 
     <h2>1 - Start/Stop/Restart Redis Node</h2>
@@ -1006,28 +1141,450 @@ async def manager():
 # Maintenance Section
 # #############################################
 
+@app.get("/maintain/add-node/", response_class=HTMLResponse)
+async def add_node(
+    serverIP: str,
+    serverPORT: str,
+    maxMemSize: str,
+    cpuCoreIDs: str,
+    nodeType: str = "slave",
+    masterID: str = "",
+    confirmed: bool = False
+):
+    """
+    Endpoint to add a new Redis node to the cluster.
+    """
+    if not validIP(serverIP):
+        return HTMLResponse(content=f"""
+        {css_style}
+        <html><head><title>Error</title></head>
+        <body>
+            <h2>Invalid IP Address</h2>
+            <p style='color: red;'>The IP address {serverIP} is not valid.</p>
+            <div class="nav-buttons">
+                <a href="/maintain">Back to Maintenance</a>
+            </div>
+        </body></html>
+        """)
+
+    # Call add_delete_node_wv with proper parameters
+    node_info = {
+        'serverIP': serverIP,
+        'serverPORT': serverPORT,
+        'maxMemSize': maxMemSize,
+        'cpuCoreIDs': cpuCoreIDs,
+        'nodeType': nodeType,
+        'masterID': masterID
+    }
+
+    result_html = add_delete_node_wv('add', node_info)
+
+    # Construct the response message
+    response_message = f"""
+    {css_style}
+    <html>
+    <head><title>Add Redis Node</title></head>
+    <body>
+        <h2>Add Redis Node Result</h2>
+        <div>{result_html}</div>
+        <div class="nav-buttons">
+            <a href="/maintain">Back to Maintenance</a>
+            <a href="/maintain/view-master-nodes" target="_blank">View Master Nodes</a>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=response_message)
+
+@app.get("/maintain/delete-node/", response_class=HTMLResponse)
+async def delete_node(nodeId: str, confirmed: bool = False):
+    """
+    Endpoint to delete a Redis node from the cluster.
+    """
+    try:
+        if not confirmed:
+            # First verify the node exists and is active before showing confirmation
+            try:
+                node_id_int = int(nodeId)
+                if node_id_int < 1 or node_id_int > len(pareNodes):
+                    return HTMLResponse(content=f"""
+                    {css_style}
+                    <html>
+                    <head><title>Error</title></head>
+                    <body>
+                        <h2>Invalid Node ID</h2>
+                        <p style='color: red;'>Node ID {nodeId} doesn't exist. Valid range is 1-{len(pareNodes)}</p>
+                        <div class="nav-buttons">
+                            <a href="/maintain">Back to Maintenance</a>
+                        </div>
+                    </body>
+                    </html>
+                    """)
+
+                if not pareNodes[node_id_int - 1][4]:
+                    return HTMLResponse(content=f"""
+                    {css_style}
+                    <html>
+                    <head><title>Error</title></head>
+                    <body>
+                        <h2>Inactive Node</h2>
+                        <p style='color: red;'>Node {nodeId} is already marked as inactive</p>
+                        <div class="nav-buttons">
+                            <a href="/maintain">Back to Maintenance</a>
+                        </div>
+                    </body>
+                    </html>
+                    """)
+
+                # Get node details for display
+                serverIP = pareNodes[node_id_int - 1][0][0]
+                serverPORT = pareNodes[node_id_int - 1][1][0]
+
+                # Show confirmation page with node details
+                return HTMLResponse(content=f"""
+                {css_style}
+                <html>
+                <head><title>Confirm Delete Node</title></head>
+                <body>
+                    <h2>Confirm Node Deletion</h2>
+                    <div class="confirmation-needed">
+                        <p>Are you sure you want to delete this node from the cluster?</p>
+                        <p><strong>Node:</strong> {nodeId} - {serverIP}:{serverPORT}</p>
+                        <p style='color: red;'>This operation cannot be undone!</p>
+                        <form action="/maintain/delete-node/" method="get">
+                            <input type="hidden" name="nodeId" value="{nodeId}">
+                            <input type="hidden" name="confirmed" value="true">
+                            <button type="submit" class="confirm-btn">Yes, Delete Node</button>
+                            <a href="/maintain" class="cancel-btn">Cancel</a>
+                        </form>
+                    </div>
+                </body>
+                </html>
+                """)
+            except Exception as e:
+                return HTMLResponse(content=f"""
+                {css_style}
+                <html>
+                <head><title>Error</title></head>
+                <body>
+                    <h2>Error Processing Node</h2>
+                    <p style='color: red;'>An error occurred while processing node {nodeId}: {str(e)}</p>
+                    <div class="nav-buttons">
+                        <a href="/maintain">Back to Maintenance</a>
+                    </div>
+                </body>
+                </html>
+                """)
+
+        # If confirmed, delegate to the add_delete_node_wv function
+        result_html = add_delete_node_wv('del', nodeId)
+
+        # Construct the response message
+        response_message = f"""
+        {css_style}
+        <html>
+        <head><title>Delete Redis Node</title></head>
+        <body>
+            <h2>Delete Node Result</h2>
+            <div>{result_html}</div>
+            <div class="nav-buttons">
+                <a href="/maintain">Back to Maintenance</a>
+            </div>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=response_message)
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return HTMLResponse(content=f"""
+        {css_style}
+        <html>
+        <head><title>Error</title></head>
+        <body>
+            <h2>Unexpected Error</h2>
+            <p style='color: red;'>An unexpected error occurred: {str(e)}</p>
+            <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto; font-size: 12px;'>{trace}</pre>
+            <div class="nav-buttons">
+                <a href="/maintain">Back to Maintenance</a>
+            </div>
+        </body>
+        </html>
+        """)
+
+@app.get("/maintain/view-master-nodes", response_class=HTMLResponse)
+async def view_master_nodes():
+    """
+    Displays a list of master nodes with their IDs for adding slaves to specific masters.
+    """
+    master_nodes = []
+
+    try:
+        # Find a contact node to query cluster info
+        contact_node = None
+        for pareNode in pareNodes:
+            if pareNode[4]:  # If active
+                nodeIP = pareNode[0][0]
+                portNumber = pareNode[1][0]
+                if pingredisNode(nodeIP, portNumber):
+                    contact_node = (nodeIP, portNumber)
+                    break
+
+        if not contact_node:
+            return """
+            <html>
+            <head>
+                <title>Master Nodes</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; }
+                    .error { color: red; }
+                </style>
+            </head>
+            <body>
+                <h1>Master Nodes</h1>
+                <p class="error">Error: Could not find any active node to query cluster information</p>
+                <a href="/maintain">Back to Maintenance</a>
+            </body>
+            </html>
+            """
+
+        # Query the cluster for master nodes
+        cmd_status, cmd_output = subprocess.getstatusoutput(
+            redisConnectCmd(contact_node[0], contact_node[1], ' CLUSTER NODES | grep master'))
+
+        if cmd_status != 0:
+            return """
+            <html>
+            <head>
+                <title>Master Nodes</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; }
+                    .error { color: red; }
+                </style>
+            </head>
+            <body>
+                <h1>Master Nodes</h1>
+                <p class="error">Error: Failed to get cluster nodes information</p>
+                <a href="/maintain">Back to Maintenance</a>
+            </body>
+            </html>
+            """
+
+        lines = cmd_output.strip().split('\n')
+        for line in lines:
+            parts = line.split()
+            if len(parts) >= 9 and "master" in line and "fail" not in line:
+                node_id = parts[0]
+                ip_port = parts[1]
+                slots_info = " ".join(parts[8:]) if len(parts) > 8 else "No slots"
+                master_nodes.append((node_id, ip_port, slots_info))
+
+        # Generate HTML
+        html_content = f"""
+        {css_style}
+        <html>
+        <head>
+            <title>Master Nodes</title>
+        </head>
+        <body>
+            <h1>Master Nodes</h1>
+            <p>Click on a node ID to copy it to clipboard</p>
+            <table class="config-table" border="1">
+                <thead>
+                    <tr>
+                        <th>Node ID</th>
+                        <th>IP:Port</th>
+                        <th>Slots</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+
+        for node in master_nodes:
+            html_content += f"""
+                    <tr>
+                        <td><a href="#" class="node-id" data-id="{node[0]}" onclick="copyToClipboard('{node[0]}')">{node[0]}</a></td>
+                        <td>{node[1]}</td>
+                        <td>{node[2]}</td>
+                    </tr>
+            """
+
+        html_content += """
+                </tbody>
+            </table>
+            <div id="copy-message" style="display:none; padding: 10px; margin-top: 10px; background-color: #dff0d8; color: #3c763d; border: 1px solid #d6e9c6; border-radius: 4px;">
+                Node ID copied to clipboard!
+            </div>
+            <div style="margin-top: 20px">
+                <a href="/maintain" class="btn">Back to Maintenance</a>
+            </div>
+            <script>
+                function copyToClipboard(text) {
+                    var textarea = document.createElement("textarea");
+                    textarea.value = text;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(textarea);
+                    
+                    // Show copy message
+                    var message = document.getElementById("copy-message");
+                    message.style.display = "block";
+                    setTimeout(function() {
+                        message.style.display = "none";
+                    }, 2000);
+                }
+            </script>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content)
+    except Exception as e:
+        return f"""
+        <html>
+        <head>
+            <title>Master Nodes</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; padding: 20px; }}
+                .error {{ color: red; }}
+            </style>
+        </head>
+        <body>
+            <h1>Master Nodes</h1>
+            <p class="error">Error: {str(e)}</p>
+            <a href="/maintain">Back to Maintenance</a>
+        </body>
+        </html>
+        """
+
 @app.get("/maintain", response_class=HTMLResponse)
 async def maintain():
     """
     Displays the Redis Cluster Maintenance UI.
     """
+    # Ensure we have the latest node list
+    import importlib
+    importlib.reload(sys.modules['pareNodeList'])
+    from pareNodeList import pareNodes as fresh_pareNodes
+
+    # Update the global pareNodes
+    global pareNodes
+    pareNodes = fresh_pareNodes
+
     nodeList = getNodeList()
+    # Get active nodes for deletion dropdown
+    active_nodes_with_id = []
+    for i, pareNode in enumerate(pareNodes, start=1):
+        if pareNode[4]:  # If active
+            nodeIP = pareNode[0][0]
+            portNumber = pareNode[1][0]
+            active_nodes_with_id.append((i, f"{nodeIP}:{portNumber}"))
 
     # Generate the HTML content for the maintenance page
     html_content = f"""
     {css_style}
     <html>
-    <head><title>Redis Cluster Maintenance</title></head>
+    <head>
+        <title>Redis Cluster Maintenance</title>
+        <style>
+            .form-section {{
+                background-color: #f8f9fa;
+                padding: 15px;
+                border-radius: 5px;
+                margin-bottom: 15px;
+            }}
+            .form-row {{
+                margin-bottom: 10px;
+            }}
+            .tab-content {{
+                display: none;
+                padding: 15px;
+                border: 1px solid #ddd;
+            }}
+            .active-tab {{
+                display: block;
+            }}
+        </style>
+    </head>
     <body>
     <h1>Redis Cluster Maintenance (paredicmaint)</h1>
     <div class="nav-buttons">
+        <a href="/refresh-config" style="background-color: #28a745; color: white;">Refresh Node Configuration</a>
         <a href="/monitor">Go to Monitor (paredicmon)</a>
         <a href="/manager">Go to Manager (paredicman)</a>
     </div>
     <hr>
 
     <h2>1 - Add/Delete Redis Node</h2>
-    <p><i>(Not Implemented Yet)</i></p>
+    <div>
+        <div class="tab-navigation">
+            <button onclick="showTab('add-node')">Add Node</button>
+            <button onclick="showTab('delete-node')">Delete Node</button>
+        </div>
+
+        <div id="add-node" class="tab-content active-tab">
+            <h3>Add a New Redis Node</h3>
+            <div class="form-section">
+                <form id="add-node-form" action="/maintain/add-node/" method="get">
+                    <div class="form-row">
+                        <label for="serverIP">Server IP:</label>
+                        <input type="text" id="serverIP" name="serverIP" required 
+                               placeholder="e.g., 192.168.1.10">
+                    </div>
+                    <div class="form-row">
+                        <label for="serverPORT">Port Number:</label>
+                        <input type="number" id="serverPORT" name="serverPORT" required 
+                               placeholder="e.g., 6379">
+                    </div>
+                    <div class="form-row">
+                        <label for="maxMemSize">Maximum Memory:</label>
+                        <input type="text" id="maxMemSize" name="maxMemSize" required 
+                               placeholder="e.g., 2gb or 500mb">
+                    </div>
+                    <div class="form-row">
+                        <label for="cpuCoreIDs">CPU Core IDs:</label>
+                        <input type="text" id="cpuCoreIDs" name="cpuCoreIDs" required 
+                               placeholder="e.g., 1 or 1,2,3">
+                    </div>
+                    <div class="form-row">
+                        <label for="nodeType">Node Type:</label>
+                        <select id="nodeType" name="nodeType" onchange="toggleMasterIdField()">
+                            <option value="master">Master Node</option>
+                            <option value="slave">Slave Node (auto-assign)</option>
+                            <option value="slave-specific">Slave Node (specific master)</option>
+                        </select>
+                    </div>
+                    <div id="masterIdField" class="form-row" style="display: none;">
+                        <label for="masterID">Master Node ID:</label>
+                        <input type="text" id="masterID" name="masterID" placeholder="Enter master node ID">
+                        <button type="button" onclick="window.open('/maintain/view-master-nodes', '_blank')">
+                            View Master Nodes
+                        </button>
+                    </div>
+                    <div class="form-row">
+                        <input type="submit" value="Add Node">
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="delete-node" class="tab-content">
+            <h3>Delete a Redis Node</h3>
+            <div class="form-section">
+                <form id="delete-node-form" action="/maintain/delete-node/" method="get">
+                    <div class="form-row">
+                        <label for="nodeId">Select Node to Delete:</label>
+                        <select id="nodeId" name="nodeId" required>
+                            {''.join([f"<option value='{id}'>{id} - {node}</option>" for id, node in active_nodes_with_id])}
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <input type="submit" value="Delete Node">
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
     <hr>
 
     <h2>2 - Move Slot(s)</h2>
@@ -1054,6 +1611,54 @@ async def maintain():
     <p><i>(Not Implemented Yet)</i></p>
     <hr>
 
+    <script>
+        function showTab(tabId) {{
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {{
+                tab.classList.remove('active-tab');
+            }});
+            // Show selected tab
+            document.getElementById(tabId).classList.add('active-tab');
+        }}
+
+        function toggleMasterIdField() {{
+            const nodeType = document.getElementById('nodeType').value;
+            const masterIdField = document.getElementById('masterIdField');
+            masterIdField.style.display = nodeType === 'slave-specific' ? 'block' : 'none';
+        }}
+
+        // Form validation and submission
+        document.getElementById('add-node-form').addEventListener('submit', function(e) {{
+            e.preventDefault();
+            const formData = new FormData(this);
+            
+            // Additional validation
+            const maxMemSize = formData.get('maxMemSize');
+            if (!maxMemSize.match(/^\\d+[mg]b$/i)) {{
+                alert('Memory size must be in format: NUMBER[mg]b (e.g., 2gb or 500mb)');
+                return;
+            }}
+
+            const cpuCoreIDs = formData.get('cpuCoreIDs');
+            if (!cpuCoreIDs.match(/^\\d+(?:,\\d+)*$/)) {{
+                alert('CPU Core IDs must be numbers separated by commas');
+                return;
+            }}
+
+            // Build URL with parameters
+            const url = this.getAttribute('action');
+            const params = new URLSearchParams(formData);
+            window.location.href = `${{url}}?${{params.toString()}}`;
+        }});
+
+        document.getElementById('delete-node-form').addEventListener('submit', function(e) {{
+            e.preventDefault();
+            const formData = new FormData(this);
+            const url = this.getAttribute('action');
+            const params = new URLSearchParams(formData);
+            window.location.href = `${{url}}?${{params.toString()}}`;
+        }});
+    </script>
     </body>
     </html>
     """
@@ -1065,3 +1670,4 @@ async def maintain():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+
