@@ -1,0 +1,10 @@
+#!/usr/bin/python
+#  -*- coding: utf-8 -*-
+# pareNodes=[['node_ip'],['node_port'],['node_cpucore_id(s):semicoma-separate'],['max-memory'],[isActive]]
+pareNodes = []
+pareNodes.append([['127.0.0.1'], ['6379'], ['1,2'], ['50mb'], True])
+pareNodes.append([['127.0.0.1'], ['6389'], ['1,2'], ['50mb'], True])
+pareNodes.append([['127.0.0.1'], ['6399'], ['1,2'], ['50mb'], True])
+pareNodes.append([['127.0.0.1'], ['7379'], ['1,2'], ['50mb'], True])
+pareNodes.append([['127.0.0.1'], ['7389'], ['1,2'], ['50mb'], True])
+pareNodes.append([['127.0.0.1'], ['7399'], ['1,2'], ['50mb'], True])

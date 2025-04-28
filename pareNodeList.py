@@ -76,7 +76,7 @@ pareNodes.append([['127.0.0.1'],['6375'],['3,5'],['50mb'],False])
 pareNodes.append([['127.0.0.1'],['7377'],['4,5'],['50mb'],False])
 
 #### This node was added by paredicma web UI at 2025.04.28 10:12:11
-pareNodes.append([['127.0.0.1'],['7171'],['3,6'],['50mb'],True])
+pareNodes.append([['127.0.0.1'],['7171'],['3,6'],['50mb'],False])
 
 #### Node list File was Changed by paredicma at 2025.04.28 10:13:52
 #### old value:pareNodes.append([['127.0.0.1'],['6375'],['3,5'],['50mb'],True])
@@ -84,3 +84,6 @@ pareNodes.append([['127.0.0.1'],['7171'],['3,6'],['50mb'],True])
 #### Node list File was Changed by paredicma at 2025.04.28 11:52:16
 #### old value:pareNodes.append([['127.0.0.1'],['7377'],['4,5'],['50mb'],True])
 #### new value:pareNodes.append([['127.0.0.1'],['7377'],['4,5'],['50mb'],False])
+#### Node list File was Changed by paredicma at 2025.04.28 14:28:06
+#### old value:pareNodes.append([['127.0.0.1'],['7171'],['3,6'],['50mb'],True])
+#### new value:pareNodes.append([['127.0.0.1'],['7171'],['3,6'],['50mb'],False])
