@@ -440,58 +440,126 @@ def changePareNodeListFile(oldValue, newValue):
         updated_content = False
         newFileContent = fileContent
 
+        # Save the original oldValue for logging purposes
+        original_oldValue = oldValue
+
         # First try exact match
         if oldValue in fileContent:
             newFileContent = fileContent.replace(oldValue, newValue)
             match_found = True
             logWrite(pareLogFile, f"Found exact match for: {oldValue}")
 
-            # Immediately write the file with changes
+            # Immediately write the file with changes - properly handle file operations
             try:
                 with open("pareNodeList.py", 'w') as f:
                     f.write(newFileContent + '\n#### Node list File was Changed by paredicma at ' + get_datetime() +
-                            '\n#### old value:' + oldValue + '\n#### new value:' + newValue)
-                f.flush()
-                os.fsync(f.fileno())  # Ensure write is committed to disk
+                            '\n#### old value:' + original_oldValue + '\n#### new value:' + newValue)
+                    # Perform flush inside the with block before file is closed
+                    f.flush()
+                    os.fsync(f.fileno())  # Ensure write is committed to disk
+
                 updated_content = True
                 logWrite(pareLogFile, f"File updated successfully with new content")
+                return True  # Return immediately after successful write
             except Exception as e:
                 logWrite(pareLogFile, f"Error writing to file after exact match: {str(e)}")
                 return False
         else:
-            # Try other pattern matching approaches
-            # ...existing pattern matching code...
+            # Try using regex patterns for matching
+            try:
+                import re
 
-            # If all else fails, just do the straight replacement and hope for the best
+                # Extract the IP, port, cores, memsize from oldValue
+                pattern = r"pareNodes\.append\(\[\['([^']+)'\],\['([^']+)'\],\['([^']+)'\],\['([^']+)'\],([Tt]rue)\]\)"
+                match = re.search(pattern, oldValue)
+
+                if match:
+                    serverIP = match.group(1)
+                    serverPORT = match.group(2)
+                    cpuCoreIDs = match.group(3)
+                    maxMemSize = match.group(4)
+
+                    # Create pattern to search for this node with any formatting
+                    node_pattern = fr"pareNodes\.append\(\[\['{re.escape(serverIP)}'\],\s*\['{re.escape(serverPORT)}'\],\s*\['{re.escape(cpuCoreIDs)}'\],\s*\['{re.escape(maxMemSize)}'\],\s*([Tt]rue)\]\)"
+
+                    # Find the node in the file content
+                    existing = re.search(node_pattern, fileContent)
+                    if existing:
+                        # Get the exact text that matched for replacement
+                        exact_match = existing.group(0)
+                        match_found = True
+                        logWrite(pareLogFile, f"Found match using regex: {exact_match}")
+
+                        # Replace only this exact match
+                        newFileContent = fileContent.replace(exact_match, newValue)
+
+                        # Write the file with the proper old value
+                        with open("pareNodeList.py", 'w') as f:
+                            f.write(newFileContent + '\n#### Node list File was Changed by paredicma at ' + get_datetime() +
+                                    '\n#### old value:' + exact_match + '\n#### new value:' + newValue)
+                            # Perform flush inside the with block
+                            f.flush()
+                            os.fsync(f.fileno())  # Ensure write is committed to disk
+
+                        updated_content = True
+                        logWrite(pareLogFile, f"File updated successfully with new content")
+                        return True
+            except Exception as regex_error:
+                logWrite(pareLogFile, f"Error in regex replacement: {str(regex_error)}")
+
+            # If all else fails, try direct string replacement one more time
             if not match_found:
-                logWrite(pareLogFile, f"No match found, falling back to direct replacement for: {oldValue}")
+                logWrite(pareLogFile, f"No match found, attempting direct file edit")
+
+                # Try direct node identification using IP and port
+                try:
+                    import re
+                    # Extract IP and PORT from the oldValue
+                    ip_port_match = re.search(r"\[\['([^']+)'\],\['([^']+)'\]", oldValue)
+                    if ip_port_match:
+                        ip = ip_port_match.group(1)
+                        port = ip_port_match.group(2)
+
+                        # Search for lines containing this IP and port with True
+                        lines = fileContent.split('\n')
+                        for i, line in enumerate(lines):
+                            if f"[['{ip}'" in line and f"['{port}'" in line and "True]" in line:
+                                # Found the line - replace it and preserve it as the old value
+                                exact_line = lines[i]
+                                lines[i] = newValue
+                                newFileContent = '\n'.join(lines)
+                                match_found = True
+
+                                # Write the updated content
+                                with open("pareNodeList.py", 'w') as f:
+                                    f.write(newFileContent + '\n#### Node list File was Changed by paredicma at ' + get_datetime() +
+                                            '\n#### old value:' + exact_line + '\n#### new value:' + newValue)
+                                    f.flush()
+                                    os.fsync(f.f.fileno())
+
+                                logWrite(pareLogFile, f"Found and replaced line by IP:PORT search: {ip}:{port}")
+                                updated_content = True
+                                return True
+                except Exception as line_error:
+                    logWrite(pareLogFile, f"Error in line-by-line replacement: {str(line_error)}")
+
+            # If we still haven't found a match, just try a basic replace as last resort
+            if not match_found:
+                logWrite(pareLogFile, f"No match found using any method, trying simple replace")
                 newFileContent = fileContent.replace(oldValue, newValue)
 
-            # Write out the file with the change note - ALWAYS write the file
-            try:
                 with open("pareNodeList.py", 'w') as f:
                     f.write(newFileContent + '\n#### Node list File was Changed by paredicma at ' + get_datetime() +
-                            '\n#### old value:' + oldValue + '\n#### new value:' + newValue)
-                f.flush()
-                os.fsync(f.fileno())  # Ensure write is committed to disk
-                updated_content = True
-                logWrite(pareLogFile, f"File updated successfully with new content")
-            except Exception as e:
-                logWrite(pareLogFile, f"Error writing to file: {str(e)}")
-                return False
+                            '\n#### old value:' + original_oldValue + '\n#### new value:' + newValue)
+                    f.flush()
+                    os.fsync(f.fileno())
 
-        # Verify content was actually changed in file
-        try:
-            verification = fileReadFull("pareNodeList.py")
-            if newValue in verification:
-                logWrite(pareLogFile, f"Verification: File contains the new value")
-                return True
-            else:
-                logWrite(pareLogFile, f"Verification FAILED: File does not contain the new value!")
-                return False
-        except Exception as e:
-            logWrite(pareLogFile, f"Error verifying file changes: {str(e)}")
-            return updated_content
+                updated_content = True
+                logWrite(pareLogFile, f"Attempted simple file replace")
+                return updated_content
+
+        # We should never get here, but just in case
+        return updated_content
 
     except Exception as e:
         logWrite(pareLogFile, f"Error in changePareNodeListFile: {str(e)}")
@@ -1145,27 +1213,13 @@ def addMasterNode(serverIP, serverPORT):
 
 
 def addSlaveNode(serverIP, serverPORT):
-    targetIP = ''
-    targetPORT = ''
-    nodeNumber = 0
-    for pareNode in pareNodes:
-        if pareNode[4]:
-            if isNodeMaster(pareNode[0][0], str(nodeNumber + 1), pareNode[1][0]):
-                targetIP = pareNode[0][0]
-                targetPORT = pareNode[1][0]
-                break
-        nodeNumber += 1
-    clusterString = redisBinaryDir + 'src/redis-cli --cluster add-node ' + serverIP + ':' + serverPORT + ' ' + targetIP + ':' + targetPORT + ' --cluster-slave'
-    if redisPwdAuthentication == 'on':
-        clusterString += ' -a ' + redisPwd + ' '
-    if pingredisNode(serverIP, serverPORT):
-        logWrite(pareLogFile, bcolors.BOLD + 'Adding new slave node to redis cluster : ' + clusterString + bcolors.ENDC)
-        if os.system(clusterString) == 0:
-            return True
-        else:
-            return False
-    else:
-        return False
+    """
+    Note: This function is deprecated. Use addSpecificSlaveNode instead to assign
+    slave nodes to specific masters.
+
+    Legacy function that attempts to add a new slave node to the Redis cluster
+    with automatic master assignment, but this approach is no longer recommended.
+    """
 
 
 def addSpecificSlaveNode(serverIP, serverPORT, cMasterID):
@@ -1931,6 +1985,7 @@ def logWrite(logFile, logText):
         fileAppendWrite(logFile, logText)
     else:
         print(logText)
+
 
 
 

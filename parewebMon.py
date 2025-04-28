@@ -1167,6 +1167,22 @@ async def add_node(
         </body></html>
         """)
 
+    # Ensure a master ID is provided for slave nodes
+    if nodeType == 'slave-specific' and (not masterID or masterID.strip() == ""):
+        return HTMLResponse(content=f"""
+        {css_style}
+        <html><head><title>Error</title></head>
+        <body>
+            <h2>Missing Master ID</h2>
+            <p style='color: red;'>When adding a slave node, a master node ID must be provided.</p>
+            <p>Please use the "View Master Nodes" button to select a valid master ID.</p>
+            <div class="nav-buttons">
+                <a href="/maintain">Back to Maintenance</a>
+                <a href="/maintain/view-master-nodes" target="_blank">View Master Nodes</a>
+            </div>
+        </body></html>
+        """)
+
     # Call add_delete_node_wv with proper parameters
     node_info = {
         'serverIP': serverIP,
@@ -1550,8 +1566,7 @@ async def maintain():
                         <label for="nodeType">Node Type:</label>
                         <select id="nodeType" name="nodeType" onchange="toggleMasterIdField()">
                             <option value="master">Master Node</option>
-                            <option value="slave">Slave Node (auto-assign)</option>
-                            <option value="slave-specific">Slave Node (specific master)</option>
+                            <option value="slave-specific">Slave Node</option>
                         </select>
                     </div>
                     <div id="masterIdField" class="form-row" style="display: none;">
@@ -1645,6 +1660,14 @@ async def maintain():
                 return;
             }}
 
+            // Validate master ID for slave nodes
+            const nodeType = formData.get('nodeType');
+            const masterID = formData.get('masterID');
+            if (nodeType === 'slave-specific' && (!masterID || masterID.trim().length === 0)) {{
+                alert('Master Node ID is required when adding a slave node');
+                return;
+            }}
+
             // Build URL with parameters
             const url = this.getAttribute('action');
             const params = new URLSearchParams(formData);
@@ -1670,4 +1693,5 @@ async def maintain():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+
 

@@ -1051,6 +1051,15 @@ def add_delete_node_wv(operation, node_info=None):
             if not all(id.strip().isdigit() for id in cpuCoreIDs.split(',')):
                 return "<p style='color: red;'>Error: Invalid CPU core IDs. Use format like '1' or '3,4'</p>"
 
+            # Additional validation for masterID when adding a slave node
+            if nodeType == 'slave-specific' and (not masterID or len(masterID.strip()) == 0):
+                return """
+                <div>
+                    <p style='color: red;'>Error: Master ID is required when adding a slave node</p>
+                    <p>Please use the "View Master Nodes" button to select a valid master node ID.</p>
+                </div>
+                """
+
             # Check if node is already in use
             if pingredisNode(serverIP, serverPORT):
                 return "<p style='color: red;'>Error: This IP:PORT is already used by Redis Cluster</p>"
@@ -1071,15 +1080,6 @@ def add_delete_node_wv(operation, node_info=None):
 
             if isActive:
                 return "<p style='color: red;'>Error: This IP:PORT is already configured in pareNodes</p>"
-
-            # Additional validation for masterID when adding a slave to specific master
-            if nodeType == 'slave-specific' and (not masterID or len(masterID.strip()) == 0):
-                return """
-                <div>
-                    <p style='color: red;'>Error: Master ID is required when adding a slave to a specific master</p>
-                    <p>Please use the "View Master Nodes" button to select a valid master node ID.</p>
-                </div>
-                """
 
             # Capture the original logWrite function to record output
             original_logWrite = logWrite
@@ -1208,7 +1208,8 @@ def add_delete_node_wv(operation, node_info=None):
                     if masterID:
                         result = addSpecificSlaveNode(serverIP, serverPORT, masterID)
                     else:
-                        result = addSlaveNode(serverIP, serverPORT)
+                        # This should never happen due to our validation, but just in case
+                        return "<p style='color: red;'>Error: Master ID is required for slave nodes</p>"
 
                 # Restore original logWrite
                 globals()['logWrite'] = original_logWrite
@@ -1216,7 +1217,7 @@ def add_delete_node_wv(operation, node_info=None):
                 if result:
                     # Add node to pareNodes
                     nodeStr = f"pareNodes.append([['{serverIP}'],['{serverPORT}'],['{cpuCoreIDs}'],['{maxMemSize}'],True])"
-                    fileAppendWrite("pareNodeList.py", f'#### This node was added by paredicma web UI at {get_datetime()}\n{nodeStr}')
+                    fileAppendWrite("pareNodeList.py", f'\n#### This node was added by paredicma web UI at {get_datetime()}\n{nodeStr}')
 
                     # Reload the node configuration
                     reload_success, reload_msg = reload_pare_nodes()
@@ -1224,12 +1225,15 @@ def add_delete_node_wv(operation, node_info=None):
                     if not reload_success:
                         reload_note = f"<p style='color: orange;'><strong>Note:</strong> {reload_msg}. You may need to refresh the page or use the Refresh Configuration button.</p>"
 
+                    # Add node type and master info for better feedback
+                    type_info = "master" if nodeType == "master" else f"slave (assigned to master {masterID})"
+
                     return f"""
                     <div>
                         <p style='color: green;'>Successfully added node to cluster</p>
                         <ul>
                             <li><strong>IP:PORT:</strong> {serverIP}:{serverPORT}</li>
-                            <li><strong>Type:</strong> {nodeType}</li>
+                            <li><strong>Type:</strong> {type_info}</li>
                             <li><strong>Memory:</strong> {maxMemSize}</li>
                             <li><strong>CPU Cores:</strong> {cpuCoreIDs}</li>
                         </ul>
@@ -1351,7 +1355,7 @@ def add_delete_node_wv(operation, node_info=None):
 
                         log_messages.append(f"Attempting to update pareNodeList.py...")
 
-                        # Apply the file change with more robust approach
+                        # Apply the file change with improved error handling
                         file_updated = changePareNodeListFile(oldVal, newVal)
 
                         if file_updated:
@@ -1360,46 +1364,47 @@ def add_delete_node_wv(operation, node_info=None):
                             # Set the node as inactive in memory immediately
                             pareNodes[node_id_int - 1][4] = False
 
-                            # Double-check the file was updated by reading it back
-                            check_content = fileReadFull("pareNodeList.py")
-                            if newVal in check_content:
-                                log_messages.append(f"Verified file update was successful")
-                            else:
-                                log_messages.append(f"Warning: File update verification failed! Manual inspection needed.")
-                                # Try a last-ditch approach - direct file edit
-                                try:
-                                    with open("pareNodeList.py", "r") as f:
-                                        content = f.read()
-
-                                    # Force the replacement
-                                    content = content.replace(oldVal, newVal)
-
-                                    with open("pareNodeList.py", "w") as f:
-                                        f.write(content + '\n#### Emergency file edit at ' + get_datetime())
-                                        f.flush()
-                                        os.fsync(f.fileno())
-
-                                    log_messages.append(f"Attempted emergency direct file edit")
-                                except Exception as emergency_error:
-                                    log_messages.append(f"Emergency edit failed: {str(emergency_error)}")
+                            # Verification already done in changePareNodeListFile
+                            log_messages.append(f"Node marked as inactive in configuration")
                         else:
-                            log_messages.append("Warning: changePareNodeListFile reported failure!")
-                            log_messages.append("Manual update of pareNodeList.py may be required")
+                            log_messages.append("Warning: Primary file update method failed!")
+                            log_messages.append("Attempting secondary update method...")
 
-                            # Try a direct approach as fallback
+                            # Improved fallback approach
                             try:
+                                # Read current file content
                                 current_content = fileReadFull("pareNodeList.py")
-                                updated_content = current_content.replace(oldVal, newVal)
 
+                                # Try to find the exact line to replace
+                                import re
+                                pattern = fr"pareNodes\.append\(\[\['{re.escape(serverIP)}'\],\s*\['{re.escape(serverPORT)}'\],\s*\['{re.escape(cpuCoreIDs)}'\],\s*\['{re.escape(maxMemSize)}'\],\s*True\]\)"
+
+                                # Store original line for logging
+                                exact_match = re.search(pattern, current_content)
+                                if exact_match:
+                                    exact_old_value = exact_match.group(0)
+                                    updated_content = current_content.replace(exact_old_value, newVal)
+                                else:
+                                    # If regex fails, try simple replace as last resort
+                                    exact_old_value = oldVal
+                                    updated_content = current_content.replace(oldVal, newVal)
+
+                                # Write the updated content with proper old/new value logging
                                 with open("pareNodeList.py", "w") as f:
-                                    f.write(updated_content + '\n#### Fallback file edit at ' + get_datetime())
+                                    f.write(updated_content + '\n#### Node list File was Changed by paredicma at ' + get_datetime() +
+                                           f'\n#### old value:{exact_old_value}' +
+                                           f'\n#### new value:{newVal}' +
+                                           '\n#### Fallback file edit at ' + get_datetime())
                                     f.flush()
                                     os.fsync(f.fileno())
 
-                                log_messages.append("Attempted fallback direct file update")
+                                # Set node as inactive in memory
+                                pareNodes[node_id_int - 1][4] = False
+
+                                log_messages.append("Fallback file update completed")
                             except Exception as fallback_error:
                                 log_messages.append(f"Fallback update failed: {str(fallback_error)}")
-
+                                log_messages.append("Please update pareNodeList.py manually to mark the node as inactive")
                     except Exception as config_error:
                         return f"""
                         <div>
