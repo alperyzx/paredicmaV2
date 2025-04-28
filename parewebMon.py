@@ -457,8 +457,173 @@ css_style = """
         .config-table tr:nth-child(even) {
             background-color: #f9f9f9;
         }
+        /* Welcome page specific styles */
+        .welcome-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .welcome-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .welcome-header h1 {
+            font-size: 36px;
+            color: #2c3e50;
+        }
+        .welcome-description {
+            text-align: center;
+            margin-bottom: 40px;
+            color: #555;
+            font-size: 18px;
+        }
+        .section-cards {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .section-card {
+            flex: 1;
+            min-width: 250px;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .section-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        .card-header {
+            font-size: 24px;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .card-content {
+            color: #555;
+            margin-bottom: 20px;
+            line-height: 1.5;
+            min-height: 100px;
+        }
+        .card-footer {
+            display: flex;
+            justify-content: center;
+        }
+        .card-button {
+            padding: 10px 15px;
+            background-color: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            text-align: center;
+            transition: background-color 0.3s;
+            width: 100%;
+        }
+        .card-button:hover {
+            background-color: #2980b9;
+        }
+        .monitor-card .card-header {
+            color: #3498db;
+        }
+        .manager-card .card-header {
+            color: #2ecc71;
+        }
+        .maintain-card .card-header {
+            color: #e74c3c;
+        }
+        .monitor-card .card-button {
+            background-color: #3498db;
+        }
+        .manager-card .card-button {
+            background-color: #2ecc71;
+        }
+        .maintain-card .card-button {
+            background-color: #e74c3c;
+        }
+        .monitor-card .card-button:hover {
+            background-color: #2980b9;
+        }
+        .manager-card .card-button:hover {
+            background-color: #27ae60;
+        }
+        .maintain-card .card-button:hover {
+            background-color: #c0392b;
+        }
     </style>
 """
+
+# Add a root route handler for the welcome page
+@app.get("/", response_class=HTMLResponse)
+async def welcome_page():
+    """
+    Welcome page that serves as a landing page with links to the three main sections:
+    Monitor, Manager, and Maintenance.
+    """
+    html_content = f"""
+    {css_style}
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Paredicma - Redis Cluster Management</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body>
+        <div class="welcome-container">
+            <div class="welcome-header">
+                <h1>Paredicma</h1>
+                <div class="welcome-description">
+                    Redis Cluster Management Tool
+                </div>
+            </div>
+            
+            <div class="section-cards">
+                <div class="section-card monitor-card">
+                    <h2 class="card-header">Monitor</h2>
+                    <div class="card-content">
+                        <p>View real-time status of your Redis cluster. Monitor node health, memory usage, and cluster state.</p>
+                        <p>Key features include ping nodes, list nodes, check cluster slots, view memory usage and more.</p>
+                    </div>
+                    <div class="card-footer">
+                        <a href="/monitor" class="card-button">Go to Monitor</a>
+                    </div>
+                </div>
+                
+                <div class="section-card manager-card">
+                    <h2 class="card-header">Manager</h2>
+                    <div class="card-content">
+                        <p>Manage your Redis cluster operations such as start/stop/restart nodes, switch master/slave roles, and change configurations.</p>
+                        <p>Execute commands across all nodes, perform rolling restarts, and view Redis logs.</p>
+                    </div>
+                    <div class="card-footer">
+                        <a href="/manager" class="card-button">Go to Manager</a>
+                    </div>
+                </div>
+                
+                <div class="section-card maintain-card">
+                    <h2 class="card-header">Maintenance</h2>
+                    <div class="card-content">
+                        <p>Perform maintenance tasks such as adding new nodes, deleting nodes, moving slots, and upgrading Redis versions.</p>
+                        <p>Manage cluster topology, migrate data, and balance slot distribution.</p>
+                    </div>
+                    <div class="card-footer">
+                        <a href="/maintain" class="card-button">Go to Maintenance</a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="welcome-footer" style="margin-top: 40px; text-align: center; color: #777;">
+                <p>Select a section above to start working with your Redis cluster</p>
+                <p style="font-size: 12px;">Paredicma v1.0 - Redis Cluster Management Tool</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
 
 # Define the endpoint for the monitoring page
 @app.get("/monitor", response_class=HTMLResponse)
