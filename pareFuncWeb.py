@@ -1221,6 +1221,13 @@ def add_delete_node_wv(operation, node_info=None):
 
                     # Reload the node configuration
                     reload_success, reload_msg = reload_pare_nodes()
+                    if reload_success:
+                        logWrite(pareLogFile, "In-memory pareNodes list updated successfully after adding a node.")
+                    else:
+                        logWrite(pareLogFile, f"Warning: Failed to reload pareNodes after adding a node. {reload_msg}")
+
+                    # Reload the node configuration
+                    reload_success, reload_msg = reload_pare_nodes()
                     reload_note = ""
                     if not reload_success:
                         reload_note = f"<p style='color: orange;'><strong>Note:</strong> {reload_msg}. You may need to refresh the page or use the Refresh Configuration button.</p>"
@@ -1467,3 +1474,4 @@ def add_delete_node_wv(operation, node_info=None):
             <p>Please report this error to the administrator.</p>
         </div>
         """
+

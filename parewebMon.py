@@ -987,7 +987,7 @@ async def manager():
     """
     Displays the Redis Cluster Manager UI.
     """
-    # Ensure we have the latest node list
+    # Reload the pareNodes configuration to ensure the latest node list
     import importlib
     importlib.reload(sys.modules['pareNodeList'])
     from pareNodeList import pareNodes as fresh_pareNodes
