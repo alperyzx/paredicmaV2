@@ -594,7 +594,7 @@ css_style = """
                 padding: 0 20px; /* Add some padding on the sides */
             }
             h1 {
-                color: #fffeee; /* White text for better visibility on colored backgrounds */
+                color: #bce1f2; /* White text for better visibility on colored backgrounds */
             }
             /* Keep title backgrounds, they provide context */
             .monitor-title { background-color: #5a5a5a; } /* Slightly lighter dark gray */
@@ -1047,13 +1047,12 @@ async def manager():
             <select id="redisNodeAction" name="redisNode">
                 {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
             </select>
-            <br><br>
-            <label for="action">Select Action:</label>
+            <br>
+            <label for="action"><input class="manager-button" type="submit" value="Perform Action"></label>
             <select id="action" name="action">
                 {''.join([f"<option value='{action.lower()}'>{action}</option>" for action in actionsAvailable])}
             </select>
             <br><br>
-            <input class="manager-button" type="submit" value="Perform Action">
         </form>
         <div id="node-action-result" style="margin-top: 10px;"></div>
     </div>
@@ -1061,12 +1060,12 @@ async def manager():
     <button class="collapsible">2 - Switch Master/Slave Nodes</button>
     <div class="content">
         <form id="switch-master-slave-form" onsubmit="switchMasterSlave(event)">
-            <label for="masterNode">Select Master Node:</label>
+            <label for="masterNode"><input class="manager-button" type="submit" value="Switch Master/Slave">
+</label>
             <select id="masterNode" name="redisNode">
                 {''.join([f"<option value='{node}'>{node}</option>" for node in masterNodes])}
             </select>
             <br><br>
-            <input class="manager-button" type="submit" value="Switch Master/Slave">
         </form>
         <div id="switch-master-slave-result" style="margin-top: 10px;"></div>
     </div>
@@ -1099,13 +1098,13 @@ async def manager():
     <button class="collapsible">4 - Save Redis Configuration to redis.conf</button>
     <div class="content">
         <form id="save-config-form" onsubmit="saveConfig(event)">
-            <label for="saveConfigNode">Select Node or "All Nodes":</label>
+            <label for="saveConfigNode">            <input class="manager-button" type="submit" value="Save Configuration">
+</label>
             <select id="saveConfigNode" name="redisNode">
                 <option value="all">All Nodes</option>
                 {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
             </select>
             <br><br>
-            <input class="manager-button" type="submit" value="Save Configuration">
         </form>
         <div id="save-config-result" style="margin-top: 10px;"></div>
     </div>
@@ -1113,7 +1112,7 @@ async def manager():
     <button class="collapsible">5 - Rolling Restart</button>
     <div class="content">
         <form id="rolling-restart-form" onsubmit="rollingRestart(event)">
-            <label for="wait_minutes">Wait time between node restarts (minutes):</label>
+            <label for="wait_minutes">Wait between restarts (min):</label>
             <input type="number" id="wait_minutes" name="wait_minutes" min="0" value="1">
             <br><br>
             <label for="restart_masters">Restart master nodes:</label>
@@ -1149,10 +1148,10 @@ async def manager():
                 {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
             </select>
             <br><br>
-            <label for="line_count">Number of lines to show:</label>
+            <label for="line_count"> <input class="manager-button" type="submit" value="View Log File">
+</label>
             <input type="number" id="line_count" name="line_count" min="10" max="10000" value="100">
             <br><br>
-            <input class="manager-button" type="submit" value="View Log File">
         </form>
         <div id="show-log-result" style="margin-top: 10px;"></div>
     </div>
@@ -1229,6 +1228,10 @@ async def manager():
             event.preventDefault();
             const formData = new FormData(document.getElementById('switch-master-slave-form'));
             const params = new URLSearchParams(formData).toString();
+            
+            // Add processing message
+            document.getElementById('switch-master-slave-result').innerHTML = "<p>Processing request...</p>";
+            
             fetch('/manager/switch-master-slave/?' + params)
                 .then(response => response.text())
                 .then(data => {{
@@ -1965,4 +1968,5 @@ async def slot_balancer():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+
 

@@ -260,7 +260,7 @@ def node_action_wv(redisNode, action, confirmed=False):
                 # First check if node is master and has slaves
                 is_master, has_slave = check_if_master(nodeIP, portNumber)
                 if is_master and has_slave:
-                    log_messages.append(f"Master/slave switch process is starting for {nodeIP}:{portNumber}... This might take some time")
+                    log_messages.append(f"Master/slave switch process is starting for {nodeIP}:{portNumber}... This might take some time, be patient!")
                     # Perform master/slave failover before stopping
                     switchMasterSlave(nodeIP, node_index, portNumber)
 
@@ -378,7 +378,7 @@ def switch_master_slave_wv(redisNode):
         try:
             # Perform the master/slave switch
             log_messages.append(f"Beginning master/slave switch for {redisNode}...")
-            log_messages.append(f"Master/slave switch process is starting... This might take some time")
+            log_messages.append(f"Master/slave switch process is starting... This might take some time, be patient!")
 
             # Call the existing switchMasterSlave function
             success = switchMasterSlave(nodeIP, node_index, portNumber)
