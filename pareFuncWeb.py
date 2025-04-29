@@ -1221,16 +1221,6 @@ def add_delete_node_wv(operation, node_info=None):
 
                     # Reload the node configuration
                     reload_success, reload_msg = reload_pare_nodes()
-                    if reload_success:
-                        logWrite(pareLogFile, "In-memory pareNodes list updated successfully after adding a node.")
-                    else:
-                        logWrite(pareLogFile, f"Warning: Failed to reload pareNodes after adding a node. {reload_msg}")
-
-                    # Reload the node configuration
-                    reload_success, reload_msg = reload_pare_nodes()
-                    reload_note = ""
-                    if not reload_success:
-                        reload_note = f"<p style='color: orange;'><strong>Note:</strong> {reload_msg}. You may need to refresh the page or use the Refresh Configuration button.</p>"
 
                     # Add node type and master info for better feedback
                     type_info = "master" if nodeType == "master" else f"slave (assigned to master {masterID})"
@@ -1245,16 +1235,10 @@ def add_delete_node_wv(operation, node_info=None):
                             <li><strong>CPU Cores:</strong> {cpuCoreIDs}</li>
                         </ul>
                         <p>The node has been added to the Redis cluster and the configuration has been updated.</p>
-                        {reload_note}
                         <div style="margin-top: 15px; padding: 10px; background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px;">
-                            <p><strong>Important:</strong> To see this node in the Monitor Node Info dropdown:</p>
-                            <ol>
-                                <li>Click the "Refresh Configuration" button below</li>
-                                <li>Or navigate back to the Monitor page</li>
-                            </ol>
+                            <p><strong>Important:</strong> The node will automatically appear in all dropdowns.</p>
                         </div>
-                        <p><a href="/refresh-config" class="btn" style="background-color: #28a745; color: white;">Refresh Configuration</a>
-                        <a href="/monitor" class="btn" style="background-color: #007bff; color: white;">Go to Monitor</a></p>
+                        <p><a href="/monitor" class="btn" style="background-color: #007bff; color: white;">Go to Monitor</a></p>
                     </div>
                     """
                 else:
@@ -1425,9 +1409,6 @@ def add_delete_node_wv(operation, node_info=None):
 
                     # Reload the node configuration to ensure all references are updated
                     reload_success, reload_msg = reload_pare_nodes()
-                    reload_note = ""
-                    if not reload_success:
-                        reload_note = f"<p style='color: orange;'><strong>Note:</strong> {reload_msg}. You may need to refresh the page or use the Refresh Configuration button.</p>"
 
                     # Add node role info to the message
                     node_type = f"<span style='color: {'blue' if node_role == 'slave' else 'green' if node_role == 'master' else 'gray'};'>{node_role.capitalize()}</span>"
@@ -1443,8 +1424,6 @@ def add_delete_node_wv(operation, node_info=None):
                             <li><strong>Process Status:</strong> {process_status}</li>
                         </ul>
                         <p>The node has been deleted from the Redis cluster and pareNodeList.py has been updated.</p>
-                        {reload_note}
-                        <p><a href="/refresh-config" class="btn" style="background-color: #28a745; color: white;">Refresh Configuration</a></p>
                         <h4>Deletion Details:</h4>
                         <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
                     </div>
@@ -1474,4 +1453,3 @@ def add_delete_node_wv(operation, node_info=None):
             <p>Please report this error to the administrator.</p>
         </div>
         """
-

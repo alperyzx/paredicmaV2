@@ -65,13 +65,35 @@ def getnodeNumbers(serverIP):
 
 
 def getNodeList():
-    nodeList = []
-    for pareNode in pareNodes:
-        if pareNode [4]:  # Check if the node is active
-            nodeIP = pareNode[0][0]
-            port = pareNode[1][0]
-            nodeList.append(f"{nodeIP}:{port}")
-    return nodeList
+    """
+    Returns a list of active Redis nodes in 'ip:port' format.
+    Forces a reload of the pareNodes configuration before returning the list.
+    """
+    # Force reload the pareNodeList module to get fresh data
+    try:
+        import importlib
+        importlib.reload(sys.modules['pareNodeList'])
+        from pareNodeList import pareNodes as fresh_pareNodes
+
+        # Build nodeList from the freshly loaded configuration
+        nodeList = []
+        for pareNode in fresh_pareNodes:
+            if pareNode[4]:  # Check if the node is active
+                nodeIP = pareNode[0][0]
+                port = pareNode[1][0]
+                nodeList.append(f"{nodeIP}:{port}")
+
+        return nodeList
+    except Exception as e:
+        # If reload fails, fall back to using current pareNodes (better than nothing)
+        print(f"Warning: Failed to reload pareNodeList module: {str(e)}")
+        nodeList = []
+        for pareNode in pareNodes:
+            if pareNode[4]:  # Check if the node is active
+                nodeIP = pareNode[0][0]
+                port = pareNode[1][0]
+                nodeList.append(f"{nodeIP}:{port}")
+        return nodeList
 
 
 def getuniqueServers(pareNodes):
@@ -1985,6 +2007,7 @@ def logWrite(logFile, logText):
         fileAppendWrite(logFile, logText)
     else:
         print(logText)
+
 
 
 

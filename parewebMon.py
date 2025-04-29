@@ -646,7 +646,6 @@ async def monitor():
     {css_style}
     <h1>Monitoring Endpoints</h1>
     <div style="margin-bottom: 20px;">
-        <a href="/refresh-config" style="background-color: #28a745; color: white;">Refresh Node Configuration</a>
         <a href="/manager">Go to Manager (paredicman)</a>
         <a href="/maintain">Go to Maintenance (paredicmaint)</a>
     </div>
@@ -1031,7 +1030,6 @@ async def manager():
     <body>
     <h1>Redis Cluster Manager (paredicman)</h1>
     <div class="nav-buttons">
-        <a href="/refresh-config" style="background-color: #28a745; color: white;">Refresh Node Configuration</a>
         <a href="/monitor">Go to Monitor (paredicmon)</a>
         <a href="/maintain">Go to Maintenance (paredicmaint)</a>
     </div>
@@ -1690,7 +1688,6 @@ async def maintain():
     <body>
     <h1>Redis Cluster Maintenance (paredicmaint)</h1>
     <div class="nav-buttons">
-        <a href="/refresh-config" style="background-color: #28a745; color: white;">Refresh Node Configuration</a>
         <a href="/monitor">Go to Monitor (paredicmon)</a>
         <a href="/manager">Go to Manager (paredicman)</a>
     </div>
@@ -1858,5 +1855,6 @@ async def maintain():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+
 
 
