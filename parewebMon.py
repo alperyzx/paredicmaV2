@@ -553,6 +553,41 @@ css_style = """
         .maintain-card .card-button:hover {
             background-color: #c0392b;
         }
+        .collapsible {
+            background-color: #f1f1f1;
+            color: #333;
+            cursor: pointer;
+            padding: 10px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        .active, .collapsible:hover {
+            background-color: #ddd;
+        }
+        .content {
+            padding: 0 15px;
+            display: none;
+            overflow: hidden;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            margin-bottom: 10px;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .form-group.full-width {
+            grid-column: span 2;
+        }
     </style>
 """
 
@@ -629,73 +664,194 @@ async def welcome_page():
 # Define the endpoint for the monitoring page
 @app.get("/monitor", response_class=HTMLResponse)
 async def monitor():
-    # Ensure we have the latest node list before displaying the page
-    try:
-        import importlib
-        importlib.reload(sys.modules['pareNodeList'])
-        from pareNodeList import pareNodes as fresh_pareNodes
-        global pareNodes
-        pareNodes = fresh_pareNodes
-    except Exception as e:
-        print(f"Error refreshing node list: {str(e)}")
+    """
+    Displays the Redis Cluster Monitoring UI with collapsible sections.
+    """
+    # Reload the pareNodes configuration to ensure the latest node list
+    import importlib
+    importlib.reload(sys.modules['pareNodeList'])
+    from pareNodeList import pareNodes as fresh_pareNodes
+
+    # Update the global pareNodes
+    global pareNodes
+    pareNodes = fresh_pareNodes
 
     uniqueservers = getuniqueServers(pareNodes)
     commandsAvailable = ['server', 'clients', 'memory', 'persistence', 'stats', 'replication', 'cpu', 'cluster']
     nodeList = getNodeList()
+
     # Generate the HTML content for the monitoring page
     html_content = f"""
     {css_style}
-    <h1>Monitoring Endpoints</h1>
-    <div style="margin-bottom: 20px;">
+    <html>
+    <head>
+        <title>Redis Cluster Monitor</title>
+    </head>
+    <body>
+    <h1>Redis Cluster Monitor (paredicmon)</h1>
+    <div class="nav-buttons">
         <a href="/manager">Go to Manager (paredicman)</a>
         <a href="/maintain">Go to Maintenance (paredicmaint)</a>
     </div>
-    <ul>
-        <li><a href="/monitor/ping-nodes/">Ping Nodes</a></li>
-        <li><a href="/monitor/list-nodes/">List Nodes</a></li>
-        <li>
-            <form action="/monitor/node-info/" method="get">
-                <label for="redisNode">redisNode:</label>
-                <select id="redisNode" name="redisNode">
-                    {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
-                </select>
-                <select id="command" name="command">
-                    {''.join([f"<option value='{command}'>{command}</option>" for command in commandsAvailable])}
-                </select>
-                <input type="submit" value="Submit">
-            </form>
-        </li>
-        <li>
-            <form action="/monitor/server-info/" method="get">
-                <label for="server_id">Server Info:</label>
-                <select id="server_id" name="server_ip">
-                   {''.join([f"<option value='{server}'>{server}</option>" for server in uniqueservers])}
-                </select>
-                <input type="submit" value="Submit">
-            </form>
-        </li>
-        <li><a href="/monitor/slot-info/">Slot Info</a></li>
-        <li><a href="/monitor/cluster-state-info/">Cluster State Info</a></li>
-        <li><a href="/monitor/memory-usage/">Memory Usage</a></li>
-    </ul>
+    <hr>
+
+    <button class="collapsible">1 - Ping Nodes</button>
+    <div class="content">
+        <button onclick="fetchPingNodes()">Ping Nodes</button>
+        <div id="ping-nodes-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <button class="collapsible">2 - List Nodes</button>
+    <div class="content">
+        <button onclick="fetchListNodes()">List Nodes</button>
+        <div id="list-nodes-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <button class="collapsible">3 - Node Info</button>
+    <div class="content">
+        <form id="node-info-form" onsubmit="fetchNodeInfo(event)">
+            <label for="redisNode">Redis Node:</label>
+            <select id="redisNode" name="redisNode">
+                {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
+            </select>
+            <label for="command">Command:</label>
+            <select id="command" name="command">
+                {''.join([f"<option value='{command}'>{command}</option>" for command in commandsAvailable])}
+            </select>
+            <input type="submit" value="Get Info">
+        </form>
+        <div id="node-info-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <button class="collapsible">4 - Server Info</button>
+    <div class="content">
+        <form id="server-info-form" onsubmit="fetchServerInfo(event)">
+            <label for="server_ip">Server IP:</label>
+            <select id="server_ip" name="server_ip">
+                {''.join([f"<option value='{server}'>{server}</option>" for server in uniqueservers])}
+            </select>
+            <input type="submit" value="Get Info">
+        </form>
+        <div id="server-info-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <button class="collapsible">5 - Slot Info</button>
+    <div class="content">
+        <button onclick="fetchSlotInfo()">Get Slot Info</button>
+        <div id="slot-info-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <button class="collapsible">6 - Cluster State Info</button>
+    <div class="content">
+        <button onclick="fetchClusterStateInfo()">Get Cluster State Info</button>
+        <div id="cluster-state-info-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <button class="collapsible">7 - Memory Usage</button>
+    <div class="content">
+        <button onclick="fetchMemoryUsage()">Get Memory Usage</button>
+        <div id="memory-usage-result" style="margin-top: 10px;"></div>
+    </div>
+
     <script>
-        // Capture form submission and navigate to the corresponding endpoint
-        document.querySelectorAll('form').forEach(form => {{
-            form.addEventListener('submit', function(event) {{
-                event.preventDefault(); // Prevent default form submission behavior
-                const formData = new FormData(this); // Get form data
-                const trimmedData = {{}}; // Object to hold trimmed data
-                // Iterate over form data and trim input values
-                for (const [key, value] of formData.entries()) {{
-                    trimmedData[key] = value.trim(); // Trim whitespace from input values
+        const collapsibles = document.querySelectorAll(".collapsible");
+        collapsibles.forEach(button => {{
+            button.addEventListener("click", function() {{
+                this.classList.toggle("active");
+                const content = this.nextElementSibling;
+                if (content.style.display === "block") {{
+                    content.style.display = "none";
+                }} else {{
+                    content.style.display = "block";
                 }}
-                const url = this.getAttribute('action'); // Get form action URL
-                const queryParams = new URLSearchParams(trimmedData).toString(); // Convert form data to query string
-                const fullUrl = `${{url}}?${{queryParams}}`; // Combine URL with query string
-                window.location.href = fullUrl; // Redirect to the new URL
             }});
         }});
+
+        function fetchPingNodes() {{
+            fetch('/monitor/ping-nodes/')
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('ping-nodes-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('ping-nodes-result').innerHTML = "<p style='color: red;'>Error fetching ping nodes: " + error + "</p>";
+                }});
+        }}
+
+        function fetchListNodes() {{
+            fetch('/monitor/list-nodes/')
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('list-nodes-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('list-nodes-result').innerHTML = "<p style='color: red;'>Error fetching list nodes: " + error + "</p>";
+                }});
+        }}
+
+        function fetchNodeInfo(event) {{
+            event.preventDefault();
+            const formData = new FormData(document.getElementById('node-info-form'));
+            const params = new URLSearchParams(formData).toString();
+            fetch('/monitor/node-info/?' + params)
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('node-info-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('node-info-result').innerHTML = "<p style='color: red;'>Error fetching node info: " + error + "</p>";
+                }});
+        }}
+
+        function fetchServerInfo(event) {{
+            event.preventDefault();
+            const formData = new FormData(document.getElementById('server-info-form'));
+            const params = new URLSearchParams(formData).toString();
+            fetch('/monitor/server-info/?' + params)
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('server-info-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('server-info-result').innerHTML = "<p style='color: red;'>Error fetching server info: " + error + "</p>";
+                }});
+        }}
+
+        function fetchSlotInfo() {{
+            fetch('/monitor/slot-info/')
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('slot-info-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('slot-info-result').innerHTML = "<p style='color: red;'>Error fetching slot info: " + error + "</p>";
+                }});
+        }}
+
+        function fetchClusterStateInfo() {{
+            fetch('/monitor/cluster-state-info/')
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('cluster-state-info-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('cluster-state-info-result').innerHTML = "<p style='color: red;'>Error fetching cluster state info: " + error + "</p>";
+                }});
+        }}
+
+        function fetchMemoryUsage() {{
+            fetch('/monitor/memory-usage/')
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('memory-usage-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('memory-usage-result').innerHTML = "<p style='color: red;'>Error fetching memory usage: " + error + "</p>";
+                }});
+        }}
     </script>
+    </body>
+    </html>
     """
     return HTMLResponse(content=html_content)
 
@@ -704,288 +860,10 @@ async def monitor():
 # Manager Section
 # #############################################
 
-@app.get("/manager/node-action/", response_class=HTMLResponse)
-async def node_action(redisNode: str, action: str, confirmed: bool = False):
-    """
-    Endpoint to start, stop, or restart a Redis node.
-    Includes confirmation handling for stopping master nodes.
-    """
-    result_html = node_action_wv(redisNode, action, confirmed)
-
-    # Check if this is a confirmation request (when result contains confirmation-needed)
-    if "confirmation-needed" in result_html:
-        # Return a simplified response with just the confirmation dialog
-        response_message = f"""
-        {css_style}
-        <html>
-        <head>
-            <title>Confirm {action.capitalize()} Node {redisNode}</title>
-        </head>
-        <body>
-            <h2>Node Action Confirmation Required</h2>
-            {result_html}
-        </body>
-        </html>
-        """
-    else:
-        # Construct the standard response message
-        response_message = f"""
-        {css_style}
-        <html>
-        <head><title>Node Action: {action} {redisNode}</title></head>
-        <body>
-            <h2>Node Action Result</h2>
-            <p><b>Node:</b> {redisNode}<br><b>Action:</b> {action}</p>
-            <div>{result_html}</div>
-            <div class="nav-buttons">
-                <a href="/manager">Back to Manager</a>
-                <a href="/monitor">Back to Monitor</a>
-            </div>
-        </body>
-        </html>
-        """
-    return HTMLResponse(content=response_message)
-
-@app.get("/manager/switch-master-slave/", response_class=HTMLResponse)
-async def switch_master_slave(redisNode: str):
-    """
-    Endpoint to switch roles between a master node and one of its slaves.
-    """
-    result_html = switch_master_slave_wv(redisNode)
-
-    # Construct the response message
-    response_message = f"""
-    {css_style}
-    <html>
-    <head>
-        <title>Switch Master/Slave Nodes</title>
-        <style>
-            .node-info {{
-                background-color: #f8f9fa;
-                padding: 10px;
-                margin: 10px 0;
-                border-radius: 4px;
-                border-left: 4px solid #007bff;
-            }}
-        </style>
-    </head>
-    <body>
-        <h2>Master/Slave Switch Result</h2>
-        <p><b>Selected Node:</b> {redisNode}</p>
-        <div>{result_html}</div>
-        <div class="nav-buttons">
-            <a href="/manager">Back to Manager</a>
-            <a href="/monitor">Back to Monitor</a>
-        </div>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=response_message)
-
-@app.get("/manager/change-config/", response_class=HTMLResponse)
-async def change_config(redisNode: str, parameter: str, value: str, persist: bool = False):
-    """
-    Endpoint to change a Redis configuration parameter.
-    """
-    result_html = change_config_wv(redisNode, parameter, value, persist)
-
-    # Construct the response message
-    response_message = f"""
-    {css_style}
-    <html>
-    <head><title>Change Redis Configuration</title></head>
-    <body>
-        <h2>Change Redis Configuration Result</h2>
-        <p><b>Node:</b> {redisNode}<br><b>Parameter:</b> {parameter}<br><b>Value:</b> {value}</p>
-        <div>{result_html}</div>
-        <div class="nav-buttons">
-            <a href="/manager/get-config/?redisNode={redisNode}">View Configuration</a>
-            <a href="/manager">Back to Manager</a>
-        </div>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=response_message)
-
-@app.get("/manager/get-config/", response_class=HTMLResponse)
-async def get_config(redisNode: str, parameter: str = "*"):
-    """
-    Endpoint to get Redis configuration parameters.
-    """
-    result_html = get_config_wv(redisNode, parameter)
-
-    # Construct the response message
-    response_message = f"""
-    {css_style}
-    <html>
-    <head><title>Redis Configuration</title></head>
-    <body>
-        <h2>Redis Configuration</h2>
-        <p><b>Node:</b> {redisNode}</p>
-        <div>{result_html}</div>
-        <div class="nav-buttons">
-            <a href="/manager">Back to Manager</a>
-            <a href="/monitor">Back to Monitor</a>
-        </div>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=response_message)
-
-@app.get("/manager/save-config/", response_class=HTMLResponse)
-async def save_config(redisNode: str):
-    """
-    Endpoint to save Redis configuration to redis.conf file.
-    Can be a specific node (IP:PORT) or "all" for all nodes.
-    """
-    result_html = save_config_wv(redisNode)
-
-    # Construct the response message
-    response_message = f"""
-    {css_style}
-    <html>
-    <head><title>Save Redis Configuration</title></head>
-    <body>
-        <h2>Save Redis Configuration Result</h2>
-        <p><b>Target:</b> {redisNode}</p>
-        <div>{result_html}</div>
-        <div class="nav-buttons">
-            <a href="/manager">Back to Manager</a>
-            <a href="/monitor">Back to Monitor</a>
-        </div>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=response_message)
-
-@app.get("/manager/rolling-restart/", response_class=HTMLResponse)
-async def rolling_restart(wait_minutes: int = 0, restart_masters: bool = True, confirmed: bool = False):
-    """
-    Endpoint to perform a rolling restart of Redis Cluster nodes.
-    """
-    if not confirmed:
-        # Return a confirmation page
-        return HTMLResponse(content=f"""
-        {css_style}
-        <html>
-        <head>
-            <title>Confirm Rolling Restart</title>
-        </head>
-        <body>
-            <h2>Rolling Restart Confirmation</h2>
-            <div class="confirmation-needed">
-                <p style='color: orange; font-weight: bold;'>Warning: You are about to perform a rolling restart of the Redis Cluster!</p>
-                <p>This will restart all nodes in the cluster with the following settings:</p>
-                <ul>
-                    <li><strong>Wait time between restarts:</strong> {wait_minutes} minute(s)</li>
-                    <li><strong>Restart master nodes:</strong> {'Yes' if restart_masters else 'No (only slaves)'}</li>
-                </ul>
-                <p>Do you want to continue?</p>
-                <form id="confirm-action-form" action="/manager/rolling-restart/" method="get">
-                    <input type="hidden" name="wait_minutes" value="{wait_minutes}">
-                    <input type="hidden" name="restart_masters" value="{str(restart_masters).lower()}">
-                    <input type="hidden" name="confirmed" value="true">
-                    <button type="submit" class="confirm-btn">Yes, Perform Rolling Restart</button>
-                    <a href="/manager" class="cancel-btn">Cancel</a>
-                </form>
-            </div>
-        </body>
-        </html>
-        """)
-
-    # If confirmed, perform the rolling restart
-    result_html = rolling_restart_wv(wait_minutes, restart_masters)
-
-    # Construct the response message
-    response_message = f"""
-    {css_style}
-    <html>
-    <head><title>Rolling Restart</title></head>
-    <body>
-        <h2>Rolling Restart Results</h2>
-        <div>{result_html}</div>
-        <div class="nav-buttons">
-            <a href="/manager">Back to Manager</a>
-            <a href="/monitor">Back to Monitor</a>
-        </div>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=response_message)
-
-@app.get("/manager/execute-command/", response_class=HTMLResponse)
-async def execute_command(command: str, only_masters: bool = False, wait_seconds: int = 0):
-    """
-    Endpoint to execute a Redis command on all nodes or only on master nodes.
-    """
-    result_html = execute_command_wv(command, only_masters, wait_seconds)
-
-    # Construct the response message
-    response_message = f"""
-    {css_style}
-    <html>
-    <head><title>Execute Redis Command</title></head>
-    <body>
-        <h2>Redis Command Execution Results</h2>
-        <p><b>Command:</b> {command}<br>
-        <b>Only Masters:</b> {'Yes' if only_masters else 'No'}<br>
-        <b>Wait Between Nodes:</b> {wait_seconds} seconds</p>
-        <div>{result_html}</div>
-        <div class="nav-buttons">
-            <a href="/manager">Back to Manager</a>
-            <a href="/monitor">Back to Monitor</a>
-        </div>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=response_message)
-
-@app.get("/manager/show-log/", response_class=HTMLResponse)
-async def show_log(redisNode: str, line_count: int = 100):
-    """
-    Endpoint to display Redis log file content.
-    """
-    result_html = show_redis_log_wv(redisNode, line_count)
-
-    # Construct the response message
-    response_message = f"""
-    {css_style}
-    <html>
-    <head>
-        <title>Redis Log File</title>
-        <style>
-            pre {{
-                white-space: pre-wrap;       /* Since CSS 2.1 */
-                white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
-                white-space: -pre-wrap;      /* Opera 4-6 */
-                white-space: -o-pre-wrap;    /* Opera 7 */
-                word-wrap: break-word;       /* Internet Explorer 5.5+ */
-                overflow-x: auto;
-            }}
-        </style>
-    </head>
-    <body>
-        <h2>Redis Log File</h2>
-        <p><b>Node:</b> {redisNode}</p>
-        <div>{result_html}</div>
-        <div class="nav-buttons">
-            <form id="refresh-form" action="/manager/show-log/" method="get">
-                <input type="hidden" name="redisNode" value="{redisNode}">
-                <input type="hidden" name="line_count" value="{line_count}">
-                <input type="submit" value="Refresh Log">
-            </form>
-            <a href="/manager">Back to Manager</a>
-            <a href="/monitor">Back to Monitor</a>
-        </div>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=response_message)
-
 @app.get("/manager", response_class=HTMLResponse)
 async def manager():
     """
-    Displays the Redis Cluster Manager UI.
+    Displays the Redis Cluster Manager UI with collapsible sections.
     """
     # Reload the pareNodes configuration to ensure the latest node list
     import importlib
@@ -1027,7 +905,9 @@ async def manager():
     html_content = f"""
     {css_style}
     <html>
-    <head><title>Redis Cluster Manager</title></head>
+    <head>
+        <title>Redis Cluster Manager</title>
+    </head>
     <body>
     <h1>Redis Cluster Manager (paredicman)</h1>
     <div class="nav-buttons">
@@ -1036,274 +916,561 @@ async def manager():
     </div>
     <hr>
 
-    <h2>1 - Start/Stop/Restart Redis Node</h2>
-    <form id="node-action-form" action="/manager/node-action/" method="get">
-        <label for="redisNodeAction">Select Node:</label>
-        <select id="redisNodeAction" name="redisNode">
-            {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
-        </select>
-        <br><br>
-        <label for="action">Select Action:</label>
-        <select id="action" name="action">
-            {''.join([f"<option value='{action.lower()}'>{action}</option>" for action in actionsAvailable])}
-        </select>
-        <br><br>
-        <input type="submit" value="Perform Action">
-    </form>
-    <hr>
+    <button class="collapsible">1 - Start/Stop/Restart Redis Node</button>
+    <div class="content">
+        <form id="node-action-form" onsubmit="performNodeAction(event)">
+            <label for="redisNodeAction">Select Node:</label>
+            <select id="redisNodeAction" name="redisNode">
+                {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
+            </select>
+            <br><br>
+            <label for="action">Select Action:</label>
+            <select id="action" name="action">
+                {''.join([f"<option value='{action.lower()}'>{action}</option>" for action in actionsAvailable])}
+            </select>
+            <br><br>
+            <input type="submit" value="Perform Action">
+        </form>
+        <div id="node-action-result" style="margin-top: 10px;"></div>
+    </div>
 
-    <h2>2 - Switch Master/Slave Nodes</h2>
-            <form id="switch-master-slave-form" action="/manager/switch-master-slave/" method="get">
-        <label for="masterNode">Select Master Node:</label>
-        <select id="masterNode" name="redisNode">
-            {''.join([f"<option value='{node}'>{node}</option>" for node in masterNodes])}
-        </select>
-        <br><br>
-        <input type="submit" value="Switch Master/Slave">
-    </form>
-    <p><i>This will promote one of the master's</p>
-    
-    <hr>
+    <button class="collapsible">2 - Switch Master/Slave Nodes</button>
+    <div class="content">
+        <form id="switch-master-slave-form" onsubmit="switchMasterSlave(event)">
+            <label for="masterNode">Select Master Node:</label>
+            <select id="masterNode" name="redisNode">
+                {''.join([f"<option value='{node}'>{node}</option>" for node in masterNodes])}
+            </select>
+            <br><br>
+            <input type="submit" value="Switch Master/Slave">
+        </form>
+        <div id="switch-master-slave-result" style="margin-top: 10px;"></div>
+    </div>
 
-    <h2>3 - Change Redis Configuration Parameter</h2>
-    <form id="change-config-form" action="/manager/change-config/" method="get">
-        <label for="configNode">Select Node:</label>
-        <select id="configNode" name="redisNode">
-            {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
-        </select>
-        <br><br>
-        <label for="parameter">Parameter:</label>
-        <select id="parameter" name="parameter">
-            <option value="">--- Select or type below ---</option>
-            {''.join([f"<option value='{param}'>{param}</option>" for param in common_configs])}
-        </select>
-        <br><br>
-        <label for="custom-parameter">Or type parameter:</label>
-        <input type="text" id="custom-parameter" placeholder="e.g., maxmemory">
-        <br><br>
-        <label for="value">New Value:</label>
-        <input type="text" id="value" name="value" placeholder="e.g., 2gb">
-        <br><br>
-        <label for="persist">Persist to config:</label>
-        <input type="checkbox" id="persist" name="persist" value="true">
-        <br><br>
-        <input type="submit" value="Apply Change">
-    </form>
-    <p><a href="#" onclick="viewConfig()">View current configuration</a></p>
-    <hr>
+    <button class="collapsible">3 - Change Redis Configuration Parameter</button>
+    <div class="content">
+        <form id="change-config-form" onsubmit="changeConfig(event)">
+            <label for="configNode">Select Node:</label>
+            <select id="configNode" name="redisNode">
+                {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
+            </select>
+            <br><br>
+            <label for="parameter">Parameter:</label>
+            <select id="parameter" name="parameter">
+                <option value="">--- Select or type below ---</option>
+                {''.join([f"<option value='{param}'>{param}</option>" for param in common_configs])}
+            </select>
+            <br><br>
+            <label for="value">New Value:</label>
+            <input type="text" id="value" name="value" placeholder="e.g., 2gb">
+            <br><br>
+            <label for="persist">Persist to config:</label>
+            <input type="checkbox" id="persist" name="persist" value="true">
+            <br><br>
+            <input type="submit" value="Apply Change">
+        </form>
+        <div id="change-config-result" style="margin-top: 10px;"></div>
+    </div>
 
-    <h2>4 - Save Redis Configuration to redis.conf</h2>
-    <form id="save-config-form" action="/manager/save-config/" method="get">
-        <label for="saveConfigNode">Select Node or "All Nodes":</label>
-        <select id="saveConfigNode" name="redisNode">
-            <option value="all">All Nodes</option>
-            {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
-        </select>
-        <br><br>
-        <input type="submit" value="Save Configuration">
-    </form>
-    <p><i>This will save the current Redis configuration to redis.conf file</i></p>
-    <hr>
+    <button class="collapsible">4 - Save Redis Configuration to redis.conf</button>
+    <div class="content">
+        <form id="save-config-form" onsubmit="saveConfig(event)">
+            <label for="saveConfigNode">Select Node or "All Nodes":</label>
+            <select id="saveConfigNode" name="redisNode">
+                <option value="all">All Nodes</option>
+                {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
+            </select>
+            <br><br>
+            <input type="submit" value="Save Configuration">
+        </form>
+        <div id="save-config-result" style="margin-top: 10px;"></div>
+    </div>
 
-    <h2>5 - Rolling Restart</h2>
-    <form id="rolling-restart-form" action="/manager/rolling-restart/" method="get">
-        <label for="wait_minutes">Wait time between node restarts (minutes):</label>
-        <input type="number" id="wait_minutes" name="wait_minutes" min="0" value="1">
-        <br><br>
-        <label for="restart_masters">Restart master nodes:</label>
-        <input type="checkbox" id="restart_masters" name="restart_masters" value="true" checked>
-        <br><br>
-        <input type="submit" value="Start Rolling Restart">
-    </form>
-    <p><i>This will restart all slave nodes first, then master nodes if selected</i></p>
-    <hr>
+    <button class="collapsible">5 - Rolling Restart</button>
+    <div class="content">
+        <form id="rolling-restart-form" onsubmit="rollingRestart(event)">
+            <label for="wait_minutes">Wait time between node restarts (minutes):</label>
+            <input type="number" id="wait_minutes" name="wait_minutes" min="0" value="1">
+            <br><br>
+            <label for="restart_masters">Restart master nodes:</label>
+            <input type="checkbox" id="restart_masters" name="restart_masters" value="true" checked>
+            <br><br>
+            <input type="submit" value="Start Rolling Restart">
+        </form>
+        <div id="rolling-restart-result" style="margin-top: 10px;"></div>
+    </div>
 
-    <h2>6 - Command for all nodes</h2>
-    <form id="execute-command-form" action="/manager/execute-command/" method="get">
-        <label for="command">Redis Command:</label>
-        <input type="text" id="command" name="command" placeholder="e.g., INFO MEMORY" required style="width: 300px;">
-        <br><br>
-        <label for="only_masters">Execute only on master nodes:</label>
-        <input type="checkbox" id="only_masters" name="only_masters" value="true">
-        <br><br>
-        <label for="wait_seconds">Wait time between nodes (seconds):</label>
-        <input type="number" id="wait_seconds" name="wait_seconds" min="0" value="0">
-        <br><br>
-        <input type="submit" value="Execute Command">
-    </form>
-    <p><i>This will execute the Redis command on selected nodes and display the results</i></p>
-    <hr>
+    <button class="collapsible">6 - Command for all nodes</button>
+    <div class="content">
+        <form id="execute-command-form" onsubmit="executeCommand(event)">
+            <label for="command">Redis Command:</label>
+            <input type="text" id="command" name="command" placeholder="e.g., INFO MEMORY" required style="width: 300px;">
+            <br><br>
+            <label for="only_masters">Execute only on master nodes:</label>
+            <input type="checkbox" id="only_masters" name="only_masters" value="true">
+            <br><br>
+            <label for="wait_seconds">Wait time between nodes (seconds):</label>
+            <input type="number" id="wait_seconds" name="wait_seconds" min="0" value="0">
+            <br><br>
+            <input type="submit" value="Execute Command">
+        </form>
+        <div id="execute-command-result" style="margin-top: 10px;"></div>
+    </div>
 
-    <h2>7 - Show Redis Log File</h2>
-    <form id="show-log-form" action="/manager/show-log/" method="get">
-        <label for="logNode">Select Node:</label>
-        <select id="logNode" name="redisNode">
-            {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
-        </select>
-        <br><br>
-        <label for="line_count">Number of lines to show:</label>
-        <input type="number" id="line_count" name="line_count" min="10" max="10000" value="100">
-        <br><br>
-        <input type="submit" value="View Log File">
-    </form>
-    <p><i>This will display the Redis log file for the selected node</i></p>
-    <hr>
+    <button class="collapsible">7 - Show Redis Log File</button>
+    <div class="content">
+        <form id="show-log-form" onsubmit="showLog(event)">
+            <label for="logNode">Select Node:</label>
+            <select id="logNode" name="redisNode">
+                {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
+            </select>
+            <br><br>
+            <label for="line_count">Number of lines to show:</label>
+            <input type="number" id="line_count" name="line_count" min="10" max="10000" value="100">
+            <br><br>
+            <input type="submit" value="View Log File">
+        </form>
+        <div id="show-log-result" style="margin-top: 10px;"></div>
+    </div>
 
     <script>
-        // Handling the custom parameter input
-        document.getElementById('custom-parameter').addEventListener('input', function(e) {{
-            // If user types in the custom field, update the select dropdown
-            if (e.target.value) {{
-                document.getElementById('parameter').value = e.target.value;
-            }}
-        }});
-
-        document.getElementById('parameter').addEventListener('change', function(e) {{
-            // If user selects from dropdown, clear the custom field
-            document.getElementById('custom-parameter').value = '';
-        }});
-
-        // Function to view configuration for a node
-        function viewConfig() {{
-            const node = document.getElementById('configNode').value;
-            if (node) {{
-                window.location.href = `/manager/get-config/?redisNode=${{node}}`;
-            }} else {{
-                alert('Please select a node first.');
-            }}
-        }}
-        
-        // Capture form submission and navigate to the corresponding endpoint
-        document.getElementById('node-action-form').addEventListener('submit', function(event) {{
-            event.preventDefault(); // Prevent default form submission behavior
-            const formData = new FormData(this); // Get form data
-            const trimmedData = {{}}; // Object to hold trimmed data
-            // Iterate over form data and trim input values
-            for (const [key, value] of formData.entries()) {{
-                trimmedData[key] = value.trim(); // Trim whitespace from input values
-            }}
-            const url = this.getAttribute('action'); // Get form action URL
-            const queryParams = new URLSearchParams(trimmedData).toString(); // Convert form data to query string
-            const fullUrl = `${{url}}?${{queryParams}}`; // Combine URL with query string
-            window.location.href = fullUrl; // Redirect to the new URL
-        }});
-        
-        // Similarly for the change-config form, ensure we use the parameter from either the dropdown or custom input
-        document.getElementById('change-config-form').addEventListener('submit', function(event) {{
-            event.preventDefault();
-            const formData = new FormData(this);
-            const trimmedData = {{}};
-            
-            for (const [key, value] of formData.entries()) {{
-                if (key !== 'parameter') {{ // Handle parameter separately
-                    trimmedData[key] = value.trim();
+        const collapsibles = document.querySelectorAll(".collapsible");
+        collapsibles.forEach(button => {{
+            button.addEventListener("click", function() {{
+                this.classList.toggle("active");
+                const content = this.nextElementSibling;
+                if (content.style.display === "block") {{
+                    content.style.display = "none";
+                }} else {{
+                    content.style.display = "block";
                 }}
-            }}
-            
-            // Get the parameter from either the dropdown or custom input
-            const selectedParam = document.getElementById('parameter').value;
-            const customParam = document.getElementById('custom-parameter').value;
-            trimmedData['parameter'] = customParam || selectedParam;
-            
-            if (!trimmedData['parameter']) {{
-                alert('Please select or enter a parameter.');
-                return;
-            }}
-            
-            if (!trimmedData['value']) {{
-                alert('Please enter a value for the parameter.');
-                return;
-            }}
+            }});
+        }});
 
-            const url = this.getAttribute('action');
-            const queryParams = new URLSearchParams(trimmedData).toString();
-            const fullUrl = `${{url}}?${{queryParams}}`;
-            window.location.href = fullUrl;
-        }});
-        
-        // Capture form submission for save-config form
-        document.getElementById('save-config-form').addEventListener('submit', function(event) {{
+        function performNodeAction(event) {{
             event.preventDefault();
-            const formData = new FormData(this);
-            const trimmedData = {{}};
-            
-            for (const [key, value] of formData.entries()) {{
-                trimmedData[key] = value.trim();
-            }}
-            
-            const url = this.getAttribute('action');
-            const queryParams = new URLSearchParams(trimmedData).toString();
-            const fullUrl = `${{url}}?${{queryParams}}`;
-            window.location.href = fullUrl;
-        }});
-        
-        // Capture form submission for rolling-restart form
-        document.getElementById('rolling-restart-form').addEventListener('submit', function(event) {{
+            const formData = new FormData(document.getElementById('node-action-form'));
+            const params = new URLSearchParams(formData).toString();
+            fetch('/manager/node-action/?' + params)
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('node-action-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('node-action-result').innerHTML = "<p style='color: red;'>Error performing action: " + error + "</p>";
+                }});
+        }}
+
+        function switchMasterSlave(event) {{
             event.preventDefault();
-            const formData = new FormData(this);
-            const trimmedData = {{}};
-            
-            for (const [key, value] of formData.entries()) {{
-                trimmedData[key] = value.trim();
-            }}
-            
-            // Set restart_masters to false if not checked
-            if (!formData.has('restart_masters')) {{
-                trimmedData['restart_masters'] = 'false';
-            }}
-            
-            const url = this.getAttribute('action');
-            const queryParams = new URLSearchParams(trimmedData).toString();
-            const fullUrl = `${{url}}?${{queryParams}}`;
-            window.location.href = fullUrl;
-        }});
-        
-        // Capture form submission for execute-command form
-        document.getElementById('execute-command-form').addEventListener('submit', function(event) {{
+            const formData = new FormData(document.getElementById('switch-master-slave-form'));
+            const params = new URLSearchParams(formData).toString();
+            fetch('/manager/switch-master-slave/?' + params)
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('switch-master-slave-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('switch-master-slave-result').innerHTML = "<p style='color: red;'>Error switching master/slave: " + error + "</p>";
+                }});
+        }}
+
+        function changeConfig(event) {{
             event.preventDefault();
-            const formData = new FormData(this);
-            const trimmedData = {{}};
-            
-            for (const [key, value] of formData.entries()) {{
-                trimmedData[key] = value.trim();
-            }}
-            
-            // Set only_masters to false if not checked
-            if (!formData.has('only_masters')) {{
-                trimmedData['only_masters'] = 'false';
-            }}
-            
-            const url = this.getAttribute('action');
-            const queryParams = new URLSearchParams(trimmedData).toString();
-            const fullUrl = `${{url}}?${{queryParams}}`;
-            window.location.href = fullUrl;
-        }});
-        
-        // Capture form submission for show-log form
-        document.getElementById('show-log-form').addEventListener('submit', function(event) {{
+            const formData = new FormData(document.getElementById('change-config-form'));
+            const params = new URLSearchParams(formData).toString();
+            fetch('/manager/change-config/?' + params)
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('change-config-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('change-config-result').innerHTML = "<p style='color: red;'>Error changing config: " + error + "</p>";
+                }});
+        }}
+
+        function saveConfig(event) {{
             event.preventDefault();
-            const formData = new FormData(this);
-            const trimmedData = {{}};
-            
-            for (const [key, value] of formData.entries()) {{
-                trimmedData[key] = value.trim();
-            }}
-            
-            const url = this.getAttribute('action');
-            const queryParams = new URLSearchParams(trimmedData).toString();
-            const fullUrl = `${{url}}?${{queryParams}}`;
-            window.location.href = fullUrl;
-        }});
+            const formData = new FormData(document.getElementById('save-config-form'));
+            const params = new URLSearchParams(formData).toString();
+            fetch('/manager/save-config/?' + params)
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('save-config-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('save-config-result').innerHTML = "<p style='color: red;'>Error saving config: " + error + "</p>";
+                }});
+        }}
+
+        function rollingRestart(event) {{
+            event.preventDefault();
+            const formData = new FormData(document.getElementById('rolling-restart-form'));
+            const params = new URLSearchParams(formData).toString();
+            fetch('/manager/rolling-restart/?' + params)
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('rolling-restart-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('rolling-restart-result').innerHTML = "<p style='color: red;'>Error performing rolling restart: " + error + "</p>";
+                }});
+        }}
+
+        function executeCommand(event) {{
+            event.preventDefault();
+            const formData = new FormData(document.getElementById('execute-command-form'));
+            const params = new URLSearchParams(formData).toString();
+            fetch('/manager/execute-command/?' + params)
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('execute-command-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('execute-command-result').innerHTML = "<p style='color: red;'>Error executing command: " + error + "</p>";
+                }});
+        }}
+
+        function showLog(event) {{
+            event.preventDefault();
+            const formData = new FormData(document.getElementById('show-log-form'));
+            const params = new URLSearchParams(formData).toString();
+            fetch('/manager/show-log/?' + params)
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('show-log-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('show-log-result').innerHTML = "<p style='color: red;'>Error fetching log: " + error + "</p>";
+                }});
+        }}
     </script>
     </body>
     </html>
     """
     return HTMLResponse(content=html_content)
 
+@app.get("/manager/node-action/", response_class=HTMLResponse)
+async def manager_node_action(redisNode: str, action: str, confirmed: bool = False):
+    """
+    Endpoint to perform start, stop, or restart actions on a Redis node.
+    """
+    try:
+        result = node_action_wv(redisNode, action, confirmed)
+        return HTMLResponse(content=result)
+    except Exception as e:
+        return HTMLResponse(content=f"<p style='color: red;'>Error: {str(e)}</p>")
+
+@app.get("/manager/switch-master-slave/", response_class=HTMLResponse)
+async def manager_switch_master_slave(redisNode: str):
+    """
+    Endpoint to switch roles between a master node and one of its slaves.
+    """
+    try:
+        result = switch_master_slave_wv(redisNode)
+        return HTMLResponse(content=result)
+    except Exception as e:
+        return HTMLResponse(content=f"<p style='color: red;'>Error: {str(e)}</p>")
+
+@app.get("/manager/change-config/", response_class=HTMLResponse)
+async def manager_change_config(redisNode: str, parameter: str, value: str, persist: bool = False):
+    """
+    Endpoint to change a Redis configuration parameter for a specific node.
+    """
+    try:
+        result = change_config_wv(redisNode, parameter, value, persist)
+        return HTMLResponse(content=result)
+    except Exception as e:
+        return HTMLResponse(content=f"<p style='color: red;'>Error: {str(e)}</p>")
+
+@app.get("/manager/save-config/", response_class=HTMLResponse)
+async def manager_save_config(redisNode: str):
+    """
+    Endpoint to save the Redis configuration to redis.conf for a specific node or all nodes.
+    """
+    try:
+        result = save_config_wv(redisNode)
+        return HTMLResponse(content=result)
+    except Exception as e:
+        return HTMLResponse(content=f"<p style='color: red;'>Error: {str(e)}</p>")
+
+@app.get("/manager/rolling-restart/", response_class=HTMLResponse)
+async def manager_rolling_restart(wait_minutes: int = 0, restart_masters: bool = True):
+    """
+    Endpoint to perform a rolling restart of Redis nodes.
+    """
+    try:
+        result = rolling_restart_wv(wait_minutes, restart_masters)
+        return HTMLResponse(content=result)
+    except Exception as e:
+        return HTMLResponse(content=f"<p style='color: red;'>Error: {str(e)}</p>")
+
+@app.get("/manager/show-log/", response_class=HTMLResponse)
+async def manager_show_log(redisNode: str, line_count: int = 100):
+    """
+    Endpoint to display the Redis log file for a specific node.
+    """
+    try:
+        result = show_redis_log_wv(redisNode, line_count)
+        return f"""
+        {css_style}
+        <html>
+        <head><title>Show Redis Log</title></head>
+        <body>
+            <h2>Redis Log File</h2>
+            <p>Node: {redisNode}</p>
+            <p>Lines: {line_count}</p>
+            {result}
+            <div class="nav-buttons">
+                <a href="/manager">Back to Manager</a>
+            </div>
+        </body>
+        </html>
+        """
+    except Exception as e:
+        return f"""
+        {css_style}
+        <html>
+        <head><title>Error</title></head>
+        <body>
+            <h2>Error</h2>
+            <p style='color: red;'>Error: {str(e)}</p>
+            <div class="nav-buttons">
+                <a href="/manager">Back to Manager</a>
+            </div>
+        </body>
+        </html>
+        """
+
+@app.get("/manager/execute-command/", response_class=HTMLResponse)
+async def manager_execute_command(command: str, only_masters: bool = False, wait_seconds: int = 0):
+    """
+    Endpoint to execute a Redis command on all nodes or only master nodes.
+    """
+    try:
+        result = execute_command_wv(command, only_masters, wait_seconds)
+        return f"""
+        {css_style}
+        <html>
+        <head><title>Execute Command</title></head>
+        <body>
+            <h2>Command Execution Results</h2>
+            <p>Command: {command}</p>
+            <p>Only Masters: {"Yes" if only_masters else "No"}</p>
+            <p>Wait Seconds: {wait_seconds}</p>
+            {result}
+            <div class="nav-buttons">
+                <a href="/manager">Back to Manager</a>
+            </div>
+        </body>
+        </html>
+        """
+    except Exception as e:
+        return f"""
+        {css_style}
+        <html>
+        <head><title>Error</title></head>
+        <body>
+            <h2>Error</h2>
+            <p style='color: red;'>Error: {str(e)}</p>
+            <div class="nav-buttons">
+                <a href="/manager">Back to Manager</a>
+            </div>
+        </body>
+        </html>
+        """
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """
+    Handle requests for the favicon.ico file to avoid 404 errors.
+    """
+    return Response(content="", media_type="image/x-icon")
+
 
 # #############################################
 # Maintenance Section
 # #############################################
+
+@app.get("/maintain", response_class=HTMLResponse)
+async def maintain():
+    """
+    Displays the Redis Cluster Maintenance UI with collapsible sections.
+    """
+    # Ensure we have the latest node list
+    import importlib
+    importlib.reload(sys.modules['pareNodeList'])
+    from pareNodeList import pareNodes as fresh_pareNodes
+
+    # Update the global pareNodes
+    global pareNodes
+    pareNodes = fresh_pareNodes
+
+    nodeList = getNodeList()
+    # Get active nodes for deletion dropdown
+    active_nodes_with_id = []
+    for i, pareNode in enumerate(pareNodes, start=1):
+        if pareNode[4]:  # If active
+            nodeIP = pareNode[0][0]
+            portNumber = pareNode[1][0]
+            active_nodes_with_id.append((i, f"{nodeIP}:{portNumber}"))
+
+    # Generate the HTML content for the maintenance page
+    html_content = f"""
+    {css_style}
+    <html>
+    <head>
+        <title>Redis Cluster Maintenance</title>
+    </head>
+    <body>
+    <h1>Redis Cluster Maintenance (paredicmaint)</h1>
+    <div class="nav-buttons">
+        <a href="/monitor">Go to Monitor (paredicmon)</a>
+        <a href="/manager">Go to Manager (paredicman)</a>
+    </div>
+    <hr>
+
+    <button class="collapsible">1 - Add/Delete Redis Node</button>
+    <div class="content">
+        <h3>Add a New Redis Node</h3>
+        <form id="add-node-form" onsubmit="addNode(event)">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <label for="serverIP" style="width: 150px;">Server IP:</label>
+                <input type="text" id="serverIP" name="serverIP" required placeholder="e.g., 192.168.1.10">
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <label for="serverPORT" style="width: 150px;">Port Number:</label>
+                <input type="number" id="serverPORT" name="serverPORT" required placeholder="e.g., 6379">
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <label for="maxMemSize" style="width: 150px;">Maximum Memory:</label>
+                <input type="text" id="maxMemSize" name="maxMemSize" required placeholder="e.g., 2gb or 500mb">
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <label for="cpuCoreIDs" style="width: 150px;">CPU Core IDs:</label>
+                <input type="text" id="cpuCoreIDs" name="cpuCoreIDs" required placeholder="e.g., 1 or 1,2,3">
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <label for="nodeType" style="width: 150px;">Node Type:</label>
+                <select id="nodeType" name="nodeType" onchange="toggleMasterDropdown()">
+                    <option value="master">Master Node</option>
+                    <option value="slave-specific">Slave Node</option>
+                </select>
+            </div>
+            <div id="masterDropdownField" style="display: none; flex; align-items: center; gap: 10px;">
+                <label for="masterID" style="width: 150px;">Master Node:</label>
+                <select id="masterID" name="masterID">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+            <div style="display: flex; justify-content: flex-start;">
+                <input type="submit" value="Add Node" style="width: auto;">
+            </div>
+        </form>
+        <div id="add-node-result" style="margin-top: 10px;"></div>
+
+        <h3>Delete a Redis Node</h3>
+        <form id="delete-node-form" onsubmit="deleteNode(event)">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <label for="nodeId" style="width: 150px;">Select Node to Delete:</label>
+                <select id="nodeId" name="nodeId" required>
+                    {''.join([f"<option value='{id}'>{id} - {node}</option>" for id, node in active_nodes_with_id])}
+                </select>
+            </div>
+            <div style="display: flex; justify-content: flex-start;">
+                <input type="submit" value="Delete Node" style="width: auto;">
+            </div>
+        </form>
+        <div id="delete-node-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <script>
+        const collapsibles = document.querySelectorAll(".collapsible");
+        collapsibles.forEach(button => {{
+            button.addEventListener("click", function() {{
+                this.classList.toggle("active");
+                const content = this.nextElementSibling;
+                if (content.style.display === "block") {{
+                    content.style.display = "none";
+                }} else {{
+                    content.style.display = "block";
+                }}
+            }});
+        }});
+
+        function toggleMasterDropdown() {{
+            const nodeType = document.getElementById('nodeType').value;
+            const masterDropdownField = document.getElementById('masterDropdownField');
+            if (nodeType === 'slave-specific') {{
+                masterDropdownField.style.display = 'flex';
+                fetch('/maintain/view-master-nodes-dropdown')
+                    .then(response => response.text())
+                    .then(data => {{
+                        document.getElementById('masterID').innerHTML = data;
+                    }})
+                    .catch(error => {{
+                        console.error('Error fetching master nodes:', error);
+                        document.getElementById('masterID').innerHTML = "<option value=''>Error loading master nodes</option>";
+                    }});
+            }} else {{
+                masterDropdownField.style.display = 'none';
+            }}
+        }}
+
+        function addNode(event) {{
+            event.preventDefault();
+            const formData = new FormData(document.getElementById('add-node-form'));
+            const params = new URLSearchParams(formData).toString();
+            fetch('/maintain/add-node/?' + params)
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('add-node-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('add-node-result').innerHTML = "<p style='color: red;'>Error adding node: " + error + "</p>";
+                }});
+        }}
+
+        function deleteNode(event) {{
+            event.preventDefault();
+            const formData = new FormData(document.getElementById('delete-node-form'));
+            const params = new URLSearchParams(formData).toString();
+            
+            // Show loading indicator
+            document.getElementById('delete-node-result').innerHTML = "<p>Loading...</p>";
+            
+            fetch('/maintain/delete-node/?' + params)
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('delete-node-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('delete-node-result').innerHTML = "<p style='color: red;'>Error deleting node: " + error + "</p>";
+                }});
+        }}
+        
+        function confirmDeleteNode(nodeId) {{
+            // Show loading indicator
+            document.getElementById('delete-node-result').innerHTML = "<p>Deleting node...</p>";
+            
+            fetch('/maintain/delete-node/?nodeId=' + nodeId + '&confirmed=true')
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('delete-node-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('delete-node-result').innerHTML = "<p style='color: red;'>Error during node deletion: " + error + "</p>";
+                }});
+        }}
+        
+        function cancelDeleteNode() {{
+            document.getElementById('delete-node-result').innerHTML = "<p>Node deletion cancelled.</p>";
+        }}
+    </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
 
 @app.get("/maintain/add-node/", response_class=HTMLResponse)
 async def add_node(
@@ -1311,7 +1478,7 @@ async def add_node(
     serverPORT: str,
     maxMemSize: str,
     cpuCoreIDs: str,
-    nodeType: str = "slave",
+    nodeType: str = "master",
     masterID: str = "",
     confirmed: bool = False
 ):
@@ -1428,332 +1595,61 @@ async def delete_node(nodeId: str, confirmed: bool = False):
                 node_id_int = int(nodeId)
                 if node_id_int < 1 or node_id_int > len(pareNodes):
                     return HTMLResponse(content=f"""
-                    {css_style}
-                    <html>
-                    <head><title>Error</title></head>
-                    <body>
-                        <h2>Invalid Node ID</h2>
+                    <div class="error-message">
                         <p style='color: red;'>Node ID {nodeId} doesn't exist. Valid range is 1-{len(pareNodes)}</p>
-                        <div class="nav-buttons">
-                            <a href="/maintain">Back to Maintenance</a>
-                        </div>
-                    </body>
-                    </html>
+                    </div>
                     """)
 
                 if not pareNodes[node_id_int - 1][4]:
                     return HTMLResponse(content=f"""
-                    {css_style}
-                    <html>
-                    <head><title>Error</title></head>
-                    <body>
-                        <h2>Inactive Node</h2>
+                    <div class="error-message">
                         <p style='color: red;'>Node {nodeId} is already marked as inactive</p>
-                        <div class="nav-buttons">
-                            <a href="/maintain">Back to Maintenance</a>
-                        </div>
-                    </body>
-                    </html>
+                    </div>
                     """)
 
                 # Get node details for display
                 serverIP = pareNodes[node_id_int - 1][0][0]
                 serverPORT = pareNodes[node_id_int - 1][1][0]
 
-                # Show confirmation page with node details
+                # Show confirmation dialog with node details
                 return HTMLResponse(content=f"""
-                {css_style}
-                <html>
-                <head><title>Confirm Delete Node</title></head>
-                <body>
-                    <h2>Confirm Node Deletion</h2>
-                    <div class="confirmation-needed">
-                        <p>Are you sure you want to delete this node from the cluster?</p>
-                        <p><strong>Node:</strong> {nodeId} - {serverIP}:{serverPORT}</p>
-                        <p style='color: red;'>This operation cannot be undone!</p>
-                        <form action="/maintain/delete-node/" method="get">
-                            <input type="hidden" name="nodeId" value="{nodeId}">
-                            <input type="hidden" name="confirmed" value="true">
-                            <button type="submit" class="confirm-btn">Yes, Delete Node</button>
-                            <a href="/maintain" class="cancel-btn">Cancel</a>
-                        </form>
+                <div class="confirmation-needed">
+                    <p>Are you sure you want to delete this node from the cluster?</p>
+                    <p><strong>Node:</strong> {nodeId} - {serverIP}:{serverPORT}</p>
+                    <p style='color: red;'>This operation cannot be undone!</p>
+                    <div class="confirmation-buttons">
+                        <button onclick="confirmDeleteNode('{nodeId}')" class="confirm-btn">Yes, Delete Node</button>
+                        <button onclick="cancelDeleteNode()" class="cancel-btn">Cancel</button>
                     </div>
-                </body>
-                </html>
+                </div>
                 """)
             except Exception as e:
                 return HTMLResponse(content=f"""
-                {css_style}
-                <html>
-                <head><title>Error</title></head>
-                <body>
-                    <h2>Error Processing Node</h2>
+                <div class="error-message">
                     <p style='color: red;'>An error occurred while processing node {nodeId}: {str(e)}</p>
-                    <div class="nav-buttons">
-                        <a href="/maintain">Back to Maintenance</a>
-                    </div>
-                </body>
-                </html>
+                </div>
                 """)
 
         # If confirmed, delegate to the add_delete_node_wv function
         result_html = add_delete_node_wv('del', nodeId)
 
-        # Construct the response message
-        response_message = f"""
-        {css_style}
-        <html>
-        <head><title>Delete Redis Node</title></head>
-        <body>
-            <h2>Delete Node Result</h2>
+        # Return just the result HTML, not a full page
+        return HTMLResponse(content=f"""
+        <div class="delete-result">
+            <h3>Delete Node Result</h3>
             <div>{result_html}</div>
-            <div class="nav-buttons">
-                <a href="/maintain">Back to Maintenance</a>
-            </div>
-        </body>
-        </html>
-        """
-        return HTMLResponse(content=response_message)
+        </div>
+        """)
     except Exception as e:
         import traceback
         trace = traceback.format_exc()
         return HTMLResponse(content=f"""
-        {css_style}
-        <html>
-        <head><title>Error</title></head>
-        <body>
-            <h2>Unexpected Error</h2>
+        <div class="error-message">
+            <h3>Unexpected Error</h3>
             <p style='color: red;'>An unexpected error occurred: {str(e)}</p>
             <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto; font-size: 12px;'>{trace}</pre>
-            <div class="nav-buttons">
-                <a href="/maintain">Back to Maintenance</a>
-            </div>
-        </body>
-        </html>
+        </div>
         """)
-
-@app.get("/maintain", response_class=HTMLResponse)
-async def maintain():
-    """
-    Displays the Redis Cluster Maintenance UI.
-    """
-    # Ensure we have the latest node list
-    import importlib
-    importlib.reload(sys.modules['pareNodeList'])
-    from pareNodeList import pareNodes as fresh_pareNodes
-
-    # Update the global pareNodes
-    global pareNodes
-    pareNodes = fresh_pareNodes
-
-    nodeList = getNodeList()
-    # Get active nodes for deletion dropdown
-    active_nodes_with_id = []
-    for i, pareNode in enumerate(pareNodes, start=1):
-        if pareNode[4]:  # If active
-            nodeIP = pareNode[0][0]
-            portNumber = pareNode[1][0]
-            active_nodes_with_id.append((i, f"{nodeIP}:{portNumber}"))
-
-    # Generate the HTML content for the maintenance page
-    html_content = f"""
-    {css_style}
-    <html>
-    <head>
-        <title>Redis Cluster Maintenance</title>
-        <style>
-            .form-section {{
-                background-color: #f8f9fa;
-                padding: 15px;
-                border-radius: 5px;
-                margin-bottom: 15px;
-            }}
-            .form-row {{
-                margin-bottom: 10px;
-            }}
-            .tab-content {{
-                display: none;
-                padding: 15px;
-                border: 1px solid #ddd;
-            }}
-            .active-tab {{
-                display: block;
-            }}
-        </style>
-    </head>
-    <body>
-    <h1>Redis Cluster Maintenance (paredicmaint)</h1>
-    <div class="nav-buttons">
-        <a href="/monitor">Go to Monitor (paredicmon)</a>
-        <a href="/manager">Go to Manager (paredicman)</a>
-    </div>
-    <hr>
-
-    <h2>1 - Add/Delete Redis Node</h2>
-    <div>
-        <div class="tab-navigation">
-            <button onclick="showTab('add-node')">Add Node</button>
-            <button onclick="showTab('delete-node')">Delete Node</button>
-        </div>
-
-        <div id="add-node" class="tab-content active-tab">
-            <h3>Add a New Redis Node</h3>
-            <div class="form-section">
-                <form id="add-node-form" action="/maintain/add-node/" method="get">
-                    <div class="form-row">
-                        <label for="serverIP">Server IP:</label>
-                        <input type="text" id="serverIP" name="serverIP" required 
-                               placeholder="e.g., 192.168.1.10">
-                    </div>
-                    <div class="form-row">
-                        <label for="serverPORT">Port Number:</label>
-                        <input type="number" id="serverPORT" name="serverPORT" required 
-                               placeholder="e.g., 6379">
-                    </div>
-                    <div class="form-row">
-                        <label for="maxMemSize">Maximum Memory:</label>
-                        <input type="text" id="maxMemSize" name="maxMemSize" required 
-                               placeholder="e.g., 2gb or 500mb">
-                    </div>
-                    <div class="form-row">
-                        <label for="cpuCoreIDs">CPU Core IDs:</label>
-                        <input type="text" id="cpuCoreIDs" name="cpuCoreIDs" required 
-                               placeholder="e.g., 1 or 1,2,3">
-                    </div>
-                    <div class="form-row">
-                        <label for="nodeType">Node Type:</label>
-                        <select id="nodeType" name="nodeType" onchange="toggleMasterIdField()">
-                            <option value="master">Master Node</option>
-                            <option value="slave-specific">Slave Node</option>
-                        </select>
-                    </div>
-                    <div id="masterIdField" class="form-row" style="display: none;">
-                        <label for="masterID">Master Node ID:</label>
-                        <select id="masterID" name="masterID">
-                            <option value="">--- Select Master Node ---</option>
-                        </select>
-                        <script>
-                            fetch('/maintain/view-master-nodes-dropdown')
-                                .then(response => response.text())
-                                .then(options => {{
-                                    document.getElementById('masterID').innerHTML += options;
-                                }})
-                                .catch(error => console.error('Error fetching master nodes:', error));
-                        </script>
-                    </div>
-                    <div class="form-row">
-                        <input type="submit" value="Add Node">
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <div id="delete-node" class="tab-content">
-            <h3>Delete a Redis Node</h3>
-            <div class="form-section">
-                <form id="delete-node-form" action="/maintain/delete-node/" method="get">
-                    <div class="form-row">
-                        <label for="nodeId">Select Node to Delete:</label>
-                        <select id="nodeId" name="nodeId" required>
-                            {''.join([f"<option value='{id}'>{id} - {node}</option>" for id, node in active_nodes_with_id])}
-                        </select>
-                    </div>
-                    <div class="form-row">
-                        <input type="submit" value="Delete Node">
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-    <hr>
-
-    <h2>2 - Move Slot(s)</h2>
-    <p><i>(Not Implemented Yet)</i></p>
-    <hr>
-
-    <h2>3 - Redis Cluster Nodes Version Upgrade</h2>
-    <p><i>(Not Implemented Yet)</i></p>
-    <hr>
-
-    <h2>4 - Redis Cluster Nodes Version Control</h2>
-    <p><i>(Not Implemented Yet)</i></p>
-    <hr>
-
-    <h2>5 - Maintain Server</h2>
-    <p><i>(Not Implemented Yet)</i></p>
-    <hr>
-
-    <h2>6 - Migrate Data From Remote Redis</h2>
-    <p><i>(Not Implemented Yet)</i></p>
-    <hr>
-
-    <h2>7 - Cluster Slot(load) Balancer</h2>
-    <p><i>(Not Implemented Yet)</i></p>
-    <hr>
-
-    <script>
-        function showTab(tabId) {{
-            // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(tab => {{
-                tab.classList.remove('active-tab');
-            }});
-            // Show selected tab
-            document.getElementById(tabId).classList.add('active-tab');
-        }}
-
-        function toggleMasterIdField() {{
-            const nodeType = document.getElementById('nodeType').value;
-            const masterIdField = document.getElementById('masterIdField');
-            masterIdField.style.display = nodeType === 'slave-specific' ? 'block' : 'none';
-        }}
-
-        // Form validation and submission
-        document.getElementById('add-node-form').addEventListener('submit', function(e) {{
-            e.preventDefault();
-            const formData = new FormData(this);
-            
-            // Additional validation
-            const maxMemSize = formData.get('maxMemSize');
-            if (!maxMemSize.match(/^\\d+[mg]b$/i)) {{
-                alert('Memory size must be in format: NUMBER[mg]b (e.g., 2gb or 500mb)');
-                return;
-            }}
-
-            const cpuCoreIDs = formData.get('cpuCoreIDs');
-            if (!cpuCoreIDs.match(/^\\d+(?:,\\d+)*$/)) {{
-                alert('CPU Core IDs must be numbers separated by commas');
-                return;
-            }}
-
-            // Validate master ID for slave nodes
-            const nodeType = formData.get('nodeType');
-            const masterID = formData.get('masterID');
-            if (nodeType === 'slave-specific' && (!masterID || masterID.trim().length === 0)) {{
-                alert('Master Node ID is required when adding a slave node');
-                return;
-            }}
-
-            // Build URL with parameters
-            const url = this.getAttribute('action');
-            const params = new URLSearchParams(formData);
-            window.location.href = `${{url}}?${{params.toString()}}`;
-        }});
-
-        document.getElementById('delete-node-form').addEventListener('submit', function(e) {{
-            e.preventDefault();
-            const formData = new FormData(this);
-            const url = this.getAttribute('action');
-            const params = new URLSearchParams(formData);
-            window.location.href = `${{url}}?${{params.toString()}}`;
-        }});
-    </script>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
-
-
-# #############################################
 
 if __name__ == "__main__":
     import uvicorn

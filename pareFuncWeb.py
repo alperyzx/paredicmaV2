@@ -1452,7 +1452,7 @@ def add_delete_node_wv(operation, node_info=None):
             <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto; font-size: 12px;'>{trace}</pre>
             <p>Please report this error to the administrator.</p>
         </div>
-        """
+            """
     if operation == 'add':
         return f"""
         <form id="add-node-form" action="/maintain/add-node/" method="get">
@@ -1476,7 +1476,7 @@ def add_delete_node_wv(operation, node_info=None):
                 </select>
             </div>
             <input type="submit" value="Add Node">
-        </form>
+                    </form>
         <script>
             function toggleMasterDropdown() {{
                 const nodeType = document.getElementById('nodeType').value;
