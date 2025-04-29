@@ -1238,7 +1238,6 @@ def add_delete_node_wv(operation, node_info=None):
                         <div style="margin-top: 15px; padding: 10px; background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px;">
                             <p><strong>Important:</strong> The node will automatically appear in all dropdowns.</p>
                         </div>
-                        <p><a href="/monitor" class="btn" style="background-color: #007bff; color: white;">Go to Monitor</a></p>
                     </div>
                     """
                 else:
@@ -1498,3 +1497,4 @@ def add_delete_node_wv(operation, node_info=None):
             }}
         </script>
         """
+

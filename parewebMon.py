@@ -83,11 +83,6 @@ async def refresh_config():
             <h2>Node Configuration Refreshed</h2>
             <p>The node configuration has been successfully reloaded.</p>
             <p>Current active nodes: {sum(1 for node in pareNodes if node[4])}</p>
-            <div class="nav-buttons">
-                <a href="/monitor">Back to Monitor</a>
-                <a href="/maintain">Back to Maintenance</a>
-                <a href="/manager">Back to Manager</a>
-            </div>
         </body>
         </html>
         """
@@ -100,9 +95,6 @@ async def refresh_config():
         <body>
             <h2>Node Configuration Refresh Failed</h2>
             <p style='color: red;'>Error: {str(e)}</p>
-            <div class="nav-buttons">
-                <a href="/monitor">Back to Monitor</a>
-            </div>
         </body>
         </html>
         """
@@ -210,7 +202,6 @@ def get_node_info(redisNode, command):
                 content=f"{css_style}<html><body><h2>Node Not Found</h2>" +
                 f"<p style='color: red;'>The node {redisNode} was not found in the current node list.</p>" +
                 f"<p>This could happen if you're trying to access a newly added node. Please try refreshing the page or use the Refresh Configuration button.</p>" +
-                f"<p><a href='/refresh-config' class='btn' style='background-color: #28a745; color: white;'>Refresh Configuration</a></p>" +
                 "</body></html>",
                 media_type="text/html"
             )
@@ -710,15 +701,19 @@ async def monitor():
     <button class="collapsible">3 - Node Info</button>
     <div class="content">
         <form id="node-info-form" onsubmit="fetchNodeInfo(event)">
-            <label for="redisNode">Redis Node:</label>
-            <select id="redisNode" name="redisNode">
-                {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
-            </select>
-            <label for="command">Command:</label>
-            <select id="command" name="command">
-                {''.join([f"<option value='{command}'>{command}</option>" for command in commandsAvailable])}
-            </select>
-            <input type="submit" value="Get Info">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <label for="redisNode" style="width: 150px;">Redis Node:</label>
+                <select id="redisNode" name="redisNode" onchange="fetchNodeInfo(new Event('submit', {{cancelable: true}}))">
+                    {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
+                </select>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+                <label for="command" style="width: 150px;">Command:</label>
+                <select id="command" name="command" onchange="fetchNodeInfo(new Event('submit', {{cancelable: true}}))">
+                    {''.join([f"<option value='{command}'>{command}</option>" for command in commandsAvailable])}
+                </select>
+            </div>
         </form>
         <div id="node-info-result" style="margin-top: 10px;"></div>
     </div>
@@ -726,11 +721,15 @@ async def monitor():
     <button class="collapsible">4 - Server Info</button>
     <div class="content">
         <form id="server-info-form" onsubmit="fetchServerInfo(event)">
-            <label for="server_ip">Server IP:</label>
-            <select id="server_ip" name="server_ip">
-                {''.join([f"<option value='{server}'>{server}</option>" for server in uniqueservers])}
-            </select>
-            <input type="submit" value="Get Info">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <label for="server_ip" style="width: 150px;">Server IP:</label>
+                <select id="server_ip" name="server_ip">
+                    {''.join([f"<option value='{server}'>{server}</option>" for server in uniqueservers])}
+                </select>
+            </div>
+            <div style="display: flex; justify-content: flex-start;">
+                <input type="submit" value="Get Info" style="width: auto;">
+            </div>
         </form>
         <div id="server-info-result" style="margin-top: 10px;"></div>
     </div>
@@ -793,6 +792,10 @@ async def monitor():
             event.preventDefault();
             const formData = new FormData(document.getElementById('node-info-form'));
             const params = new URLSearchParams(formData).toString();
+            
+            // Show loading indicator
+            document.getElementById('node-info-result').innerHTML = "<p>Loading...</p>";
+            
             fetch('/monitor/node-info/?' + params)
                 .then(response => response.text())
                 .then(data => {{
@@ -1221,9 +1224,6 @@ async def manager_show_log(redisNode: str, line_count: int = 100):
             <p>Node: {redisNode}</p>
             <p>Lines: {line_count}</p>
             {result}
-            <div class="nav-buttons">
-                <a href="/manager">Back to Manager</a>
-            </div>
         </body>
         </html>
         """
@@ -1235,9 +1235,6 @@ async def manager_show_log(redisNode: str, line_count: int = 100):
         <body>
             <h2>Error</h2>
             <p style='color: red;'>Error: {str(e)}</p>
-            <div class="nav-buttons">
-                <a href="/manager">Back to Manager</a>
-            </div>
         </body>
         </html>
         """
@@ -1259,9 +1256,6 @@ async def manager_execute_command(command: str, only_masters: bool = False, wait
             <p>Only Masters: {"Yes" if only_masters else "No"}</p>
             <p>Wait Seconds: {wait_seconds}</p>
             {result}
-            <div class="nav-buttons">
-                <a href="/manager">Back to Manager</a>
-            </div>
         </body>
         </html>
         """
@@ -1273,9 +1267,6 @@ async def manager_execute_command(command: str, only_masters: bool = False, wait
         <body>
             <h2>Error</h2>
             <p style='color: red;'>Error: {str(e)}</p>
-            <div class="nav-buttons">
-                <a href="/manager">Back to Manager</a>
-            </div>
         </body>
         </html>
         """
@@ -1372,16 +1363,73 @@ async def maintain():
         <h3>Delete a Redis Node</h3>
         <form id="delete-node-form" onsubmit="deleteNode(event)">
             <div style="display: flex; align-items: center; gap: 10px;">
-                <label for="nodeId" style="width: 150px;">Select Node to Delete:</label>
                 <select id="nodeId" name="nodeId" required>
                     {''.join([f"<option value='{id}'>{id} - {node}</option>" for id, node in active_nodes_with_id])}
                 </select>
-            </div>
-            <div style="display: flex; justify-content: flex-start;">
-                <input type="submit" value="Delete Node" style="width: auto;">
+                <input type="submit" value="Delete Node" style="width: auto; background-color: #d9534f; color: white;">
             </div>
         </form>
         <div id="delete-node-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <button class="collapsible">2 - Move Slot(s)</button>
+    <div class="content">
+        <div style="text-align: center; padding: 20px; color: #888;">
+            <p><i class="fas fa-tools"></i> This feature is not implemented yet.</p>
+            <p>Move slots between Redis master nodes to rebalance your cluster.</p>
+            <button onclick="fetchNotImplemented('move-slots')" class="btn-disabled">Move Slots</button>
+        </div>
+        <div id="move-slots-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <button class="collapsible">3 - Redis Cluster Nodes Version Upgrade</button>
+    <div class="content">
+        <div style="text-align: center; padding: 20px; color: #888;">
+            <p><i class="fas fa-tools"></i> This feature is not implemented yet.</p>
+            <p>Upgrade Redis nodes to a newer version with minimal downtime.</p>
+            <button onclick="fetchNotImplemented('version-upgrade')" class="btn-disabled">Version Upgrade</button>
+        </div>
+        <div id="version-upgrade-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <button class="collapsible">4 - Redis Cluster Nodes Version Control</button>
+    <div class="content">
+        <div style="text-align: center; padding: 20px; color: #888;">
+            <p><i class="fas fa-tools"></i> This feature is not implemented yet.</p>
+            <p>Check and control Redis versions across your cluster.</p>
+            <button onclick="fetchNotImplemented('version-control')" class="btn-disabled">Version Control</button>
+        </div>
+        <div id="version-control-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <button class="collapsible">5 - Maintain Server</button>
+    <div class="content">
+        <div style="text-align: center; padding: 20px; color: #888;">
+            <p><i class="fas fa-tools"></i> This feature is not implemented yet.</p>
+            <p>Perform server maintenance operations.</p>
+            <button onclick="fetchNotImplemented('server-maintain')" class="btn-disabled">Maintain Server</button>
+        </div>
+        <div id="server-maintain-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <button class="collapsible">6 - Migrate Data From Remote Redis</button>
+    <div class="content">
+        <div style="text-align: center; padding: 20px; color: #888;">
+            <p><i class="fas fa-tools"></i> This feature is not implemented yet.</p>
+            <p>Migrate data from a remote Redis instance to this cluster.</p>
+            <button onclick="fetchNotImplemented('migrate-data')" class="btn-disabled">Migrate Data</button>
+        </div>
+        <div id="migrate-data-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <button class="collapsible">7 - Cluster Slot(load) Balancer</button>
+    <div class="content">
+        <div style="text-align: center; padding: 20px; color: #888;">
+            <p><i class="fas fa-tools"></i> This feature is not implemented yet.</p>
+            <p>Balance slot distribution across your Redis cluster.</p>
+            <button onclick="fetchNotImplemented('slot-balancer')" class="btn-disabled">Balance Slots</button>
+        </div>
+        <div id="slot-balancer-result" style="margin-top: 10px;"></div>
     </div>
 
     <script>
@@ -1466,6 +1514,17 @@ async def maintain():
         function cancelDeleteNode() {{
             document.getElementById('delete-node-result').innerHTML = "<p>Node deletion cancelled.</p>";
         }}
+        
+        function fetchNotImplemented(feature) {{
+            fetch('/maintain/' + feature + '/')
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById(feature + '-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById(feature + '-result').innerHTML = "<p style='color: red;'>Error: " + error + "</p>";
+                }});
+        }}
     </script>
     </body>
     </html>
@@ -1492,9 +1551,6 @@ async def add_node(
         <body>
             <h2>Invalid IP Address</h2>
             <p style='color: red;'>The IP address {serverIP} is not valid.</p>
-            <div class="nav-buttons">
-                <a href="/maintain">Back to Maintenance</a>
-            </div>
         </body></html>
         """)
 
@@ -1507,9 +1563,6 @@ async def add_node(
             <h2>Missing Master ID</h2>
             <p style='color: red;'>When adding a slave node, a master node ID must be provided.</p>
             <p>Please select a valid master node from the dropdown menu.</p>
-            <div class="nav-buttons">
-                <a href="/maintain">Back to Maintenance</a>
-            </div>
         </body></html>
         """)
 
@@ -1533,9 +1586,6 @@ async def add_node(
     <body>
         <h2>Add Redis Node Result</h2>
         <div>{result_html}</div>
-        <div class="nav-buttons">
-            <a href="/maintain">Back to Maintenance</a>
-        </div>
     </body>
     </html>
     """
@@ -1651,7 +1701,116 @@ async def delete_node(nodeId: str, confirmed: bool = False):
         </div>
         """)
 
+@app.get("/maintain/move-slots/", response_class=HTMLResponse)
+async def move_slots():
+    """
+    Endpoint for moving slots between Redis nodes (not implemented yet).
+    """
+    return HTMLResponse(content="""
+    <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin: 10px 0;">
+        <h4>Feature Not Implemented</h4>
+        <p>The Move Slots feature is not implemented yet. This will allow you to:</p>
+        <ul>
+            <li>Move specific slots between Redis master nodes</li>
+            <li>Rebalance slots across the cluster</li>
+            <li>Optimize data distribution</li>
+        </ul>
+        <p>This feature will be available in a future version.</p>
+    </div>
+    """)
+
+@app.get("/maintain/version-upgrade/", response_class=HTMLResponse)
+async def version_upgrade():
+    """
+    Endpoint for upgrading Redis node versions (not implemented yet).
+    """
+    return HTMLResponse(content="""
+    <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin: 10px 0;">
+        <h4>Feature Not Implemented</h4>
+        <p>The Version Upgrade feature is not implemented yet. This will allow you to:</p>
+        <ul>
+            <li>Upgrade Redis nodes to newer versions</li>
+            <li>Perform rolling upgrades with minimal downtime</li>
+            <li>Verify compatibility across your cluster</li>
+        </ul>
+        <p>This feature will be available in a future version.</p>
+    </div>
+    """)
+
+@app.get("/maintain/version-control/", response_class=HTMLResponse)
+async def version_control():
+    """
+    Endpoint for Redis version control (not implemented yet).
+    """
+    return HTMLResponse(content="""
+    <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin: 10px 0;">
+        <h4>Feature Not Implemented</h4>
+        <p>The Version Control feature is not implemented yet. This will allow you to:</p>
+        <ul>
+            <li>Check Redis versions across your cluster</li>
+            <li>Ensure version consistency</li>
+            <li>Manage version compatibility issues</li>
+        </ul>
+        <p>This feature will be available in a future version.</p>
+    </div>
+    """)
+
+@app.get("/maintain/server-maintain/", response_class=HTMLResponse)
+async def server_maintain():
+    """
+    Endpoint for server maintenance operations (not implemented yet).
+    """
+    return HTMLResponse(content="""
+    <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin: 10px 0;">
+        <h4>Feature Not Implemented</h4>
+        <p>The Server Maintenance feature is not implemented yet. This will allow you to:</p>
+        <ul>
+            <li>Monitor server resources</li>
+            <li>Perform server maintenance tasks</li>
+            <li>Schedule and automate maintenance operations</li>
+        </ul>
+        <p>This feature will be available in a future version.</p>
+    </div>
+    """)
+
+@app.get("/maintain/migrate-data/", response_class=HTMLResponse)
+async def migrate_data():
+    """
+    Endpoint for migrating data from remote Redis (not implemented yet).
+    """
+    return HTMLResponse(content="""
+    <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin: 10px 0;">
+        <h4>Feature Not Implemented</h4>
+        <p>The Migrate Data feature is not implemented yet. This will allow you to:</p>
+        <ul>
+            <li>Import data from external Redis instances</li>
+            <li>Migrate between Redis deployment types</li>
+            <li>Perform incremental data migration</li>
+        </ul>
+        <p>This feature will be available in a future version.</p>
+    </div>
+    """)
+
+@app.get("/maintain/slot-balancer/", response_class=HTMLResponse)
+async def slot_balancer():
+    """
+    Endpoint for cluster slot balancing (not implemented yet).
+    """
+    return HTMLResponse(content="""
+    <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin: 10px 0;">
+        <h4>Feature Not Implemented</h4>
+        <p>The Slot Balancer feature is not implemented yet. This will allow you to:</p>
+        <ul>
+            <li>Automatically balance slots across Redis masters</li>
+            <li>Optimize for memory usage or CPU load</li>
+            <li>Schedule rebalancing operations</li>
+        </ul>
+        <p>This feature will be available in a future version.</p>
+    </div>
+    """)
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+
 
