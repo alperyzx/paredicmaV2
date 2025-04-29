@@ -354,9 +354,11 @@ async def show_memory_usage():
 # Define the CSS styles for different button types
 css_style = """
     <style>
+        /* Light mode styles (default) */
         body {
             font-family: Arial, sans-serif;
             background-color: #f0f0f0;
+            color: #333333; /* Default text color */
             margin: 20px;
         }
         h1 {
@@ -376,6 +378,17 @@ css_style = """
         }
         th {
             text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+        }
+        td {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
         }
         ul {
             list-style-type: none;
@@ -389,16 +402,23 @@ css_style = """
             width: 150px;
             margin-right: 10px;
         }
-        input[type="text"], select {
+        input[type="text"], input[type="number"], select {
             width: 160px;
-            padding: 5px;
+            padding: 8px; /* Increased padding */
             border: 1px solid #cccccc;
             border-radius: 5px;
+            box-sizing: border-box; /* Include padding in width */
+            background-color: #ffffff; /* Explicit white background */
+            color: #333333; /* Default text color */
         }
-        /* Dark gray buttons for monitor page */
-        .monitor-button, .monitor-button input[type="submit"], .monitor-nav {
+        input[type="checkbox"] {
+            margin-left: 5px;
+        }
+        /* Common button styles */
+        .monitor-button, .manager-button, .maintenance-button,
+        .monitor-nav, .manager-nav, .maintenance-nav,
+        .card-button, .confirm-btn, .cancel-btn, .btn-disabled {
             padding: 10px 15px;
-            background-color: #4f4f4f; /* Dark gray */
             color: #ffffff;
             border: none;
             border-radius: 5px;
@@ -407,53 +427,41 @@ css_style = """
             display: inline-block;
             vertical-align: middle;
             text-decoration: none;
+            font-size: 14px; /* Consistent font size */
+            margin: 5px 0; /* Add some margin */
         }
-        .monitor-button:hover, .monitor-button input[type="submit"]:hover, .monitor-nav:hover {
-            background-color: #3f3f3f; /* Slightly darker gray */
-        }
-        /* Navy blue buttons for manager page */
-        .manager-button, .manager-button input[type="submit"], .manager-nav {
-            padding: 10px 15px;
-            background-color: #001f3f; /* Navy blue */
-            color: #ffffff;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            text-align: center;
-            display: inline-block;
-            vertical-align: middle;
-            text-decoration: none;
-        }
-        .manager-button:hover, .manager-button input[type="submit"]:hover, .manager-nav:hover {
-            background-color: #001a35; /* Slightly darker navy blue */
-        }
-        /* Claret buttons for maintenance page */
-        .maintenance-button, .maintenance-button input[type="submit"], .maintenance-nav {
-            padding: 10px 15px;
-            background-color: #800000; /* Claret */
-            color: #ffffff;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            text-align: center;
-            display: inline-block;
-            vertical-align: middle;
-            text-decoration: none;
-        }
-        .maintenance-button:hover, .maintenance-button input[type="submit"]:hover, .maintenance-nav:hover {
-            background-color: #660000; /* Slightly darker claret */
-        }
+        /* Monitor specific colors */
+        .monitor-button, .monitor-nav { background-color: #4f4f4f; }
+        .monitor-button:hover, .monitor-nav:hover { background-color: #3f3f3f; }
+        /* Manager specific colors */
+        .manager-button, .manager-nav { background-color: #001f3f; }
+        .manager-button:hover, .manager-nav:hover { background-color: #001a35; }
+        /* Maintenance specific colors */
+        .maintenance-button, .maintenance-nav { background-color: #800000; }
+        .maintenance-button:hover, .maintenance-nav:hover { background-color: #660000; }
+        /* Welcome page card button */
+        .card-button { background-color: #555; }
+        .card-button:hover { background-color: #444; }
+        /* Confirmation/Deletion buttons */
+        .confirm-btn { background-color: #d9534f; } /* Red for delete */
+        .confirm-btn:hover { background-color: #c9302c; }
+        .cancel-btn { background-color: #5bc0de; } /* Info blue */
+        .cancel-btn:hover { background-color: #31b0d5; }
+        /* Disabled button style */
+        .btn-disabled { background-color: #aaa; cursor: not-allowed; }
+
         .collapsible {
-            background-color: #f1f1f1;
-            color: #333;
+            background-color: #e7e7e7; /* Lighter gray */
+            color: #444;
             cursor: pointer;
-            padding: 10px;
+            padding: 12px; /* Slightly more padding */
             width: 100%;
             border: none;
             text-align: left;
             outline: none;
             font-size: 16px;
             margin-bottom: 5px;
+            border-radius: 3px; /* Subtle rounding */
         }
         .active, .collapsible:hover {
             background-color: #ddd;
@@ -465,6 +473,7 @@ css_style = """
             background-color: #f9f9f9;
             border: 1px solid #ddd;
             margin-bottom: 10px;
+            border-radius: 3px; /* Subtle rounding */
         }
         .content > * {
             margin-bottom: 10px;
@@ -485,9 +494,200 @@ css_style = """
             display: flex;
             align-items: center;
             gap: 10px;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
         }
         .button-container > * {
             margin: 0;
+        }
+        .nav-buttons {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        hr {
+            border: 0;
+            height: 1px;
+            background: #ccc;
+            margin: 20px 0;
+        }
+        pre {
+            background-color: #eee;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            white-space: pre-wrap; /* Allow wrapping */
+            word-wrap: break-word; /* Break long words */
+            color: #333; /* Text color for pre */
+        }
+        /* Welcome Page Specific Styles */
+        .welcome-container { max-width: 1000px; margin: auto; padding: 20px; }
+        .welcome-header { text-align: center; margin-bottom: 40px; }
+        .welcome-header h1 { background: none; color: #333; font-size: 36px; margin-bottom: 10px; }
+        .welcome-description { font-size: 18px; color: #666; }
+        .section-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+        .section-card { border: 1px solid #ddd; border-radius: 8px; overflow: hidden; background-color: #fff; display: flex; flex-direction: column; }
+        .card-header { padding: 15px; font-size: 20px; text-align: center; color: #fff; }
+        .monitor-card .card-header { background-color: #4f4f4f; }
+        .manager-card .card-header { background-color: #001f3f; }
+        .maintain-card .card-header { background-color: #800000; }
+        .card-content { padding: 15px; flex-grow: 1; color: #555; font-size: 14px; }
+        .card-footer { padding: 15px; text-align: center; border-top: 1px solid #eee; }
+        .card-button { display: inline-block; width: auto; } /* Adjust width */
+        /* Maintenance Confirmation/Error Styles */
+        .confirmation-needed, .delete-result, .error-message {
+            padding: 15px;
+            margin-top: 10px;
+            border-radius: 5px;
+            border: 1px solid transparent;
+        }
+        .confirmation-needed { border-color: #f0ad4e; background-color: #fcf8e3; color: #8a6d3b; }
+        .delete-result { border-color: #5cb85c; background-color: #dff0d8; color: #3c763d; }
+        .error-message { border-color: #d9534f; background-color: #f2dede; color: #a94442; }
+        .error-message pre { background-color: #f8f8f8; color: #333; } /* Ensure pre inside error is styled */
+        .response-container {
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            color: #333333; /* Default text color for the container */
+        }
+        .response-container h3 { /* Style for potential headings in responses */
+             margin-top: 0;
+             font-size: 16px;
+             color: #333;
+        }
+        .response-container p,
+        .response-container div, /* Apply to divs inside */
+        .response-container span, /* Apply to spans inside */
+        .response-container b,   /* Apply to bold tags inside */
+        .response-container i    /* Apply to italic tags inside */
+        {
+            color: inherit; /* Explicitly inherit color from parent */
+            margin-bottom: 5px;
+        }
+        .response-container pre { /* Ensure preformatted text is styled */
+            background-color: #eee;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #333;
+        }
+        .response-container code { /* Style for inline code */
+             background-color: #eee;
+             padding: 2px 4px;
+             border-radius: 3px;
+             color: #c7254e; /* Example color for code */
+        }
+
+        /* Dark mode styles */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #121212;
+                color: #e0e0e0; /* Lighter text for dark background */
+            }
+            h1 {
+                color: #121212; /* Dark text on colored background */
+            }
+            /* Keep title backgrounds, they provide context */
+            .monitor-title { background-color: #5a5a5a; } /* Slightly lighter dark gray */
+            .manager-title { background-color: #002b55; } /* Slightly lighter navy */
+            .maintenance-title { background-color: #990000; } /* Slightly lighter claret */
+
+            table {
+                border-collapse: collapse; /* Ensure borders collapse */
+            }
+            th {
+                border-bottom: 1px solid #444; /* Darker border */
+                color: #f1f1f1; /* Lighter header text */
+            }
+            td {
+                border-bottom: 1px solid #333; /* Darker border */
+            }
+            /* Adjust memory usage table row colors */
+            tr[style*="background-color:#d3ffce"] { background-color: #2a4d2a !important; } /* Dark green */
+            tr[style*="background-color:yellow"] { background-color: #666600 !important; } /* Dark yellow */
+            tr[style*="background-color:red"] { background-color: #660000 !important; } /* Dark red */
+
+            input[type="text"], input[type="number"], select {
+                background-color: #333333;
+                color: #e0e0e0;
+                border: 1px solid #555555;
+            }
+            /* Button adjustments for dark mode */
+            .monitor-button, .monitor-nav { background-color: #5a5a5a; }
+            .monitor-button:hover, .monitor-nav:hover { background-color: #6a6a6a; }
+            .manager-button, .manager-nav { background-color: #002b55; }
+            .manager-button:hover, .manager-nav:hover { background-color: #003f7c; }
+            .maintenance-button, .maintenance-nav { background-color: #990000; }
+            .maintenance-button:hover, .maintenance-nav:hover { background-color: #b30000; }
+            .card-button { background-color: #666; }
+            .card-button:hover { background-color: #777; }
+            .confirm-btn { background-color: #b33c38; } /* Darker red */
+            .confirm-btn:hover { background-color: #c7433e; }
+            .cancel-btn { background-color: #4694b0; } /* Darker blue */
+            .cancel-btn:hover { background-color: #5aa6c2; }
+            .btn-disabled { background-color: #555; }
+
+            .collapsible {
+                background-color: #2a2a2a;
+                color: #ccc;
+            }
+            .active, .collapsible:hover {
+                background-color: #383838;
+            }
+            .content {
+                background-color: #1e1e1e;
+                border: 1px solid #444;
+            }
+            hr {
+                background: #444;
+            }
+            pre {
+                background-color: #2a2a2a;
+                color: #ccc;
+                border: 1px solid #444;
+            }
+            /* Welcome Page Dark Mode */
+            .welcome-header h1 { color: #e0e0e0; }
+            .welcome-description { color: #aaa; }
+            .section-card { background-color: #1e1e1e; border-color: #444; }
+            .card-header { /* Keep background colors, adjust text if needed */ }
+            .card-content { color: #bbb; }
+            .card-footer { border-top-color: #444; }
+            .welcome-footer { color: #888; }
+            /* Maintenance Confirmation/Error Dark Mode */
+            .confirmation-needed { border-color: #b38600; background-color: #332a1a; color: #ffdead; }
+            .delete-result { border-color: #3c763d; background-color: #1e351e; color: #90ee90; }
+            .error-message { border-color: #a94442; background-color: #351e1e; color: #f08080; }
+            .error-message pre { background-color: #2a2a2a; color: #ccc; } /* Ensure pre inside error is styled */
+            .response-container {
+                background-color: #1e1e1e;
+                border-color: #444;
+                color: #e0e0e0; /* Ensure text color is inherited */
+            }
+            .response-container h3 {
+                color: #f1f1f1; /* Lighter heading color */
+            }
+            .response-container p,
+            .response-container div,
+            .response-container span,
+            .response-container b,
+            .response-container i
+            {
+                 color: inherit; /* Explicitly inherit from .response-container */
+            }
+            .response-container pre { /* Style preformatted text in dark mode */
+                background-color: #2a2a2a;
+                color: #ccc;
+                border: 1px solid #444;
+            }
+            .response-container code { /* Style for inline code in dark mode */
+                 background-color: #333;
+                 color: #ff8080; /* Example light red for code */
+            }
         }
     </style>
 """
@@ -1073,119 +1273,111 @@ async def manager():
 async def manager_node_action(redisNode: str, action: str, confirmed: bool = False):
     """
     Endpoint to perform start, stop, or restart actions on a Redis node.
+    Returns styled HTML.
     """
     try:
         result = node_action_wv(redisNode, action, confirmed)
-        return HTMLResponse(content=result)
+        # Wrap the result in a styled container
+        return HTMLResponse(content=f'<div class="response-container">{result}</div>')
     except Exception as e:
-        return HTMLResponse(content=f"<p style='color: red;'>Error: {str(e)}</p>")
+        return HTMLResponse(content=f'<div class="response-container error-message"><p>Error: {str(e)}</p></div>')
 
 @app.get("/manager/switch-master-slave/", response_class=HTMLResponse)
 async def manager_switch_master_slave(redisNode: str):
     """
     Endpoint to switch roles between a master node and one of its slaves.
+    Returns styled HTML.
     """
     try:
         result = switch_master_slave_wv(redisNode)
-        return HTMLResponse(content=result)
+        # Wrap the result in a styled container
+        return HTMLResponse(content=f'<div class="response-container">{result}</div>')
     except Exception as e:
-        return HTMLResponse(content=f"<p style='color: red;'>Error: {str(e)}</p>")
+        return HTMLResponse(content=f'<div class="response-container error-message"><p>Error: {str(e)}</p></div>')
 
 @app.get("/manager/change-config/", response_class=HTMLResponse)
 async def manager_change_config(redisNode: str, parameter: str, value: str, persist: bool = False):
     """
     Endpoint to change a Redis configuration parameter for a specific node.
+    Returns styled HTML.
     """
     try:
         result = change_config_wv(redisNode, parameter, value, persist)
-        return HTMLResponse(content=result)
+        # Wrap the result in a styled container
+        return HTMLResponse(content=f'<div class="response-container">{result}</div>')
     except Exception as e:
-        return HTMLResponse(content=f"<p style='color: red;'>Error: {str(e)}</p>")
+        return HTMLResponse(content=f'<div class="response-container error-message"><p>Error: {str(e)}</p></div>')
 
 @app.get("/manager/save-config/", response_class=HTMLResponse)
 async def manager_save_config(redisNode: str):
     """
     Endpoint to save the Redis configuration to redis.conf for a specific node or all nodes.
+    Returns styled HTML.
     """
     try:
         result = save_config_wv(redisNode)
-        return HTMLResponse(content=result)
+        # Wrap the result in a styled container
+        return HTMLResponse(content=f'<div class="response-container">{result}</div>')
     except Exception as e:
-        return HTMLResponse(content=f"<p style='color: red;'>Error: {str(e)}</p>")
+        return HTMLResponse(content=f'<div class="response-container error-message"><p>Error: {str(e)}</p></div>')
 
 @app.get("/manager/rolling-restart/", response_class=HTMLResponse)
 async def manager_rolling_restart(wait_minutes: int = 0, restart_masters: bool = True):
     """
     Endpoint to perform a rolling restart of Redis nodes.
+    Returns styled HTML.
     """
     try:
         result = rolling_restart_wv(wait_minutes, restart_masters)
-        return HTMLResponse(content=result)
+        # Wrap the result in a styled container
+        return HTMLResponse(content=f'<div class="response-container">{result}</div>')
     except Exception as e:
-        return HTMLResponse(content=f"<p style='color: red;'>Error: {str(e)}</p>")
+        return HTMLResponse(content=f'<div class="response-container error-message"><p>Error: {str(e)}</p></div>')
 
 @app.get("/manager/show-log/", response_class=HTMLResponse)
 async def manager_show_log(redisNode: str, line_count: int = 100):
     """
     Endpoint to display the Redis log file for a specific node.
+    Returns styled HTML.
     """
     try:
-        result = show_redis_log_wv(redisNode, line_count)
-        return f"""
-        {css_style}
-        <html>
-        <head><title>Show Redis Log</title></head>
-        <body>
-            <h2>Redis Log File</h2>
+        # Assuming show_redis_log_wv returns plain text or HTML
+        log_content = show_redis_log_wv(redisNode, line_count)
+        # Modern, readable style for log output
+        result_html = f"""
+        <div class="response-container">
+            <h3>Redis Log File</h3>
             <p>Node: {redisNode}</p>
             <p>Lines: {line_count}</p>
-            {result}
-        </body>
-        </html>
+            <pre style="background: #222; color: #e0e0e0; font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace; font-size: 13px; line-height: 1.5; padding: 16px; border-radius: 6px; overflow-x: auto; max-height: 500px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">{log_content}</pre>
+        </div>
         """
+        return HTMLResponse(content=result_html)
     except Exception as e:
-        return f"""
-        {css_style}
-        <html>
-        <head><title>Error</title></head>
-        <body>
-            <h2>Error</h2>
-            <p style='color: red;'>Error: {str(e)}</p>
-        </body>
-        </html>
-        """
+        return HTMLResponse(content=f'<div class="response-container error-message"><h3>Error</h3><p>Error fetching log: {str(e)}</p></div>')
 
 @app.get("/manager/execute-command/", response_class=HTMLResponse)
 async def manager_execute_command(command: str, only_masters: bool = False, wait_seconds: int = 0):
     """
     Endpoint to execute a Redis command on all nodes or only master nodes.
+    Returns styled HTML.
     """
     try:
-        result = execute_command_wv(command, only_masters, wait_seconds)
-        return f"""
-        {css_style}
-        <html>
-        <head><title>Execute Command</title></head>
-        <body>
-            <h2>Command Execution Results</h2>
-            <p>Command: {command}</p>
+        # Assuming execute_command_wv returns HTML, likely containing <pre>
+        command_results = execute_command_wv(command, only_masters, wait_seconds)
+        # Wrap the result in a styled container with heading
+        result_html = f"""
+        <div class="response-container">
+            <h3>Command Execution Results</h3>
+            <p>Command: <code>{command}</code></p>
             <p>Only Masters: {"Yes" if only_masters else "No"}</p>
             <p>Wait Seconds: {wait_seconds}</p>
-            {result}
-        </body>
-        </html>
+            {command_results}
+        </div>
         """
+        return HTMLResponse(content=result_html)
     except Exception as e:
-        return f"""
-        {css_style}
-        <html>
-        <head><title>Error</title></head>
-        <body>
-            <h2>Error</h2>
-            <p style='color: red;'>Error: {str(e)}</p>
-        </body>
-        </html>
-        """
+        return HTMLResponse(content=f'<div class="response-container error-message"><h3>Error</h3><p>Error executing command: {str(e)}</p></div>')
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
@@ -1728,3 +1920,6 @@ async def slot_balancer():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+
+
+

@@ -212,14 +212,26 @@ def node_action_wv(redisNode, action, confirmed=False):
                         <p style='color: red; font-weight: bold;'>Warning: This node ({redisNode}) is a MASTER node with slaves!</p>
                         <p>Stopping this node will trigger master/slave failover.</p>
                         <p>Do you want to continue?</p>
-                        <form id="confirm-action-form" action="/manager/node-action/" method="get">
-                            <input type="hidden" name="redisNode" value="{redisNode}">
-                            <input type="hidden" name="action" value="stop">
-                            <input type="hidden" name="confirmed" value="true">
-                            <button type="submit" class="confirm-btn">Yes, Stop the Node</button>
-                            <a href="/manager" class="cancel-btn">Cancel</a>
-                        </form>
+                        <button onclick="confirmStopNode('{redisNode}', 'stop')" class="confirm-btn">Yes, Stop the Node</button>
+                        <button onclick="cancelStopNode()" class="cancel-btn">Cancel</button>
                     </div>
+                    <script>
+                        function confirmStopNode(redisNode, action) {{
+                            document.getElementById('node-action-result').innerHTML = "<p>Processing request...</p>";
+                            fetch('/manager/node-action/?redisNode=' + redisNode + '&action=' + action + '&confirmed=true')
+                                .then(response => response.text())
+                                .then(data => {{
+                                    document.getElementById('node-action-result').innerHTML = data;
+                                }})
+                                .catch(error => {{
+                                    document.getElementById('node-action-result').innerHTML = "<p style='color: red;'>Error: " + error + "</p>";
+                                }});
+                        }}
+                        
+                        function cancelStopNode() {{
+                            document.getElementById('node-action-result').innerHTML = "<p>Operation cancelled.</p>";
+                        }}
+                    </script>
                     """
                 else:
                     return f"""
@@ -227,14 +239,26 @@ def node_action_wv(redisNode, action, confirmed=False):
                         <p style='color: red; font-weight: bold;'>Warning: This node ({redisNode}) is a MASTER node with NO slaves!</p>
                         <p style='color: red;'>Stopping this node will cause Redis cluster to FAIL!</p>
                         <p>Do you want to continue?</p>
-                        <form id="confirm-action-form" action="/manager/node-action/" method="get">
-                            <input type="hidden" name="redisNode" value="{redisNode}">
-                            <input type="hidden" name="action" value="stop">
-                            <input type="hidden" name="confirmed" value="true">
-                            <button type="submit" class="confirm-btn">Yes, Stop the Node</button>
-                            <a href="/manager" class="cancel-btn">Cancel</a>
-                        </form>
+                        <button onclick="confirmStopNode('{redisNode}', 'stop')" class="confirm-btn">Yes, Stop the Node</button>
+                        <button onclick="cancelStopNode()" class="cancel-btn">Cancel</button>
                     </div>
+                    <script>
+                        function confirmStopNode(redisNode, action) {{
+                            document.getElementById('node-action-result').innerHTML = "<p>Processing request...</p>";
+                            fetch('/manager/node-action/?redisNode=' + redisNode + '&action=' + action + '&confirmed=true')
+                                .then(response => response.text())
+                                .then(data => {{
+                                    document.getElementById('node-action-result').innerHTML = data;
+                                }})
+                                .catch(error => {{
+                                    document.getElementById('node-action-result').innerHTML = "<p style='color: red;'>Error: " + error + "</p>";
+                                }});
+                        }}
+                        
+                        function cancelStopNode() {{
+                            document.getElementById('node-action-result').innerHTML = "<p>Operation cancelled.</p>";
+                        }}
+                    </script>
                     """
 
         action_func = None
@@ -303,7 +327,7 @@ def node_action_wv(redisNode, action, confirmed=False):
             return f"""
                 <p>{result_message}</p>
                 <h4>Logs:</h4>
-                <pre style='background-color: #eee; padding: 10px; border: 1px solid #ccc;'>{log_output if log_output else "No specific log output captured."}</pre>
+                <pre style='padding: 10px; border: 1px solid #ccc;'>{log_output if log_output else "No specific log output captured."}</pre>
                 """
 
         except Exception as e:
@@ -415,7 +439,7 @@ def switch_master_slave_wv(redisNode):
                         <li>New Master: {slaveIP}:{slavePort}</li>
                     </ul>
                     <h4>Logs:</h4>
-                    <pre style='background-color: #eee; padding: 10px; border: 1px solid #ccc;'>{log_output}</pre>
+                    <pre style='padding: 10px; border: 1px solid #ccc;'>{log_output}</pre>
                 </div>
                 """
             else:
@@ -424,7 +448,7 @@ def switch_master_slave_wv(redisNode):
                 <p style='color: red; font-weight: bold;'>Failed to switch master/slave roles.</p>
                 <p>Current roles: {nodeIP}:{portNumber} is {new_slave_role}, {slaveIP}:{slavePort} is {new_master_role}</p>
                 <h4>Logs:</h4>
-                <pre style='background-color: #eee; padding: 10px; border: 1px solid #ccc;'>{log_output}</pre>
+                <pre style='padding: 10px; border: 1px solid #ccc;'>{log_output}</pre>
                 """
 
         except Exception as e:
@@ -715,7 +739,7 @@ def rolling_restart_wv(wait_minutes=0, restart_masters=True):
 
                             # Format log messages
                             log_output = "<br>".join([msg for msg in log_messages if msg])
-                            results.append(f"<div style='margin-left: 20px; background-color: #f0f0f0; padding: 10px;'>{log_output}</div>")
+                            results.append(f"<div style='margin-left: 20px; padding: 10px;'>{log_output}</div>")
 
                             # Add status check
                             if pingredisNode(nodeIP, portNumber):
@@ -786,7 +810,7 @@ def rolling_restart_wv(wait_minutes=0, restart_masters=True):
 
                                 # Format log messages
                                 log_output = "<br>".join([msg for msg in log_messages if msg])
-                                results.append(f"<div style='margin-left: 20px; background-color: #f0f0f0; padding: 10px;'>{log_output}</div>")
+                                results.append(f"<div style='margin-left: 20px; padding: 10px;'>{log_output}</div>")
 
                                 # Add status check
                                 if pingredisNode(nodeIP, portNumber):
@@ -871,14 +895,14 @@ def execute_command_wv(command, only_masters=False, wait_seconds=0):
                         if cmd_status == 0:
                             success_count += 1
                             results.append(f"""
-                            <div style='margin: 10px 0; padding: 10px; background-color: #f0f0f0; border-left: 4px solid green;'>
+                            <div style='margin: 10px 0; padding: 10px; border-left: 4px solid green;'>
                                 <h4>Node {nodeIP}:{portNumber} ({node_type}) - Success</h4>
                                 <pre style='margin: 5px 0;'>{formatted_output}</pre>
                             </div>
                             """)
                         else:
                             results.append(f"""
-                            <div style='margin: 10px 0; padding: 10px; background-color: #f0f0f0; border-left: 4px solid orange;'>
+                            <div style='margin: 10px 0; padding: 10px; border-left: 4px solid orange;'>
                                 <h4>Node {nodeIP}:{portNumber} ({node_type}) - Command returned non-zero status</h4>
                                 <pre style='margin: 5px 0;'>{formatted_output}</pre>
                             </div>
@@ -886,14 +910,14 @@ def execute_command_wv(command, only_masters=False, wait_seconds=0):
 
                     except Exception as e:
                         results.append(f"""
-                        <div style='margin: 10px 0; padding: 10px; background-color: #f0f0f0; border-left: 4px solid red;'>
+                        <div style='margin: 10px 0; padding: 10px; border-left: 4px solid red;'>
                             <h4>Node {nodeIP}:{portNumber} ({node_type}) - Error</h4>
                             <p style='color: red;'>Error executing command: {str(e)}</p>
                         </div>
                         """)
                 else:
                     results.append(f"""
-                    <div style='margin: 10px 0; padding: 10px; background-color: #f0f0f0; border-left: 4px solid gray;'>
+                    <div style='margin: 10px 0; padding: 10px; border-left: 4px solid gray;'>
                         <h4>Node {nodeIP}:{portNumber} ({node_type}) - Not Reachable</h4>
                         <p>Could not connect to this node.</p>
                     </div>
@@ -917,7 +941,7 @@ def execute_command_wv(command, only_masters=False, wait_seconds=0):
 
 def show_redis_log_wv(redisNode, line_count=100):
     """
-    Shows Redis log file content for a given node.
+    Shows Redis log file content for a given node using CSS classes for styling.
 
     Args:
         redisNode: The Redis node in format IP:Port
@@ -970,37 +994,42 @@ def show_redis_log_wv(redisNode, line_count=100):
             status, output = subprocess.getstatusoutput(cmd)
 
         if status != 0:
+            # Use error-message class for consistency
             return f"""
-            <div style="margin-bottom: 20px;">
-                <p style='color: red;'>Error retrieving log file: {log_file_path}</p>
+            <div class="error-message">
+                <p>Error retrieving log file: {log_file_path}</p>
                 <p>Error message: {output}</p>
                 <p>Make sure the Redis log file exists and is accessible.</p>
             </div>
             """
 
-        # Format the log content for HTML display
+        # Format the log content for HTML display using classes
         log_lines = output.splitlines()
         formatted_logs = []
 
         for line in log_lines:
-            # Apply some basic formatting for different log levels
+            # Apply classes for different log levels
             if "warning" in line.lower():
-                formatted_line = f"<span style='color: orange;'>{line}</span>"
+                # Use class, remove inline style
+                formatted_line = f"<span class='log-warning'>{line}</span>"
             elif "error" in line.lower() or "fail" in line.lower():
-                formatted_line = f"<span style='color: red;'>{line}</span>"
+                # Use class, remove inline style
+                formatted_line = f"<span class='log-error'>{line}</span>"
             else:
-                formatted_line = line.replace(" ", "&nbsp;")  # Preserve spaces
+                # No specific class needed for normal lines, but preserve spaces
+                # Use a span to ensure consistent styling application if needed later
+                formatted_line = f"<span>{line.replace(' ', '&nbsp;')}</span>"
 
             formatted_logs.append(formatted_line)
 
         log_content = "<br>".join(formatted_logs)
 
+        # Use class for the wrapper div, change back to log-output-wrapper
         return f"""
         <div>
-            <h3>Log File: {log_file_path}</h3>
             <p>Showing last {line_count} lines from {nodeIP}:{portNumber}</p>
-            <div style="background-color: #f5f5f5; border: 1px solid #ddd; padding: 10px; font-family: monospace; overflow-x: auto; white-space: nowrap;">
-                {log_content}
+            <div class='log-output-wrapper'>
+                {log_content if log_content else "<span>No specific log output captured.</span>"}
             </div>
         </div>
         """
@@ -1116,7 +1145,7 @@ def add_delete_node_wv(operation, node_info=None):
                                 <li>Network connectivity between servers</li>
                             </ul>
                             <h4>Logs:</h4>
-                            <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
+                            <pre style='padding: 10px; overflow-x: auto;'>{log_output}</pre>
                             <p>Please fix the issue and try again.</p>
                         </div>
                         """
@@ -1139,7 +1168,7 @@ def add_delete_node_wv(operation, node_info=None):
                                 <li>Ensure Redis binaries exist locally</li>
                             </ul>
                             <h4>Logs:</h4>
-                            <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
+                            <pre style='padding: 10px; overflow-x: auto;'>{log_output}</pre>
                             <p>Please fix the issue and try again.</p>
                         </div>
                         """
@@ -1163,7 +1192,7 @@ def add_delete_node_wv(operation, node_info=None):
                             <li>Ensure the target directory exists and is writable</li>
                         </ul>
                         <h4>Logs:</h4>
-                        <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
+                        <pre style='padding: 10px; overflow-x: auto;'>{log_output}</pre>
                         <p>Please fix the issue and try again.</p>
                     </div>
                     """
@@ -1193,7 +1222,7 @@ def add_delete_node_wv(operation, node_info=None):
                             <li>Verify the configuration file was properly created and copied</li>
                         </ul>
                         <h4>Logs:</h4>
-                        <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
+                        <pre style='padding: 10px; overflow-x: auto;'>{log_output}</pre>
                         <p>Please fix the issue and try again.</p>
                     </div>
                     """
@@ -1235,9 +1264,6 @@ def add_delete_node_wv(operation, node_info=None):
                             <li><strong>CPU Cores:</strong> {cpuCoreIDs}</li>
                         </ul>
                         <p>The node has been added to the Redis cluster and the configuration has been updated.</p>
-                        <div style="margin-top: 15px; padding: 10px; background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px;">
-                            <p><strong>Important:</strong> The node will automatically appear in all dropdowns.</p>
-                        </div>
                     </div>
                     """
                 else:
@@ -1249,7 +1275,7 @@ def add_delete_node_wv(operation, node_info=None):
                         <p style='color: red;'>Failed to add node to cluster</p>
                         <p>The Redis node was started successfully, but could not be added to the cluster.</p>
                         <h4>Logs:</h4>
-                        <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
+                        <pre style='padding: 10px; overflow-x: auto;'>{log_output}</pre>
                     </div>
                     """
             finally:
@@ -1402,7 +1428,7 @@ def add_delete_node_wv(operation, node_info=None):
                             <p>Error: {str(config_error)}</p>
                             <p>You may need to manually update the pareNodeList.py file.</p>
                             <h4>Deletion Details:</h4>
-                            <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
+                            <pre style='padding: 10px; overflow-x: auto;'>{log_output}</pre>
                         </div>
                         """
 
@@ -1424,7 +1450,7 @@ def add_delete_node_wv(operation, node_info=None):
                         </ul>
                         <p>The node has been deleted from the Redis cluster and pareNodeList.py has been updated.</p>
                         <h4>Deletion Details:</h4>
-                        <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
+                        <pre style='padding: 10px; overflow-x: auto;'>{log_output}</pre>
                     </div>
                     """
                 else:
@@ -1433,7 +1459,7 @@ def add_delete_node_wv(operation, node_info=None):
                         <p style='color: red;'>Failed to delete node from cluster.</p>
                         <p>This could be because the node is a non-empty master node. Try to migrate data away from this node first or use the CLI tool for more options.</p>
                         <h4>Error Details:</h4>
-                        <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto;'>{log_output}</pre>
+                        <pre style='padding: 10px; overflow-x: auto;'>{log_output}</pre>
                     </div>
                     """
             finally:
@@ -1448,53 +1474,9 @@ def add_delete_node_wv(operation, node_info=None):
         return f"""
         <div>
             <p style='color: red;'>An unexpected error occurred: {str(e)}</p>
-            <pre style='background-color: #f8f8f8; padding: 10px; overflow-x: auto; font-size: 12px;'>{trace}</pre>
+            <pre style='padding: 10px; overflow-x: auto; font-size: 12px;'>{trace}</pre>
             <p>Please report this error to the administrator.</p>
         </div>
             """
-    if operation == 'add':
-        return f"""
-        <form id="add-node-form" action="/maintain/add-node/" method="get">
-            <label for="serverIP">Server IP:</label>
-            <input type="text" id="serverIP" name="serverIP" required placeholder="e.g., 192.168.1.10">
-            <label for="serverPORT">Port Number:</label>
-            <input type="number" id="serverPORT" name="serverPORT" required placeholder="e.g., 6379">
-            <label for="maxMemSize">Maximum Memory:</label>
-            <input type="text" id="maxMemSize" name="maxMemSize" required placeholder="e.g., 2gb or 500mb">
-            <label for="cpuCoreIDs">CPU Core IDs:</label>
-            <input type="text" id="cpuCoreIDs" name="cpuCoreIDs" required placeholder="e.g., 1 or 1,2,3">
-            <label for="nodeType">Node Type:</label>
-            <select id="nodeType" name="nodeType" onchange="toggleMasterDropdown()">
-                <option value="master">Master Node</option>
-                <option value="slave-specific">Slave Node</option>
-            </select>
-            <div id="masterDropdownField" style="display: none;">
-                <label for="masterID">Master Node:</label>
-                <select id="masterID" name="masterID">
-                    <option value="">Loading...</option>
-                </select>
-            </div>
-            <input type="submit" value="Add Node">
-                    </form>
-        <script>
-            function toggleMasterDropdown() {{
-                const nodeType = document.getElementById('nodeType').value;
-                const masterDropdownField = document.getElementById('masterDropdownField');
-                if (nodeType === 'slave-specific') {{
-                    masterDropdownField.style.display = 'block';
-                    fetch('/maintain/view-master-nodes-dropdown')
-                        .then(response => response.text())
-                        .then(data => {{
-                            document.getElementById('masterID').innerHTML = data;
-                        }})
-                        .catch(error => {{
-                            console.error('Error fetching master nodes:', error);
-                            document.getElementById('masterID').innerHTML = "<option value=''>Error loading master nodes</option>";
-                        }});
-                }} else {{
-                    masterDropdownField.style.display = 'none';
-                }}
-            }}
-        </script>
-        """
+
 
