@@ -359,7 +359,9 @@ css_style = """
             font-family: Arial, sans-serif;
             background-color: #f0f0f0;
             color: #333333; /* Default text color */
-            margin: 20px;
+            margin: 20px auto; /* Center horizontally with auto */
+            max-width: 800px; /* Set maximum width */
+            padding: 0 20px; /* Add some padding on the sides */
         }
         h1 {
             color: #ffffff;
@@ -587,9 +589,12 @@ css_style = """
             body {
                 background-color: #121212;
                 color: #e0e0e0; /* Lighter text for dark background */
+                margin: 20px auto; /* Center horizontally with auto */
+                max-width: 800px; /* Set maximum width */
+                padding: 0 20px; /* Add some padding on the sides */
             }
             h1 {
-                color: #121212; /* Dark text on colored background */
+                color: #fffeee; /* White text for better visibility on colored backgrounds */
             }
             /* Keep title backgrounds, they provide context */
             .monitor-title { background-color: #5a5a5a; } /* Slightly lighter dark gray */
@@ -1166,10 +1171,50 @@ async def manager():
             }});
         }});
 
+        // Add event delegation for confirmation buttons
+        document.addEventListener('click', function(e) {{
+            // Handle confirmation buttons
+            if (e.target && e.target.classList.contains('confirm-btn')) {{
+                const node = e.target.getAttribute('data-node');
+                const action = e.target.getAttribute('data-action');
+                if (node && action) {{
+                    confirmNodeAction(node, action);
+                }}
+            }}
+            
+            // Handle cancel buttons
+            if (e.target && e.target.classList.contains('cancel-btn')) {{
+                cancelNodeAction();
+            }}
+        }});
+
+        function confirmNodeAction(redisNode, action) {{
+            document.getElementById('node-action-result').innerHTML = "<p>Processing request...</p>";
+            
+            // Log the values to help debug
+            console.log("Confirming action for node:", redisNode, "action:", action);
+            
+            fetch('/manager/node-action/?redisNode=' + encodeURIComponent(redisNode) + '&action=' + encodeURIComponent(action) + '&confirmed=true')
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('node-action-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('node-action-result').innerHTML = "<p style='color: red;'>Error: " + error + "</p>";
+                }});
+        }}
+        
+        function cancelNodeAction() {{
+            document.getElementById('node-action-result').innerHTML = "<p>Operation cancelled.</p>";
+        }}
+
         function performNodeAction(event) {{
             event.preventDefault();
             const formData = new FormData(document.getElementById('node-action-form'));
             const params = new URLSearchParams(formData).toString();
+            
+            document.getElementById('node-action-result').innerHTML = "<p>Processing request...</p>";
+            
             fetch('/manager/node-action/?' + params)
                 .then(response => response.text())
                 .then(data => {{
@@ -1349,7 +1394,7 @@ async def manager_show_log(redisNode: str, line_count: int = 100):
             <h3>Redis Log File</h3>
             <p>Node: {redisNode}</p>
             <p>Lines: {line_count}</p>
-            <pre style="background: #222; color: #e0e0e0; font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace; font-size: 13px; line-height: 1.5; padding: 16px; border-radius: 6px; overflow-x: auto; max-height: 500px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">{log_content}</pre>
+            <pre style="background: #222; color: #e0e0e0; font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace; font-size: 11px; line-height: 1.5; padding: 16px; border-radius: 6px; overflow-x: auto; max-height: 500px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">{log_content}</pre>
         </div>
         """
         return HTMLResponse(content=result_html)
@@ -1920,6 +1965,4 @@ async def slot_balancer():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
-
-
 

@@ -208,57 +208,23 @@ def node_action_wv(redisNode, action, confirmed=False):
                 # Return a special message that requires confirmation
                 if has_slave:
                     return f"""
-                    <div class="confirmation-needed">
+                    <div class="confirmation-needed" id="confirmation-dialog">
                         <p style='color: red; font-weight: bold;'>Warning: This node ({redisNode}) is a MASTER node with slaves!</p>
                         <p>Stopping this node will trigger master/slave failover.</p>
                         <p>Do you want to continue?</p>
-                        <button onclick="confirmStopNode('{redisNode}', 'stop')" class="confirm-btn">Yes, Stop the Node</button>
-                        <button onclick="cancelStopNode()" class="cancel-btn">Cancel</button>
+                        <button class="confirm-btn" data-node="{redisNode}" data-action="stop">Yes, Stop the Node</button>
+                        <button class="cancel-btn">Cancel</button>
                     </div>
-                    <script>
-                        function confirmStopNode(redisNode, action) {{
-                            document.getElementById('node-action-result').innerHTML = "<p>Processing request...</p>";
-                            fetch('/manager/node-action/?redisNode=' + redisNode + '&action=' + action + '&confirmed=true')
-                                .then(response => response.text())
-                                .then(data => {{
-                                    document.getElementById('node-action-result').innerHTML = data;
-                                }})
-                                .catch(error => {{
-                                    document.getElementById('node-action-result').innerHTML = "<p style='color: red;'>Error: " + error + "</p>";
-                                }});
-                        }}
-                        
-                        function cancelStopNode() {{
-                            document.getElementById('node-action-result').innerHTML = "<p>Operation cancelled.</p>";
-                        }}
-                    </script>
                     """
                 else:
                     return f"""
-                    <div class="confirmation-needed">
+                    <div class="confirmation-needed" id="confirmation-dialog">
                         <p style='color: red; font-weight: bold;'>Warning: This node ({redisNode}) is a MASTER node with NO slaves!</p>
                         <p style='color: red;'>Stopping this node will cause Redis cluster to FAIL!</p>
                         <p>Do you want to continue?</p>
-                        <button onclick="confirmStopNode('{redisNode}', 'stop')" class="confirm-btn">Yes, Stop the Node</button>
-                        <button onclick="cancelStopNode()" class="cancel-btn">Cancel</button>
+                        <button class="confirm-btn" data-node="{redisNode}" data-action="stop">Yes, Stop the Node</button>
+                        <button class="cancel-btn">Cancel</button>
                     </div>
-                    <script>
-                        function confirmStopNode(redisNode, action) {{
-                            document.getElementById('node-action-result').innerHTML = "<p>Processing request...</p>";
-                            fetch('/manager/node-action/?redisNode=' + redisNode + '&action=' + action + '&confirmed=true')
-                                .then(response => response.text())
-                                .then(data => {{
-                                    document.getElementById('node-action-result').innerHTML = data;
-                                }})
-                                .catch(error => {{
-                                    document.getElementById('node-action-result').innerHTML = "<p style='color: red;'>Error: " + error + "</p>";
-                                }});
-                        }}
-                        
-                        function cancelStopNode() {{
-                            document.getElementById('node-action-result').innerHTML = "<p>Operation cancelled.</p>";
-                        }}
-                    </script>
                     """
 
         action_func = None
@@ -1024,13 +990,9 @@ def show_redis_log_wv(redisNode, line_count=100):
 
         log_content = "<br>".join(formatted_logs)
 
-        # Use class for the wrapper div, change back to log-output-wrapper
         return f"""
         <div>
-            <p>Showing last {line_count} lines from {nodeIP}:{portNumber}</p>
-            <div class='log-output-wrapper'>
                 {log_content if log_content else "<span>No specific log output captured.</span>"}
-            </div>
         </div>
         """
 
@@ -1478,5 +1440,6 @@ def add_delete_node_wv(operation, node_info=None):
             <p>Please report this error to the administrator.</p>
         </div>
             """
+
 
 
