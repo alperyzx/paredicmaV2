@@ -86,7 +86,7 @@ def getredisnodeInfo_wv(serverIP):
                     if returnVal == 'M':
                         redisnodeInfo += f"<p style='color: green;'> Server IP: {serverIP} | Node Number: {nodenumber} | Port: {portNumber} | Status: UP</p>"
                     elif returnVal == 'S':
-                        redisnodeInfo += f"<p style='color: blue;'> Server IP: {serverIP} | Node Number: {nodenumber} | Port: {portNumber} | Status: UP</p>"
+                        redisnodeInfo += f"<p style='color: #001f3f;'> Server IP: {serverIP} | Node Number: {nodenumber} | Port: {portNumber} | Status: UP</p>"
                     else:
                         redisnodeInfo += f"<p style='color: red;'> Server IP: {serverIP} | Node Number: {nodenumber} | Port: {portNumber} | Status: DOWN</p>"
                 else:
@@ -1398,7 +1398,7 @@ def add_delete_node_wv(operation, node_info=None):
                     reload_success, reload_msg = reload_pare_nodes()
 
                     # Add node role info to the message
-                    node_type = f"<span style='color: {'blue' if node_role == 'slave' else 'green' if node_role == 'master' else 'gray'};'>{node_role.capitalize()}</span>"
+                    node_type = f"<span style='color: {'#001f3f' if node_role == 'slave' else 'green' if node_role == 'master' else 'gray'};'>{node_role.capitalize()}</span>"
                     process_status = "<span style='color: green;'>Redis process successfully terminated</span>" if process_stopped else "<span style='color: orange;'>Redis process may still be running</span>"
 
                     return f"""

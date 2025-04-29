@@ -163,9 +163,9 @@ def list_nodes():
                             status, response = getstatusoutput(redisConnectCmd(node_ip, port_number, ' info replication | grep  -e "master_host:" -e "master_port:" '))
                             if status == 0:
                                 response = response.replace("\nmaster_port", "")
-                                slave_node_list += f'<b style="color: blue;">Server IP :</b> <span style="color: blue;">{node_ip}</span> <b style="color: blue;">Port:</b> <span style="color: blue;">{port_number}</span> <span style="color: blue;">UP</span> -> <span style="color: blue;">{response}</span><br>'
+                                slave_node_list += f'<b style="color: #001f3f;">Server IP :</b> <span style="color: #001f3f;">{node_ip}</span> <b style="color: #001f3f;">Port:</b> <span style="color: #001f3f;">{port_number}</span> <span style="color: #001f3f;">UP</span> -> <span style="color: #001f3f;">{response}</span><br>'
                             else:
-                                slave_node_list += f'<b style="color: blue;">Server IP :</b> <span style="color: blue;">{node_ip}</span> <b style="color: blue;">Port:</b> <span style="color: blue;">{port_number}</span> <span style="color: red;">DOWN</span><br>'
+                                slave_node_list += f'<b style="color: #001f3f;">Server IP :</b> <span style="color: #001f3f;">{node_ip}</span> <b style="color: #001f3f;">Port:</b> <span style="color: #001f3f;">{port_number}</span> <span style="color: red;">DOWN</span><br>'
                         else:
                             down_node_list += f'<b style="color: red;">Server IP :</b> <span style="color: red;">{node_ip}</span> <b style="color: red;">Port:</b> <span style="color: red;">{port_number}</span> <span style="color: red;">DOWN</span><br>'
                     else:
@@ -693,6 +693,11 @@ css_style = """
                  background-color: #333;
                  color: #ff8080; /* Example light red for code */
             }
+            
+            /* Make slave nodes more readable in dark mode */
+            [style*="color: #001f3f"] {
+                color: #4a9cf7 !important; /* Lighter blue color for better contrast in dark mode */
+            }
         }
     </style>
 """
@@ -840,8 +845,7 @@ async def monitor():
     <div class="content">
         <form id="server-info-form" onsubmit="fetchServerInfo(event)">
             <div class="button-container">
-                <input class="monitor-button" type="submit" value="Get Info">
-                <label for="server_ip">Server IP:</label>
+                <label for="server_ip"><input class="monitor-button" type="submit" value="Get Server Info"></label>
                 <select id="server_ip" name="server_ip">
                     {''.join([f"<option value='{server}'>{server}</option>" for server in uniqueservers])}
                 </select>
@@ -1968,5 +1972,6 @@ async def slot_balancer():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+
 
 
