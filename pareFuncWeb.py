@@ -1453,3 +1453,48 @@ def add_delete_node_wv(operation, node_info=None):
             <p>Please report this error to the administrator.</p>
         </div>
         """
+    if operation == 'add':
+        return f"""
+        <form id="add-node-form" action="/maintain/add-node/" method="get">
+            <label for="serverIP">Server IP:</label>
+            <input type="text" id="serverIP" name="serverIP" required placeholder="e.g., 192.168.1.10">
+            <label for="serverPORT">Port Number:</label>
+            <input type="number" id="serverPORT" name="serverPORT" required placeholder="e.g., 6379">
+            <label for="maxMemSize">Maximum Memory:</label>
+            <input type="text" id="maxMemSize" name="maxMemSize" required placeholder="e.g., 2gb or 500mb">
+            <label for="cpuCoreIDs">CPU Core IDs:</label>
+            <input type="text" id="cpuCoreIDs" name="cpuCoreIDs" required placeholder="e.g., 1 or 1,2,3">
+            <label for="nodeType">Node Type:</label>
+            <select id="nodeType" name="nodeType" onchange="toggleMasterDropdown()">
+                <option value="master">Master Node</option>
+                <option value="slave-specific">Slave Node</option>
+            </select>
+            <div id="masterDropdownField" style="display: none;">
+                <label for="masterID">Master Node:</label>
+                <select id="masterID" name="masterID">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+            <input type="submit" value="Add Node">
+        </form>
+        <script>
+            function toggleMasterDropdown() {{
+                const nodeType = document.getElementById('nodeType').value;
+                const masterDropdownField = document.getElementById('masterDropdownField');
+                if (nodeType === 'slave-specific') {{
+                    masterDropdownField.style.display = 'block';
+                    fetch('/maintain/view-master-nodes-dropdown')
+                        .then(response => response.text())
+                        .then(data => {{
+                            document.getElementById('masterID').innerHTML = data;
+                        }})
+                        .catch(error => {{
+                            console.error('Error fetching master nodes:', error);
+                            document.getElementById('masterID').innerHTML = "<option value=''>Error loading master nodes</option>";
+                        }});
+                }} else {{
+                    masterDropdownField.style.display = 'none';
+                }}
+            }}
+        </script>
+        """

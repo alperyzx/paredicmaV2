@@ -613,6 +613,7 @@ async def welcome_page():
                         <a href="/maintain" class="card-button">Go to Maintenance</a>
                     </div>
                 </div>
+            
             </div>
             
             <div class="welcome-footer" style="margin-top: 40px; text-align: center; color: #777;">
@@ -1338,10 +1339,9 @@ async def add_node(
         <body>
             <h2>Missing Master ID</h2>
             <p style='color: red;'>When adding a slave node, a master node ID must be provided.</p>
-            <p>Please use the "View Master Nodes" button to select a valid master ID.</p>
+            <p>Please select a valid master node from the dropdown menu.</p>
             <div class="nav-buttons">
                 <a href="/maintain">Back to Maintenance</a>
-                <a href="/maintain/view-master-nodes" target="_blank">View Master Nodes</a>
             </div>
         </body></html>
         """)
@@ -1368,12 +1368,53 @@ async def add_node(
         <div>{result_html}</div>
         <div class="nav-buttons">
             <a href="/maintain">Back to Maintenance</a>
-            <a href="/maintain/view-master-nodes" target="_blank">View Master Nodes</a>
         </div>
     </body>
     </html>
     """
     return HTMLResponse(content=response_message)
+
+@app.get("/maintain/view-master-nodes-dropdown", response_class=HTMLResponse)
+async def view_master_nodes_dropdown():
+    """
+    Returns a list of master nodes as a dropdown menu for the "Add Node" form.
+    """
+    master_nodes = []
+
+    try:
+        # Find a contact node to query cluster info
+        contact_node = None
+        for pareNode in pareNodes:
+            if pareNode[4]:  # If active
+                nodeIP = pareNode[0][0]
+                portNumber = pareNode[1][0]
+                if pingredisNode(nodeIP, portNumber):
+                    contact_node = (nodeIP, portNumber)
+                    break
+
+        if not contact_node:
+            return "<option value=''>No active master nodes found</option>"
+
+        # Query the cluster for master nodes
+        cmd_status, cmd_output = subprocess.getstatusoutput(
+            redisConnectCmd(contact_node[0], contact_node[1], ' CLUSTER NODES | grep master'))
+
+        if cmd_status != 0:
+            return "<option value=''>Error retrieving master nodes</option>"
+
+        lines = cmd_output.strip().split('\n')
+        for line in lines:
+            parts = line.split()
+            if len(parts) >= 9 and "master" in line and "fail" not in line:
+                node_id = parts[0]
+                ip_port = parts[1]
+                master_nodes.append((node_id, ip_port))
+
+        # Generate HTML options for the dropdown
+        options = "".join([f"<option value='{node[0]}'>{node[1]}</option>" for node in master_nodes])
+        return options
+    except Exception as e:
+        return f"<option value=''>Error: {str(e)}</option>"
 
 @app.get("/maintain/delete-node/", response_class=HTMLResponse)
 async def delete_node(nodeId: str, confirmed: bool = False):
@@ -1491,151 +1532,6 @@ async def delete_node(nodeId: str, confirmed: bool = False):
         </html>
         """)
 
-@app.get("/maintain/view-master-nodes", response_class=HTMLResponse)
-async def view_master_nodes():
-    """
-    Displays a list of master nodes with their IDs for adding slaves to specific masters.
-    """
-    master_nodes = []
-
-    try:
-        # Find a contact node to query cluster info
-        contact_node = None
-        for pareNode in pareNodes:
-            if pareNode[4]:  # If active
-                nodeIP = pareNode[0][0]
-                portNumber = pareNode[1][0]
-                if pingredisNode(nodeIP, portNumber):
-                    contact_node = (nodeIP, portNumber)
-                    break
-
-        if not contact_node:
-            return """
-            <html>
-            <head>
-                <title>Master Nodes</title>
-                <style>
-                    body { font-family: Arial, sans-serif; padding: 20px; }
-                    .error { color: red; }
-                </style>
-            </head>
-            <body>
-                <h1>Master Nodes</h1>
-                <p class="error">Error: Could not find any active node to query cluster information</p>
-                <a href="/maintain">Back to Maintenance</a>
-            </body>
-            </html>
-            """
-
-        # Query the cluster for master nodes
-        cmd_status, cmd_output = subprocess.getstatusoutput(
-            redisConnectCmd(contact_node[0], contact_node[1], ' CLUSTER NODES | grep master'))
-
-        if cmd_status != 0:
-            return """
-            <html>
-            <head>
-                <title>Master Nodes</title>
-                <style>
-                    body { font-family: Arial, sans-serif; padding: 20px; }
-                    .error { color: red; }
-                </style>
-            </head>
-            <body>
-                <h1>Master Nodes</h1>
-                <p class="error">Error: Failed to get cluster nodes information</p>
-                <a href="/maintain">Back to Maintenance</a>
-            </body>
-            </html>
-            """
-
-        lines = cmd_output.strip().split('\n')
-        for line in lines:
-            parts = line.split()
-            if len(parts) >= 9 and "master" in line and "fail" not in line:
-                node_id = parts[0]
-                ip_port = parts[1]
-                slots_info = " ".join(parts[8:]) if len(parts) > 8 else "No slots"
-                master_nodes.append((node_id, ip_port, slots_info))
-
-        # Generate HTML
-        html_content = f"""
-        {css_style}
-        <html>
-        <head>
-            <title>Master Nodes</title>
-        </head>
-        <body>
-            <h1>Master Nodes</h1>
-            <p>Click on a node ID to copy it to clipboard</p>
-            <table class="config-table" border="1">
-                <thead>
-                    <tr>
-                        <th>Node ID</th>
-                        <th>IP:Port</th>
-                        <th>Slots</th>
-                    </tr>
-                </thead>
-                <tbody>
-        """
-
-        for node in master_nodes:
-            html_content += f"""
-                    <tr>
-                        <td><a href="#" class="node-id" data-id="{node[0]}" onclick="copyToClipboard('{node[0]}')">{node[0]}</a></td>
-                        <td>{node[1]}</td>
-                        <td>{node[2]}</td>
-                    </tr>
-            """
-
-        html_content += """
-                </tbody>
-            </table>
-            <div id="copy-message" style="display:none; padding: 10px; margin-top: 10px; background-color: #dff0d8; color: #3c763d; border: 1px solid #d6e9c6; border-radius: 4px;">
-                Node ID copied to clipboard!
-            </div>
-            <div style="margin-top: 20px">
-                <a href="/maintain" class="btn">Back to Maintenance</a>
-            </div>
-            <script>
-                function copyToClipboard(text) {
-                    var textarea = document.createElement("textarea");
-                    textarea.value = text;
-                    document.body.appendChild(textarea);
-                    textarea.select();
-                    document.execCommand("copy");
-                    document.body.removeChild(textarea);
-                    
-                    // Show copy message
-                    var message = document.getElementById("copy-message");
-                    message.style.display = "block";
-                    setTimeout(function() {
-                        message.style.display = "none";
-                    }, 2000);
-                }
-            </script>
-        </body>
-        </html>
-        """
-        return HTMLResponse(content=html_content)
-    except Exception as e:
-        return f"""
-        <html>
-        <head>
-            <title>Master Nodes</title>
-            <style>
-                body {{ font-family: Arial, sans-serif; padding: 20px; }}
-                .error {{ color: red; }}
-            </style>
-        </head>
-        <body>
-            <h1>Master Nodes</h1>
-            <p class="error">Error: {str(e)}</p>
-            <a href="/maintain">Back to Maintenance</a>
-        </body>
-        </html>
-        """
-
 @app.get("/maintain", response_class=HTMLResponse)
 async def maintain():
     """
@@ -1733,10 +1629,17 @@ async def maintain():
                     </div>
                     <div id="masterIdField" class="form-row" style="display: none;">
                         <label for="masterID">Master Node ID:</label>
-                        <input type="text" id="masterID" name="masterID" placeholder="Enter master node ID">
-                        <button type="button" onclick="window.open('/maintain/view-master-nodes', '_blank')">
-                            View Master Nodes
-                        </button>
+                        <select id="masterID" name="masterID">
+                            <option value="">--- Select Master Node ---</option>
+                        </select>
+                        <script>
+                            fetch('/maintain/view-master-nodes-dropdown')
+                                .then(response => response.text())
+                                .then(options => {{
+                                    document.getElementById('masterID').innerHTML += options;
+                                }})
+                                .catch(error => console.error('Error fetching master nodes:', error));
+                        </script>
                     </div>
                     <div class="form-row">
                         <input type="submit" value="Add Node">
@@ -1855,6 +1758,3 @@ async def maintain():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
-
-
-
