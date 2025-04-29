@@ -351,7 +351,7 @@ async def show_memory_usage():
 
 
 
-# Define the CSS style for the monitoring page
+# Define the CSS styles for different button types
 css_style = """
     <style>
         body {
@@ -360,11 +360,23 @@ css_style = """
             margin: 20px;
         }
         h1 {
-            color: #333333;
+            color: #ffffff;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
         }
-        th{
-            text-align:left;
-          }
+        .monitor-title {
+            background-color: #4f4f4f; /* Dark gray */
+        }
+        .manager-title {
+            background-color: #001f3f; /* Navy blue */
+        }
+        .maintenance-title {
+            background-color: #800000; /* Claret */
+        }
+        th {
+            text-align: left;
+        }
         ul {
             list-style-type: none;
             padding: 0;
@@ -374,7 +386,7 @@ css_style = """
         }
         label {
             display: inline-block;
-            width: 150px; /* Increased width to fit all labels */
+            width: 150px;
             margin-right: 10px;
         }
         input[type="text"], select {
@@ -383,166 +395,53 @@ css_style = """
             border: 1px solid #cccccc;
             border-radius: 5px;
         }
-        input[type="submit"] {
-            padding: 5px 10px;
-            background-color: #007bff;
-            color: #ffffff;
-            text-decoration: none;
-            border-radius: 5px;
-        }
-        input[type="submit"]:hover {
-            background-color: #0056b3;
-        }
-        a {
-            padding: 5px 10px;
-            background-color: #007bff;
-            color: #ffffff;
-            text-decoration: none;
-            border-radius: 5px;
-            display: inline-block;
-            margin-right: 10px;
-            margin-bottom: 5px;
-        }
-        a:hover {
-            background-color: #0056b3;
-        }
-        .nav-buttons {
-            margin-top: 15px;
-        }
-        .confirm-btn {
-            background-color: #d9534f;
-            color: white;
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-right: 10px;
-        }
-        .cancel-btn {
-            background-color: #5bc0de;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 4px;
-            text-decoration: none;
-        }
-        .confirmation-needed {
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
-            border-radius: 4px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        .config-table {
-            border-collapse: collapse;
-            width: 100%;
-            margin-top: 20px;
-        }
-        .config-table th, .config-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        .config-table th {
-            background-color: #f2f2f2;
-        }
-        .config-table tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-        /* Welcome page specific styles */
-        .welcome-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .welcome-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .welcome-header h1 {
-            font-size: 36px;
-            color: #2c3e50;
-        }
-        .welcome-description {
-            text-align: center;
-            margin-bottom: 40px;
-            color: #555;
-            font-size: 18px;
-        }
-        .section-cards {
-            display: flex;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-        .section-card {
-            flex: 1;
-            min-width: 250px;
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-        .section-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-        }
-        .card-header {
-            font-size: 24px;
-            color: #2c3e50;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #f0f0f0;
-        }
-        .card-content {
-            color: #555;
-            margin-bottom: 20px;
-            line-height: 1.5;
-            min-height: 100px;
-        }
-        .card-footer {
-            display: flex;
-            justify-content: center;
-        }
-        .card-button {
+        /* Dark gray buttons for monitor page */
+        .monitor-button, .monitor-button input[type="submit"], .monitor-nav {
             padding: 10px 15px;
-            background-color: #3498db;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
+            background-color: #4f4f4f; /* Dark gray */
+            color: #ffffff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
             text-align: center;
-            transition: background-color 0.3s;
-            width: 100%;
+            display: inline-block;
+            vertical-align: middle;
+            text-decoration: none;
         }
-        .card-button:hover {
-            background-color: #2980b9;
+        .monitor-button:hover, .monitor-button input[type="submit"]:hover, .monitor-nav:hover {
+            background-color: #3f3f3f; /* Slightly darker gray */
         }
-        .monitor-card .card-header {
-            color: #3498db;
+        /* Navy blue buttons for manager page */
+        .manager-button, .manager-button input[type="submit"], .manager-nav {
+            padding: 10px 15px;
+            background-color: #001f3f; /* Navy blue */
+            color: #ffffff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-align: center;
+            display: inline-block;
+            vertical-align: middle;
+            text-decoration: none;
         }
-        .manager-card .card-header {
-            color: #2ecc71;
+        .manager-button:hover, .manager-button input[type="submit"]:hover, .manager-nav:hover {
+            background-color: #001a35; /* Slightly darker navy blue */
         }
-        .maintain-card .card-header {
-            color: #e74c3c;
+        /* Claret buttons for maintenance page */
+        .maintenance-button, .maintenance-button input[type="submit"], .maintenance-nav {
+            padding: 10px 15px;
+            background-color: #800000; /* Claret */
+            color: #ffffff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-align: center;
+            display: inline-block;
+            vertical-align: middle;
+            text-decoration: none;
         }
-        .monitor-card .card-button {
-            background-color: #3498db;
-        }
-        .manager-card .card-button {
-            background-color: #2ecc71;
-        }
-        .maintain-card .card-button {
-            background-color: #e74c3c;
-        }
-        .monitor-card .card-button:hover {
-            background-color: #2980b9;
-        }
-        .manager-card .card-button:hover {
-            background-color: #27ae60;
-        }
-        .maintain-card .card-button:hover {
-            background-color: #c0392b;
+        .maintenance-button:hover, .maintenance-button input[type="submit"]:hover, .maintenance-nav:hover {
+            background-color: #660000; /* Slightly darker claret */
         }
         .collapsible {
             background-color: #f1f1f1;
@@ -560,11 +459,14 @@ css_style = """
             background-color: #ddd;
         }
         .content {
-            padding: 0 15px;
+            padding: 15px;
             display: none;
             overflow: hidden;
             background-color: #f9f9f9;
             border: 1px solid #ddd;
+            margin-bottom: 10px;
+        }
+        .content > * {
             margin-bottom: 10px;
         }
         .form-grid {
@@ -578,6 +480,14 @@ css_style = """
         }
         .form-group.full-width {
             grid-column: span 2;
+        }
+        .button-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .button-container > * {
+            margin: 0;
         }
     </style>
 """
@@ -679,37 +589,40 @@ async def monitor():
         <title>Redis Cluster Monitor</title>
     </head>
     <body>
-    <h1>Redis Cluster Monitor (paredicmon)</h1>
+    <h1 class="monitor-title">Redis Cluster Monitor</h1>
     <div class="nav-buttons">
-        <a href="/manager">Go to Manager (paredicman)</a>
-        <a href="/maintain">Go to Maintenance (paredicmaint)</a>
+        <a href="/manager" class="manager-nav">Go to Manager</a>
+        <a href="/maintain" class="maintenance-nav">Go to Maintenance</a>
     </div>
     <hr>
 
     <button class="collapsible">1 - Ping Nodes</button>
     <div class="content">
-        <button onclick="fetchPingNodes()">Ping Nodes</button>
+        <div class="button-container">
+            <button class="monitor-button" onclick="fetchPingNodes()">Ping Nodes</button>
+        </div>
         <div id="ping-nodes-result" style="margin-top: 10px;"></div>
     </div>
 
     <button class="collapsible">2 - List Nodes</button>
     <div class="content">
-        <button onclick="fetchListNodes()">List Nodes</button>
+        <div class="button-container">
+            <button class="monitor-button" onclick="fetchListNodes()">List Nodes</button>
+        </div>
         <div id="list-nodes-result" style="margin-top: 10px;"></div>
     </div>
 
     <button class="collapsible">3 - Node Info</button>
     <div class="content">
         <form id="node-info-form" onsubmit="fetchNodeInfo(event)">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <label for="redisNode" style="width: 150px;">Redis Node:</label>
+            <div class="button-container">
+                <label for="redisNode">Redis Node:</label>
                 <select id="redisNode" name="redisNode" onchange="fetchNodeInfo(new Event('submit', {{cancelable: true}}))">
                     {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
                 </select>
             </div>
-            
-            <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
-                <label for="command" style="width: 150px;">Command:</label>
+            <div class="button-container" style="margin-top: 10px;">
+                <label for="command">Command:</label>
                 <select id="command" name="command" onchange="fetchNodeInfo(new Event('submit', {{cancelable: true}}))">
                     {''.join([f"<option value='{command}'>{command}</option>" for command in commandsAvailable])}
                 </select>
@@ -721,14 +634,12 @@ async def monitor():
     <button class="collapsible">4 - Server Info</button>
     <div class="content">
         <form id="server-info-form" onsubmit="fetchServerInfo(event)">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <label for="server_ip" style="width: 150px;">Server IP:</label>
+            <div class="button-container">
+                <input class="monitor-button" type="submit" value="Get Info">
+                <label for="server_ip">Server IP:</label>
                 <select id="server_ip" name="server_ip">
                     {''.join([f"<option value='{server}'>{server}</option>" for server in uniqueservers])}
                 </select>
-            </div>
-            <div style="display: flex; justify-content: flex-start;">
-                <input type="submit" value="Get Info" style="width: auto;">
             </div>
         </form>
         <div id="server-info-result" style="margin-top: 10px;"></div>
@@ -736,19 +647,25 @@ async def monitor():
 
     <button class="collapsible">5 - Slot Info</button>
     <div class="content">
-        <button onclick="fetchSlotInfo()">Get Slot Info</button>
+        <div class="button-container">
+            <button class="monitor-button" onclick="fetchSlotInfo()">Get Slot Info</button>
+        </div>
         <div id="slot-info-result" style="margin-top: 10px;"></div>
     </div>
 
     <button class="collapsible">6 - Cluster State Info</button>
     <div class="content">
-        <button onclick="fetchClusterStateInfo()">Get Cluster State Info</button>
+        <div class="button-container">
+            <button class="monitor-button" onclick="fetchClusterStateInfo()">Get Cluster State Info</button>
+        </div>
         <div id="cluster-state-info-result" style="margin-top: 10px;"></div>
     </div>
 
     <button class="collapsible">7 - Memory Usage</button>
     <div class="content">
-        <button onclick="fetchMemoryUsage()">Get Memory Usage</button>
+        <div class="button-container">
+            <button class="monitor-button" onclick="fetchMemoryUsage()">Get Memory Usage</button>
+        </div>
         <div id="memory-usage-result" style="margin-top: 10px;"></div>
     </div>
 
@@ -793,7 +710,6 @@ async def monitor():
             const formData = new FormData(document.getElementById('node-info-form'));
             const params = new URLSearchParams(formData).toString();
             
-            // Show loading indicator
             document.getElementById('node-info-result').innerHTML = "<p>Loading...</p>";
             
             fetch('/monitor/node-info/?' + params)
@@ -912,10 +828,10 @@ async def manager():
         <title>Redis Cluster Manager</title>
     </head>
     <body>
-    <h1>Redis Cluster Manager (paredicman)</h1>
+    <h1 class="manager-title">Redis Cluster Manager</h1>
     <div class="nav-buttons">
-        <a href="/monitor">Go to Monitor (paredicmon)</a>
-        <a href="/maintain">Go to Maintenance (paredicmaint)</a>
+        <a href="/monitor" class="monitor-nav">Go to Monitor</a>
+        <a href="/maintain" class="maintenance-nav">Go to Maintenance</a>
     </div>
     <hr>
 
@@ -932,7 +848,7 @@ async def manager():
                 {''.join([f"<option value='{action.lower()}'>{action}</option>" for action in actionsAvailable])}
             </select>
             <br><br>
-            <input type="submit" value="Perform Action">
+            <input class="manager-button" type="submit" value="Perform Action">
         </form>
         <div id="node-action-result" style="margin-top: 10px;"></div>
     </div>
@@ -945,7 +861,7 @@ async def manager():
                 {''.join([f"<option value='{node}'>{node}</option>" for node in masterNodes])}
             </select>
             <br><br>
-            <input type="submit" value="Switch Master/Slave">
+            <input class="manager-button" type="submit" value="Switch Master/Slave">
         </form>
         <div id="switch-master-slave-result" style="margin-top: 10px;"></div>
     </div>
@@ -970,7 +886,7 @@ async def manager():
             <label for="persist">Persist to config:</label>
             <input type="checkbox" id="persist" name="persist" value="true">
             <br><br>
-            <input type="submit" value="Apply Change">
+            <input class="manager-button" type="submit" value="Apply Change">
         </form>
         <div id="change-config-result" style="margin-top: 10px;"></div>
     </div>
@@ -984,7 +900,7 @@ async def manager():
                 {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
             </select>
             <br><br>
-            <input type="submit" value="Save Configuration">
+            <input class="manager-button" type="submit" value="Save Configuration">
         </form>
         <div id="save-config-result" style="margin-top: 10px;"></div>
     </div>
@@ -998,7 +914,7 @@ async def manager():
             <label for="restart_masters">Restart master nodes:</label>
             <input type="checkbox" id="restart_masters" name="restart_masters" value="true" checked>
             <br><br>
-            <input type="submit" value="Start Rolling Restart">
+            <input class="manager-button" type="submit" value="Start Rolling Restart">
         </form>
         <div id="rolling-restart-result" style="margin-top: 10px;"></div>
     </div>
@@ -1015,7 +931,7 @@ async def manager():
             <label for="wait_seconds">Wait time between nodes (seconds):</label>
             <input type="number" id="wait_seconds" name="wait_seconds" min="0" value="0">
             <br><br>
-            <input type="submit" value="Execute Command">
+            <input class="manager-button" type="submit" value="Execute Command">
         </form>
         <div id="execute-command-result" style="margin-top: 10px;"></div>
     </div>
@@ -1031,7 +947,7 @@ async def manager():
             <label for="line_count">Number of lines to show:</label>
             <input type="number" id="line_count" name="line_count" min="10" max="10000" value="100">
             <br><br>
-            <input type="submit" value="View Log File">
+            <input class="manager-button" type="submit" value="View Log File">
         </form>
         <div id="show-log-result" style="margin-top: 10px;"></div>
     </div>
@@ -1314,10 +1230,10 @@ async def maintain():
         <title>Redis Cluster Maintenance</title>
     </head>
     <body>
-    <h1>Redis Cluster Maintenance (paredicmaint)</h1>
+    <h1 class="maintenance-title">Redis Cluster Maintenance</h1>
     <div class="nav-buttons">
-        <a href="/monitor">Go to Monitor (paredicmon)</a>
-        <a href="/manager">Go to Manager (paredicman)</a>
+        <a href="/monitor" class="monitor-nav">Go to Monitor</a>
+        <a href="/manager" class="manager-nav">Go to Manager</a>
     </div>
     <hr>
 
@@ -1355,7 +1271,7 @@ async def maintain():
                 </select>
             </div>
             <div style="display: flex; justify-content: flex-start;">
-                <input type="submit" value="Add Node" style="width: auto;">
+                <input class="maintenance-button" type="submit" value="Add Node" style="width: auto;">
             </div>
         </form>
         <div id="add-node-result" style="margin-top: 10px;"></div>
@@ -1366,7 +1282,7 @@ async def maintain():
                 <select id="nodeId" name="nodeId" required>
                     {''.join([f"<option value='{id}'>{id} - {node}</option>" for id, node in active_nodes_with_id])}
                 </select>
-                <input type="submit" value="Delete Node" style="width: auto; background-color: #d9534f; color: white;">
+                <input class="maintenance-button" type="submit" value="Delete Node" style="width: auto; background-color: #d9534f; color: white;">
             </div>
         </form>
         <div id="delete-node-result" style="margin-top: 10px;"></div>
@@ -1812,5 +1728,3 @@ async def slot_balancer():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
-
-
