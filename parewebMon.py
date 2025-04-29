@@ -383,7 +383,7 @@ css_style = """
         }
         label {
             display: inline-block;
-            width: 100px;
+            width: 150px; /* Increased width to fit all labels */
             margin-right: 10px;
         }
         input[type="text"], select {
@@ -1758,3 +1758,4 @@ async def maintain():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+
