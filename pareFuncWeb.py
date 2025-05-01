@@ -1970,6 +1970,7 @@ def slotInfoSimplified_wv(nodeIP, portNumber):
                     endpoint = parts[1].split('@')[0]
                     slots = ' '.join([part for part in parts[8:] if '-' in part or part.isdigit()])
 
+                    # Important: Use both "node-id" and "master-node" classes to make extraction easier
                     html_content += f"""
                     <tr>
                         <td><span class="node-id master-node">{node_id}</span></td>

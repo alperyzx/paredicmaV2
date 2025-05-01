@@ -1546,11 +1546,15 @@ async def maintain():
         <form id="move-slots-form" onsubmit="moveSlots(event)">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
                 <label for="fromNodeID" style="width: 150px;">FROM Node ID:</label>
-                <input type="text" id="fromNodeID" name="fromNodeID" required placeholder="Source node ID">
+                <select id="fromNodeID" name="fromNodeID" required style="width: 300px;">
+                    <option value="">-- Click "View Current Slots Distribution" first --</option>
+                </select>
             </div>
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
                 <label for="toNodeID" style="width: 150px;">TO Node ID:</label>
-                <input type="text" id="toNodeID" name="toNodeID" required placeholder="Destination node ID">
+                <select id="toNodeID" name="toNodeID" required style="width: 300px;">
+                    <option value="">-- Click "View Current Slots Distribution" first --</option>
+                </select>
             </div>
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
                 <label for="numberOfSlots" style="width: 150px;">Number of Slots:</label>
@@ -1713,16 +1717,135 @@ async def maintain():
                 .then(response => response.text())
                 .then(data => {{
                     document.getElementById('current-slot-info').innerHTML = data;
+                    
+                    // Extract node IDs from the response to populate the dropdowns
+                    extractAndPopulateNodeIDs(data);
                 }})
                 .catch(error => {{
                     document.getElementById('current-slot-info').innerHTML = "<p style='color: red;'>Error fetching slot information: " + error + "</p>";
                 }});
         }}
         
+        function extractAndPopulateNodeIDs(htmlContent) {{
+            try {{
+                // Create a temporary DOM element to parse the HTML
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = htmlContent;
+                
+                // Find all master node IDs in the HTML (look for elements with class node-id and master-node)
+                const nodeElements = tempDiv.querySelectorAll('.node-id.master-node');
+                
+                // If we couldn't find node IDs with the class approach, try regex as fallback
+                if (nodeElements.length === 0) {{
+                    // Use regex to extract node IDs from table rows
+                    const nodeIdRegex = /<td><span class="node-id.*?">(.*?)<\/span><\/td>/g;
+                    const matches = [...htmlContent.matchAll(nodeIdRegex)];
+                    
+                    if (matches.length > 0) {{
+                        const nodeIds = matches.map(match => match[1]);
+                        populateDropdowns(nodeIds);
+                    }} else {{
+                        console.error('No node IDs found in HTML content');
+                        showNodeIDError();
+                    }}
+                }} else {{
+                    // Extract text content from the node elements
+                    const nodeIds = Array.from(nodeElements).map(el => el.textContent.trim());
+                    populateDropdowns(nodeIds);
+                }}
+            }} catch (error) {{
+                console.error('Error extracting node IDs:', error);
+                showNodeIDError();
+            }}
+        }}
+        
+        function populateDropdowns(nodeIds) {{
+            const fromDropdown = document.getElementById('fromNodeID');
+            const toDropdown = document.getElementById('toNodeID');
+            
+            // Clear existing options
+            fromDropdown.innerHTML = '';
+            toDropdown.innerHTML = '';
+            
+            if (nodeIds && nodeIds.length > 0) {{
+                // Add a default option
+                fromDropdown.appendChild(new Option('-- Select Source Node ID --', ''));
+                toDropdown.appendChild(new Option('-- Select Destination Node ID --', ''));
+                
+                // Add node IDs as options
+                nodeIds.forEach(nodeId => {{
+                    fromDropdown.appendChild(new Option(nodeId, nodeId));
+                    toDropdown.appendChild(new Option(nodeId, nodeId));
+                }});
+                
+                // Show success message
+                const infoElement = document.createElement('div');
+                infoElement.innerHTML = `<div style="margin-top: 10px; padding: 8px; background-color: #dff0d8; color: #3c763d; border-radius: 4px;">
+                    Node IDs have been loaded into the dropdowns. Select source and destination nodes to move slots.
+                </div>`;
+                
+                // Insert after the current-slot-info div
+                const slotInfoContainer = document.getElementById('slot-info-container');
+                const moveForm = document.getElementById('move-slots-form');
+                slotInfoContainer.parentNode.insertBefore(infoElement, moveForm);
+                
+                // Remove the message after 5 seconds
+                setTimeout(() => {{
+                    if (infoElement.parentNode) {{
+                        infoElement.parentNode.removeChild(infoElement);
+                    }}
+                }}, 5000);
+            }} else {{
+                showNodeIDError();
+            }}
+        }}
+        
+        function showNodeIDError() {{
+            const fromDropdown = document.getElementById('fromNodeID');
+            const toDropdown = document.getElementById('toNodeID');
+            
+            // Add error option
+            fromDropdown.innerHTML = '<option value="">No node IDs found. Try refreshing.</option>';
+            toDropdown.innerHTML = '<option value="">No node IDs found. Try refreshing.</option>';
+            
+            // Show error message
+            const errorElement = document.createElement('div');
+            errorElement.innerHTML = `<div style="margin-top: 10px; padding: 8px; background-color: #f2dede; color: #a94442; border-radius: 4px;">
+                Could not extract node IDs from the response. Please refresh and try again.
+            </div>`;
+            
+            // Insert after the current-slot-info div
+            const slotInfoContainer = document.getElementById('slot-info-container');
+            const moveForm = document.getElementById('move-slots-form');
+            slotInfoContainer.parentNode.insertBefore(errorElement, moveForm);
+            
+            // Remove the message after 5 seconds
+            setTimeout(() => {{
+                if (errorElement.parentNode) {{
+                    errorElement.parentNode.removeChild(errorElement);
+                }}
+            }}, 5000);
+        }}
+        
         function moveSlots(event) {{
             event.preventDefault();
             const formData = new FormData(document.getElementById('move-slots-form'));
             const params = new URLSearchParams(formData).toString();
+            
+            // Validate that node IDs are selected
+            const fromNodeID = formData.get('fromNodeID');
+            const toNodeID = formData.get('toNodeID');
+            
+            if (!fromNodeID || !toNodeID) {{
+                document.getElementById('move-slots-result').innerHTML = "<div class='error-message'><p>Please select both FROM and TO node IDs.</p></div>";
+                return;
+            }}
+            
+            // Warn if moving slots to the same node
+            if (fromNodeID === toNodeID) {{
+                document.getElementById('move-slots-result').innerHTML = "<div class='error-message'><p>Source and destination nodes cannot be the same.</p></div>";
+                return;
+            }}
             
             // Show loading indicator
             document.getElementById('move-slots-result').innerHTML = "<p>Processing slot migration. This may take some time...</p>";
@@ -1736,6 +1859,7 @@ async def maintain():
                     document.getElementById('move-slots-result').innerHTML = "<p style='color: red;'>Error: " + error + "</p>";
                 }});
         }}
+        
     </script>
     </body>
     </html>
@@ -2104,4 +2228,5 @@ async def slot_balancer():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+
 
