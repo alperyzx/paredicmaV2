@@ -1858,104 +1858,80 @@ def slotInfoSimplified_wv(nodeIP, portNumber):
         <h2 class="section-title">Cluster Information from RedisNode: {nodeIP}:{portNumber}</h2>
         """
 
-        # Get master nodes information
+        # Collect master nodes information and slot information
         try:
             master_nodes_output = subprocess.check_output(
                 redisConnectCmd(nodeIP, portNumber, ' CLUSTER NODES | grep master'),
                 shell=True).decode()
 
-            html_content += """
-            <h3 class="section-title">Master Nodes</h3>
-            <table class="cluster-info-table">
-                <thead>
-                    <tr>
-                        <th>Node ID</th>
-                        <th>Endpoint</th>
-                        <th>Slot Range</th>
-                    </tr>
-                </thead>
-                <tbody>
-            """
-
-            for line in master_nodes_output.strip().split('\n'):
-                parts = line.split()
-                if len(parts) >= 8:
-                    node_id = parts[0]
-                    endpoint = parts[1].split('@')[0]
-                    slots = ' '.join([part for part in parts[8:] if '-' in part or part.isdigit()])
-
-                    # Important: Use both "node-id" and "master-node" classes to make extraction easier
-                    html_content += f"""
-                    <tr>
-                        <td><span class="node-id master-node">{node_id}</span></td>
-                        <td>{endpoint}</td>
-                        <td>{slots}</td>
-                    </tr>
-                    """
-
-            html_content += """
-                </tbody>
-            </table>
-            """
-
-        except subprocess.CalledProcessError as e:
-            html_content += f"<p style='color: red;'>Error retrieving master nodes: {str(e)}</p>"
-
-        # Get cluster check information
-        try:
+            # Get cluster check information for slots, keys and replicas
             clusterString = f"{redisBinaryDir}src/redis-cli --cluster check {nodeIP}:{portNumber}"
             if redisPwdAuthentication == 'on':
                 clusterString += f" -a {redisPwd}"
 
             check_output = subprocess.check_output(clusterString, shell=True).decode()
 
-            # Extract only the summary information
-            summary_lines = []
+            # Extract the summary information from the check output
+            node_stats = {}  # Dictionary to store node stats keyed by node ID
 
+            # Parse the cluster check output for stats
             for line in check_output.split('\n'):
-                if '>>>' in line:
-                    break  # Stop when we reach the detailed section
-                summary_lines.append(line)
-
-            # Format the summary information
-            html_content += """
-            <h3 class="section-title">Cluster Slots Summary</h3>
-            <table class="cluster-info-table">
-                <thead>
-                    <tr>
-                        <th>Endpoint</th>
-                        <th>Node ID</th>
-                        <th>Keys</th>
-                        <th>Slots</th>
-                        <th>Replicas</th>
-                    </tr>
-                </thead>
-                <tbody>
-            """
-
-            for line in summary_lines:
                 if '->' in line:
                     parts = line.split('->')
                     if len(parts) >= 2:
                         endpoint_part = parts[0].strip()
                         stats_part = parts[1].strip()
 
-                        endpoint = endpoint_part.split(' ')[0]
-                        node_id = endpoint_part.split('(')[1].split('...')[0] if '(' in endpoint_part else ""
+                        # Extract node ID (short form)
+                        node_id_short = endpoint_part.split('(')[1].split('...')[0] if '(' in endpoint_part else ""
 
+                        # Extract stats
                         keys = stats_part.split('|')[0].strip()
                         slots = stats_part.split('|')[1].strip()
-                        slaves = stats_part.split('|')[2].strip() if len(stats_part.split('|')) > 2 else ""
 
-                        html_content += f"""
-                        <tr>
-                            <td>{endpoint}</td>
-                            <td><span class="node-id">{node_id}</span></td>
-                            <td>{keys}</td>
-                            <td>{slots}</td>
-                            <td>{slaves}</td>
-                        </tr>
-                        """
+                        # Store in dictionary with short node ID as key
+                        node_stats[node_id_short] = {
+                            'keys': keys,
+                            'slots': slots
+                        }
+
+            # Now create the merged table
+            html_content += """
+            <h3 class="section-title">Summary of Cluster</h3>
+            <table class="cluster-info-table">
+                <thead>
+                    <tr>
+                        <th>Node ID</th>
+                        <th>Endpoint</th>
+                        <th>Slot Range</th>
+                        <th>Slots</th>
+                        <th>Keys</th>
+                    </tr>
+                </thead>
+                <tbody>
+            """
+
+            # Process and merge information from both sources
+            for line in master_nodes_output.strip().split('\n'):
+                parts = line.split()
+                if len(parts) >= 8:
+                    node_id = parts[0]
+                    endpoint = parts[1].split('@')[0]
+                    slot_range = ' '.join([part for part in parts[8:] if '-' in part or part.isdigit()])
+
+                    # Get stats from the node_stats dictionary using the node_id prefix
+                    node_id_short = node_id[:8]  # Using first 8 chars as the shortened ID
+                    stats = node_stats.get(node_id_short, {'keys': 'N/A', 'slots': 'N/A',})
+
+                    html_content += f"""
+                    <tr>
+                        <td><span class="node-id master-node">{node_id}</span></td>
+                        <td>{endpoint}</td>
+                        <td>{slot_range}</td>
+                        <td>{stats['slots']}</td>
+                        <td>{stats['keys']}</td>
+                    </tr>
+                    """
 
             html_content += """
                 </tbody>
@@ -1966,12 +1942,11 @@ def slotInfoSimplified_wv(nodeIP, portNumber):
             html_content += """
             <div class="help-info">
                 <p><strong>Note:</strong> To move slots between nodes, use the Node IDs shown above.</p>
-                <p>Copy the source Node ID to the "FROM Node ID" field and the destination Node ID to the "TO Node ID" field.</p>
             </div>
             """
 
         except subprocess.CalledProcessError as e:
-            html_content += f"<p style='color: red;'>Error retrieving cluster status: {str(e)}</p>"
+            html_content += f"<p style='color: red;'>Error retrieving cluster information: {str(e)}</p>"
 
         return html_content
 
@@ -1985,4 +1960,3 @@ def slotInfoSimplified_wv(nodeIP, portNumber):
             <pre>{trace}</pre>
         </div>
         """
-
