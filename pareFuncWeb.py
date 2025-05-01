@@ -95,22 +95,337 @@ def getredisnodeInfo_wv(serverIP):
 
 
 def slotInfo_wv(nodeIP, portNumber):
-    cluster_info = f"<h2>Cluster Information from RedisNode: {nodeIP}:{portNumber}</h2>"
     try:
+        html_content = f"""
+        <style>
+            .cluster-info-table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 15px;
+                font-size: 14px;
+            }}
+            .cluster-info-table th, .cluster-info-table td {{
+                padding: 8px;
+                text-align: left;
+                border: 1px solid #ddd;
+            }}
+            .cluster-info-table th {{
+                background-color: #f2f2f2;
+                font-weight: bold;
+            }}
+            .node-id {{
+                font-family: monospace;
+                background-color: #f8f8f8;
+                padding: 2px 4px;
+                border-radius: 3px;
+                font-size: 0.9em;
+            }}
+            .master-node {{
+                color: #2c7be5;
+                font-weight: bold;
+            }}
+            .slave-node {{
+                color: #95aac9;
+            }}
+            .cluster-check {{
+                background-color: #f9f9f9;
+                padding: 10px;
+                border: 1px solid #e9ecef;
+                border-radius: 4px;
+                margin: 10px 0;
+                font-family: monospace;
+                white-space: pre-wrap;
+            }}
+            .status-ok {{
+                color: #2dce89;
+                font-weight: bold;
+            }}
+            .section-title {{
+                margin-top: 20px;
+                margin-bottom: 10px;
+                border-bottom: 1px solid #e9ecef;
+                padding-bottom: 5px;
+            }}
+        </style>
 
-        cluster_info += "<h3>Cluster Nodes</h3>"
-        cluster_info += subprocess.check_output(redisConnectCmd(nodeIP, portNumber, ' CLUSTER NODES | grep master'),
-                                                shell=True).decode()
+        <h2 class="section-title">Cluster Information from RedisNode: {nodeIP}:{portNumber}</h2>
+        """
+        
+        # Get master nodes information
+        try:
+            master_nodes_output = subprocess.check_output(
+                redisConnectCmd(nodeIP, portNumber, ' CLUSTER NODES | grep master'),
+                shell=True).decode()
+                
+            html_content += """
+            <h3 class="section-title">Master Nodes</h3>
+            <table class="cluster-info-table">
+                <thead>
+                    <tr>
+                        <th>Node ID</th>
+                        <th>Endpoint</th>
+                        <th>Slot Range</th>
+                    </tr>
+                </thead>
+                <tbody>
+            """
+            
+            for line in master_nodes_output.strip().split('\n'):
+                parts = line.split()
+                if len(parts) >= 8:
+                    node_id = parts[0]
+                    endpoint = parts[1].split('@')[0]
+                    slots = ' '.join([part for part in parts[8:] if '-' in part or part.isdigit()])
+                    
+                    html_content += f"""
+                    <tr>
+                        <td><span class="node-id">{node_id}</span></td>
+                        <td>{endpoint}</td>
+                        <td>{slots}</td>
+                    </tr>
+                    """
+            
+            html_content += """
+                </tbody>
+            </table>
+            """
+            
+        except subprocess.CalledProcessError as e:
+            html_content += f"<p style='color: red;'>Error retrieving master nodes: {str(e)}</p>"
+        
+        # Get cluster check information
+        try:
+            clusterString = f"{redisBinaryDir}src/redis-cli --cluster check {nodeIP}:{portNumber}"
+            if redisPwdAuthentication == 'on':
+                clusterString += f" -a {redisPwd}"
+                
+            check_output = subprocess.check_output(clusterString, shell=True).decode()
+            
+            # First part: summary information
+            summary_lines = []
+            detailed_info = []
+            
+            in_detail_section = False
+            
+            for line in check_output.split('\n'):
+                if line.startswith('>>>'):
+                    in_detail_section = True
+                    detailed_info.append(line)
+                elif in_detail_section:
+                    detailed_info.append(line)
+                else:
+                    summary_lines.append(line)
+            
+            # Format the summary information
+            html_content += """
+            <h3 class="section-title">Cluster Slots Summary</h3>
+            <table class="cluster-info-table">
+                <thead>
+                    <tr>
+                        <th>Endpoint</th>
+                        <th>Node ID</th>
+                        <th>Keys</th>
+                        <th>Slots</th>
+                        <th>Replicas</th>
+                    </tr>
+                </thead>
+                <tbody>
+            """
+            
+            for line in summary_lines:
+                if '->' in line:
+                    parts = line.split('->')
+                    if len(parts) >= 2:
+                        endpoint_part = parts[0].strip()
+                        stats_part = parts[1].strip()
+                        
+                        endpoint = endpoint_part.split(' ')[0]
+                        node_id = endpoint_part.split('(')[1].split('...')[0] if '(' in endpoint_part else ""
+                        
+                        keys = stats_part.split('|')[0].strip()
+                        slots = stats_part.split('|')[1].strip()
+                        slaves = stats_part.split('|')[2].strip() if len(stats_part.split('|')) > 2 else ""
+                        
+                        html_content += f"""
+                        <tr>
+                            <td>{endpoint}</td>
+                            <td><span class="node-id">{node_id}</span></td>
+                            <td>{keys}</td>
+                            <td>{slots}</td>
+                            <td>{slaves}</td>
+                        </tr>
+                        """
+            
+            html_content += """
+                </tbody>
+            </table>
+            """
+            
+            # Format the status lines
+            for line in summary_lines:
+                if '[OK]' in line:
+                    html_content += f'<div class="status-ok">{line}</div>'
+                
+            # Format the detailed information
+            html_content += """
+            <h3 class="section-title">Detailed Cluster Status</h3>
+            <div class="cluster-check">
+            """
+            
+            # Master and slave tables
+            master_nodes = []
+            slave_nodes = []
+            
+            current_node = {}
+            for i, line in enumerate(detailed_info):
+                if line.startswith('M:') or line.startswith('S:'):
+                    if current_node:  # Save previous node if any
+                        if current_node['type'] == 'M':
+                            master_nodes.append(current_node)
+                        else:
+                            slave_nodes.append(current_node)
+                    
+                    # Start new node
+                    node_type = 'M' if line.startswith('M:') else 'S'
+                    parts = line.strip()[2:].split()
+                    if len(parts) >= 2:
+                        node_id = parts[0]
+                        endpoint = parts[1]
+                        current_node = {'type': node_type, 'id': node_id, 'endpoint': endpoint, 'slots': '', 'replicas': '', 'replicates': ''}
+                
+                elif 'slots:' in line and current_node:
+                    slots_info = line.strip()
+                    current_node['slots'] = slots_info
+                
+                elif 'replica' in line and current_node:
+                    replicas_info = line.strip()
+                    current_node['replicas'] = replicas_info
+                
+                elif 'replicates' in line and current_node:
+                    replicates_info = line.strip()
+                    current_node['replicates'] = replicates_info
+            
+            # Add the last node
+            if current_node:
+                if current_node['type'] == 'M':
+                    master_nodes.append(current_node)
+                else:
+                    slave_nodes.append(current_node)
+            
+            # Format master nodes
+            html_content += """
+            <h4>Master Nodes</h4>
+            <table class="cluster-info-table">
+                <thead>
+                    <tr>
+                        <th>Node ID</th>
+                        <th>Endpoint</th>
+                        <th>Slots</th>
+                        <th>Replicas</th>
+                    </tr>
+                </thead>
+                <tbody>
+            """
+            
+            for node in master_nodes:
+                slots_display = node['slots'].replace('slots:', '').strip()
+                replicas_display = node['replicas'].strip()
+                
+                html_content += f"""
+                <tr>
+                    <td><span class="node-id master-node">{node['id']}</span></td>
+                    <td>{node['endpoint']}</td>
+                    <td>{slots_display}</td>
+                    <td>{replicas_display}</td>
+                </tr>
+                """
+            
+            html_content += """
+                </tbody>
+            </table>
+            """
+            
+            # Format slave nodes
+            html_content += """
+            <h4>Replica Nodes</h4>
+            <table class="cluster-info-table">
+                <thead>
+                    <tr>
+                        <th>Node ID</th>
+                        <th>Endpoint</th>
+                        <th>Slots</th>
+                        <th>Replicates</th>
+                    </tr>
+                </thead>
+                <tbody>
+            """
+            
+            for node in slave_nodes:
+                slots_display = node['slots'].replace('slots:', '').strip()
+                replicates_display = node['replicates'].replace('replicates', '').strip()
+                
+                html_content += f"""
+                <tr>
+                    <td><span class="node-id slave-node">{node['id']}</span></td>
+                    <td>{node['endpoint']}</td>
+                    <td>{slots_display}</td>
+                    <td><span class="node-id">{replicates_display}</span></td>
+                </tr>
+                """
+            
+            html_content += """
+                </tbody>
+            </table>
+            """
+            
+            # Format the closing checks and status
+            status_sections = []
+            current_section = []
+            
+            for line in detailed_info:
+                if line.startswith('[OK]') or line.startswith('[ERR]'):
+                    if current_section:
+                        status_sections.append('\n'.join(current_section))
+                        current_section = []
+                    status_sections.append(line)
+                elif line.startswith('>>>'):
+                    if current_section:
+                        status_sections.append('\n'.join(current_section))
+                    current_section = [line]
+                else:
+                    current_section.append(line)
+            
+            if current_section:
+                status_sections.append('\n'.join(current_section))
+            
+            for section in status_sections:
+                if '[OK]' in section:
+                    html_content += f'<div class="status-ok">{section}</div>'
+                elif '>>>' in section:
+                    html_content += f'<div>{section}</div>'
+                else:
+                    html_content += f'<div>{section}</div>'
+            
+            html_content += """
+            </div>
+            """
+            
+        except subprocess.CalledProcessError as e:
+            html_content += f"<p style='color: red;'>Error retrieving cluster status: {str(e)}</p>"
+        
+        return html_content
+        
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return f"""
+        <div style="color: red; padding: 10px; border: 1px solid #f8d7da; background-color: #f8d7da;">
+            <h3>Error Retrieving Cluster Information</h3>
+            <p>An error occurred: {str(e)}</p>
+            <pre style="background-color: #f2f2f2; padding: 10px; white-space: pre-wrap;">{trace}</pre>
+        </div>
+        """
 
-        cluster_info += "<h3>Cluster Slots Check</h3>"
-        clusterString = f"{redisBinaryDir}src/redis-cli --cluster check {nodeIP}:{portNumber}"
-        if redisPwdAuthentication == 'on':
-            clusterString += f" -a {redisPwd}"
-        cluster_info += subprocess.check_output(clusterString, shell=True).decode()
-    except subprocess.CalledProcessError as e:
-        cluster_info += f"<p>Error retrieving cluster information from any of the Redis Nodes</p>"
-
-    return cluster_info
 
 def clusterStateInfo_wv(nodeIP, portNumber):
     # Check server availability before attempting to execute the command
@@ -1442,4 +1757,316 @@ def add_delete_node_wv(operation, node_info=None):
             """
 
 
+def move_slots_wv(nodeNumber, fromNodeID, toNodeID, numberOfSlots):
+    """
+    Web interface function to move slots between nodes in the Redis cluster.
 
+    Args:
+        nodeNumber: The node number to use as a contact point
+        fromNodeID: Source node ID to move slots from
+        toNodeID: Destination node ID to move slots to
+        numberOfSlots: Number of slots to move
+
+    Returns:
+        HTML-formatted result of the operation
+    """
+    global logWrite
+
+    try:
+        # Validate the input parameters
+        try:
+            numberOfSlots_int = int(numberOfSlots)
+            fromNodeID_str = str(fromNodeID)
+            toNodeID_str = str(toNodeID)
+        except ValueError as e:
+            return f"""
+            <div class="error-message">
+                <p>Invalid input parameters: {str(e)}</p>
+                <p>Please provide valid node IDs and number of slots.</p>
+            </div>
+            """
+
+        # Capture logs during the operation
+        original_logWrite = logWrite
+        log_messages = []
+
+        def capture_log(*args):
+            if len(args) > 1:
+                log_text = str(args[1])
+                log_messages.append(log_text)
+            original_logWrite(*args)  # Call the original logWrite as well
+
+        # Replace the global logWrite function
+        globals()['logWrite'] = capture_log
+
+        try:
+            # Get contact node information
+            if nodeNumber <= 0 or nodeNumber > len(pareNodes):
+                return f"""
+                <div class="error-message">
+                    <p>Invalid contact node number: {nodeNumber}</p>
+                    <p>Please ensure there is at least one active node in the cluster.</p>
+                </div>
+                """
+
+            nodeIP = pareNodes[nodeNumber - 1][0][0]
+            portNumber = pareNodes[nodeNumber - 1][1][0]
+
+            # First display current slot information
+            log_messages.append(f"Getting slot information from node {nodeIP}:{portNumber}")
+
+            # Verify node IDs exist in the cluster
+            node_check_cmd = f"{redisBinaryDir}src/redis-cli --cluster check {nodeIP}:{portNumber}"
+            if redisPwdAuthentication == 'on':
+                node_check_cmd += f" -a {redisPwd}"
+
+            try:
+                nodes_output = subprocess.check_output(node_check_cmd, shell=True).decode()
+                # Check if fromNodeID and toNodeID are valid
+                if fromNodeID_str not in nodes_output:
+                    return f"""
+                    <div class="error-message">
+                        <p>Source node ID '{fromNodeID_str}' not found in the cluster.</p>
+                        <p>Please verify the node ID and try again.</p>
+                    </div>
+                    """
+                if toNodeID_str not in nodes_output:
+                    return f"""
+                    <div class="error-message">
+                        <p>Destination node ID '{toNodeID_str}' not found in the cluster.</p>
+                        <p>Please verify the node ID and try again.</p>
+                    </div>
+                    """
+            except subprocess.CalledProcessError as e:
+                return f"""
+                <div class="error-message">
+                    <p>Error verifying node IDs: {str(e)}</p>
+                    <p>Please ensure the cluster is accessible and try again.</p>
+                </div>
+                """
+
+            # Execute reshardCluster function
+            log_messages.append(f"Starting slot migration: Moving {numberOfSlots} slots from node {fromNodeID_str} to node {toNodeID_str}")
+
+            # Call the existing reshardCluster function
+            result = reshardCluster(nodeNumber, fromNodeID_str, toNodeID_str, numberOfSlots)
+
+            # Check result and format the response
+            if result:
+                # Format captured logs
+                log_output = "<br>".join([msg.replace('\n', '<br>') for msg in log_messages])
+
+                return f"""
+                <div class="response-container">
+                    <h3>Slot Migration Complete</h3>
+                    <p style="color: green;">Successfully moved {numberOfSlots} slots from node {fromNodeID_str} to node {toNodeID_str}</p>
+                    <div class="log-section">
+                        <h4>Operation Log:</h4>
+                        <pre style="background-color: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto;">{log_output}</pre>
+                    </div>
+                    <p>Note: You may need to refresh the slot information to see the updated distribution.</p>
+                </div>
+                """
+            else:
+                # Format captured logs for error case
+                log_output = "<br>".join([msg.replace('\n', '<br>') for msg in log_messages])
+
+                return f"""
+                <div class="error-message">
+                    <h3>Slot Migration Failed</h3>
+                    <p>Failed to move {numberOfSlots} slots from node {fromNodeID_str} to node {toNodeID_str}</p>
+                    <div class="log-section">
+                        <h4>Error Log:</h4>
+                        <pre style="background-color: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto;">{log_output}</pre>
+                    </div>
+                    <p>Please check the logs for details and try again.</p>
+                </div>
+                """
+        finally:
+            # Restore the original logWrite function
+            globals()['logWrite'] = original_logWrite
+
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return f"""
+        <div class="error-message">
+            <h3>Unexpected Error</h3>
+            <p>An error occurred during slot migration: {str(e)}</p>
+            <pre style="font-size: 12px;">{trace}</pre>
+            <p>Please report this issue to the administrator.</p>
+        </div>
+        """
+
+
+def slotInfoSimplified_wv(nodeIP, portNumber):
+    """
+    Returns a simplified version of the slot information, focused on just the master nodes
+    and cluster slot summary - specifically for the maintenance page.
+    """
+    try:
+        html_content = f"""
+        <style>
+            .cluster-info-table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 15px;
+                font-size: 14px;
+            }}
+            .cluster-info-table th, .cluster-info-table td {{
+                padding: 8px;
+                text-align: left;
+                border: 1px solid #ddd;
+            }}
+            .cluster-info-table th {{
+                background-color: #f2f2f2;
+                font-weight: bold;
+            }}
+            .node-id {{
+                font-family: monospace;
+                background-color: #f8f8f8;
+                padding: 2px 4px;
+                border-radius: 3px;
+                font-size: 0.9em;
+            }}
+            .master-node {{
+                color: #2c7be5;
+                font-weight: bold;
+            }}
+            .section-title {{
+                margin-top: 20px;
+                margin-bottom: 10px;
+                border-bottom: 1px solid #e9ecef;
+                padding-bottom: 5px;
+            }}
+        </style>
+
+        <h2 class="section-title">Cluster Information from RedisNode: {nodeIP}:{portNumber}</h2>
+        """
+
+        # Get master nodes information
+        try:
+            master_nodes_output = subprocess.check_output(
+                redisConnectCmd(nodeIP, portNumber, ' CLUSTER NODES | grep master'),
+                shell=True).decode()
+
+            html_content += """
+            <h3 class="section-title">Master Nodes</h3>
+            <table class="cluster-info-table">
+                <thead>
+                    <tr>
+                        <th>Node ID</th>
+                        <th>Endpoint</th>
+                        <th>Slot Range</th>
+                    </tr>
+                </thead>
+                <tbody>
+            """
+
+            for line in master_nodes_output.strip().split('\n'):
+                parts = line.split()
+                if len(parts) >= 8:
+                    node_id = parts[0]
+                    endpoint = parts[1].split('@')[0]
+                    slots = ' '.join([part for part in parts[8:] if '-' in part or part.isdigit()])
+
+                    html_content += f"""
+                    <tr>
+                        <td><span class="node-id master-node">{node_id}</span></td>
+                        <td>{endpoint}</td>
+                        <td>{slots}</td>
+                    </tr>
+                    """
+
+            html_content += """
+                </tbody>
+            </table>
+            """
+
+        except subprocess.CalledProcessError as e:
+            html_content += f"<p style='color: red;'>Error retrieving master nodes: {str(e)}</p>"
+
+        # Get cluster check information
+        try:
+            clusterString = f"{redisBinaryDir}src/redis-cli --cluster check {nodeIP}:{portNumber}"
+            if redisPwdAuthentication == 'on':
+                clusterString += f" -a {redisPwd}"
+
+            check_output = subprocess.check_output(clusterString, shell=True).decode()
+
+            # Extract only the summary information
+            summary_lines = []
+
+            for line in check_output.split('\n'):
+                if '>>>' in line:
+                    break  # Stop when we reach the detailed section
+                summary_lines.append(line)
+
+            # Format the summary information
+            html_content += """
+            <h3 class="section-title">Cluster Slots Summary</h3>
+            <table class="cluster-info-table">
+                <thead>
+                    <tr>
+                        <th>Endpoint</th>
+                        <th>Node ID</th>
+                        <th>Keys</th>
+                        <th>Slots</th>
+                        <th>Replicas</th>
+                    </tr>
+                </thead>
+                <tbody>
+            """
+
+            for line in summary_lines:
+                if '->' in line:
+                    parts = line.split('->')
+                    if len(parts) >= 2:
+                        endpoint_part = parts[0].strip()
+                        stats_part = parts[1].strip()
+
+                        endpoint = endpoint_part.split(' ')[0]
+                        node_id = endpoint_part.split('(')[1].split('...')[0] if '(' in endpoint_part else ""
+
+                        keys = stats_part.split('|')[0].strip()
+                        slots = stats_part.split('|')[1].strip()
+                        slaves = stats_part.split('|')[2].strip() if len(stats_part.split('|')) > 2 else ""
+
+                        html_content += f"""
+                        <tr>
+                            <td>{endpoint}</td>
+                            <td><span class="node-id">{node_id}</span></td>
+                            <td>{keys}</td>
+                            <td>{slots}</td>
+                            <td>{slaves}</td>
+                        </tr>
+                        """
+
+            html_content += """
+                </tbody>
+            </table>
+            """
+
+            # Add a note about using node IDs for moving slots
+            html_content += """
+            <div style="margin-top: 15px; padding: 10px; background-color: #f8f9fa; border-left: 4px solid #6c757d;">
+                <p><strong>Note:</strong> To move slots between nodes, use the Node IDs shown above.</p>
+                <p>Copy the source Node ID to the "FROM Node ID" field and the destination Node ID to the "TO Node ID" field.</p>
+            </div>
+            """
+
+        except subprocess.CalledProcessError as e:
+            html_content += f"<p style='color: red;'>Error retrieving cluster status: {str(e)}</p>"
+
+        return html_content
+
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return f"""
+        <div style="color: red; padding: 10px; border: 1px solid #f8d7da; background-color: #f8d7da;">
+            <h3>Error Retrieving Cluster Information</h3>
+            <p>An error occurred: {str(e)}</p>
+            <pre style="background-color: #f2f2f2; padding: 10px; white-space: pre-wrap;">{trace}</pre>
+        </div>
+        """

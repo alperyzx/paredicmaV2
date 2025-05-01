@@ -248,6 +248,7 @@ async def monitor_slot_info():
             isPing = pingredisNode(nodeIP, portNumber)
             if isPing:
                 try:
+                    # Use the full detailed version for the monitor page
                     cluster_info = slotInfo_wv(nodeIP, portNumber)
                     if cluster_info:
                         # Format the cluster information in HTML
@@ -1534,11 +1535,31 @@ async def maintain():
 
     <button class="collapsible">2 - Move Slot(s)</button>
     <div class="content">
-        <div style="text-align: center; padding: 20px; color: #888;">
-            <p><i class="fas fa-tools"></i> This feature is not implemented yet.</p>
-            <p>Move slots between Redis master nodes to rebalance your cluster.</p>
-            <button onclick="fetchNotImplemented('move-slots')" class="btn-disabled">Move Slots</button>
+        <h3>Move Redis Cluster Slots</h3>
+        <p>Move slots between master nodes to rebalance your cluster.</p>
+        
+        <div id="slot-info-container" style="margin-bottom: 20px;">
+            <button class="maintenance-button" onclick="fetchCurrentSlotInfo()">View Current Slots Distribution</button>
+            <div id="current-slot-info" style="margin-top: 10px; max-height: 300px; overflow: auto;"></div>
         </div>
+        
+        <form id="move-slots-form" onsubmit="moveSlots(event)">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <label for="fromNodeID" style="width: 150px;">FROM Node ID:</label>
+                <input type="text" id="fromNodeID" name="fromNodeID" required placeholder="Source node ID">
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <label for="toNodeID" style="width: 150px;">TO Node ID:</label>
+                <input type="text" id="toNodeID" name="toNodeID" required placeholder="Destination node ID">
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <label for="numberOfSlots" style="width: 150px;">Number of Slots:</label>
+                <input type="number" id="numberOfSlots" name="numberOfSlots" required placeholder="Number of slots to move" min="1" max="16384">
+            </div>
+            <div style="display: flex; justify-content: flex-start;">
+                <input class="maintenance-button" type="submit" value="Move Slots" style="width: auto;">
+            </div>
+        </form>
         <div id="move-slots-result" style="margin-top: 10px;"></div>
     </div>
 
@@ -1683,6 +1704,36 @@ async def maintain():
                 }})
                 .catch(error => {{
                     document.getElementById(feature + '-result').innerHTML = "<p style='color: red;'>Error: " + error + "</p>";
+                }});
+        }}
+        
+        function fetchCurrentSlotInfo() {{
+            document.getElementById('current-slot-info').innerHTML = "<p>Loading slot information...</p>";
+            fetch('/maintain/slot-info/')
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('current-slot-info').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('current-slot-info').innerHTML = "<p style='color: red;'>Error fetching slot information: " + error + "</p>";
+                }});
+        }}
+        
+        function moveSlots(event) {{
+            event.preventDefault();
+            const formData = new FormData(document.getElementById('move-slots-form'));
+            const params = new URLSearchParams(formData).toString();
+            
+            // Show loading indicator
+            document.getElementById('move-slots-result').innerHTML = "<p>Processing slot migration. This may take some time...</p>";
+            
+            fetch('/maintain/move-slots/?' + params)
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('move-slots-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('move-slots-result').innerHTML = "<p style='color: red;'>Error: " + error + "</p>";
                 }});
         }}
     </script>
@@ -1861,23 +1912,104 @@ async def delete_node(nodeId: str, confirmed: bool = False):
         </div>
         """)
 
+@app.get("/maintain/slot-info/", response_class=HTMLResponse)
+async def maintain_slot_info():
+    """
+    Endpoint to display simplified slot information for moving slots in the maintenance page.
+    """
+    try:
+        # Find a working node to get slot information
+        for pareNode in pareNodes:
+            nodeIP = pareNode[0][0]
+            portNumber = pareNode[1][0]
+            if pareNode[4]:  # Check if active
+                isPing = pingredisNode(nodeIP, portNumber)
+                if isPing:
+                    try:
+                        # Use the simplified function for maintenance page
+                        slot_info = slotInfoSimplified_wv(nodeIP, portNumber)
+                        
+                        # Return the results in a more readable format
+                        return HTMLResponse(content=f"""
+                        <div class="response-container">
+                            <div style="max-height: 400px; overflow-y: auto; margin-top: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                                {slot_info}
+                            </div>
+                        </div>
+                        """)
+                    except Exception as e:
+                        import traceback
+                        return HTMLResponse(content=f"""
+                        <div class="error-message">
+                            <h4>Error Getting Slot Information</h4>
+                            <p>Error retrieving slot information from node {nodeIP}:{portNumber}</p>
+                            <p>Error details: {str(e)}</p>
+                            <pre style="font-size: 12px;">{traceback.format_exc()}</pre>
+                        </div>
+                        """)
+
+        # If no active node was found
+        return HTMLResponse(content="""
+        <div class="error-message">
+            <h4>No Active Nodes</h4>
+            <p>No active Redis nodes were found to retrieve slot information.</p>
+            <p>Please ensure at least one node in your cluster is accessible.</p>
+        </div>
+        """)
+    except Exception as e:
+        import traceback
+        return HTMLResponse(content=f"""
+        <div class="error-message">
+            <h4>Unexpected Error</h4>
+            <p>An error occurred while trying to retrieve slot information: {str(e)}</p>
+            <pre style="font-size: 12px;">{traceback.format_exc()}</pre>
+        </div>
+        """)
+
 @app.get("/maintain/move-slots/", response_class=HTMLResponse)
-async def move_slots():
+async def move_slots(fromNodeID: str, toNodeID: str, numberOfSlots: str):
     """
-    Endpoint for moving slots between Redis nodes (not implemented yet).
+    Endpoint to move slots between Redis nodes.
     """
-    return HTMLResponse(content="""
-    <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin: 10px 0;">
-        <h4>Feature Not Implemented</h4>
-        <p>The Move Slots feature is not implemented yet. This will allow you to:</p>
-        <ul>
-            <li>Move specific slots between Redis master nodes</li>
-            <li>Rebalance slots across the cluster</li>
-            <li>Optimize data distribution</li>
-        </ul>
-        <p>This feature will be available in a future version.</p>
-    </div>
-    """)
+    try:
+        # Basic input validation
+        if not fromNodeID or not toNodeID or not numberOfSlots:
+            return HTMLResponse(content="<p style='color: red;'>All fields are required.</p>")
+
+        if not numberOfSlots.isdigit():
+            return HTMLResponse(content="<p style='color: red;'>Number of slots must be a positive integer.</p>")
+
+        slots = int(numberOfSlots)
+        if slots <= 0 or slots >= 16385:
+            return HTMLResponse(content="<p style='color: red;'>Number of slots must be between 1 and 16384.</p>")
+
+        # Find a contact node for the operation
+        contact_node_number = 0
+        for index, pareNode in enumerate(pareNodes):
+            if pareNode[4]:  # If node is active
+                nodeIP = pareNode[0][0]
+                portNumber = pareNode[1][0]
+                if pingredisNode(nodeIP, portNumber):
+                    contact_node_number = index + 1
+                    break
+
+        if contact_node_number == 0:
+            return HTMLResponse(content="<p style='color: red;'>No active Redis node found to perform the operation.</p>")
+
+        # Call the function to move slots
+        result = move_slots_wv(contact_node_number, fromNodeID, toNodeID, numberOfSlots)
+        return HTMLResponse(content=result)
+
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return HTMLResponse(content=f"""
+        <div class="error-message">
+            <h3>Error Moving Slots</h3>
+            <p>An unexpected error occurred: {str(e)}</p>
+            <pre style="font-size: 12px;">{trace}</pre>
+        </div>
+        """)
 
 @app.get("/maintain/version-upgrade/", response_class=HTMLResponse)
 async def version_upgrade():
@@ -1972,6 +2104,4 @@ async def slot_balancer():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
-
-
 
