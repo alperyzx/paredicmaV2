@@ -100,127 +100,117 @@ def slotInfo_wv(nodeIP, portNumber):
         <h2 class="section-title">Cluster Information from RedisNode: {nodeIP}:{portNumber}</h2>
         """
         
-        # Get master nodes information
+        # Collect master nodes information and slot information
         try:
             master_nodes_output = subprocess.check_output(
                 redisConnectCmd(nodeIP, portNumber, ' CLUSTER NODES | grep master'),
                 shell=True).decode()
-                
+
+            # Get cluster check information for slots, keys and replicas
+            clusterString = f"{redisBinaryDir}src/redis-cli --cluster check {nodeIP}:{portNumber}"
+            if redisPwdAuthentication == 'on':
+                clusterString += f" -a {redisPwd}"
+
+            check_output = subprocess.check_output(clusterString, shell=True).decode()
+
+            # Extract the summary information from the check output
+            node_stats = {}  # Dictionary to store node stats keyed by node ID
+
+            # Parse the cluster check output for stats
+            for line in check_output.split('\n'):
+                if '->' in line:
+                    parts = line.split('->')
+                    if len(parts) >= 2:
+                        endpoint_part = parts[0].strip()
+                        stats_part = parts[1].strip()
+
+                        # Extract node ID (short form)
+                        node_id_short = endpoint_part.split('(')[1].split('...')[0] if '(' in endpoint_part else ""
+
+                        # Extract stats
+                        keys = stats_part.split('|')[0].strip()
+                        slots = stats_part.split('|')[1].strip()
+                        slaves = stats_part.split('|')[2].strip() if len(stats_part.split('|')) > 2 else ""
+
+                        # Store in dictionary with short node ID as key
+                        node_stats[node_id_short] = {
+                            'keys': keys,
+                            'slots': slots,
+                            'slaves': slaves
+                        }
+
+            # Now create the consolidated table
             html_content += """
-            <h3 class="section-title">Master Nodes</h3>
+            <h3 class="section-title">Summary of Cluster</h3>
             <table class="cluster-info-table">
                 <thead>
                     <tr>
                         <th>Node ID</th>
                         <th>Endpoint</th>
                         <th>Slot Range</th>
-                    </tr>
-                </thead>
-                <tbody>
-            """
-            
-            for line in master_nodes_output.strip().split('\n'):
-                parts = line.split()
-                if len(parts) >= 8:
-                    node_id = parts[0]
-                    endpoint = parts[1].split('@')[0]
-                    slots = ' '.join([part for part in parts[8:] if '-' in part or part.isdigit()])
-                    
-                    html_content += f"""
-                    <tr>
-                        <td><span class="node-id">{node_id}</span></td>
-                        <td>{endpoint}</td>
-                        <td>{slots}</td>
-                    </tr>
-                    """
-            
-            html_content += """
-                </tbody>
-            </table>
-            """
-            
-        except subprocess.CalledProcessError as e:
-            html_content += f"<p style='color: red;'>Error retrieving master nodes: {str(e)}</p>"
-        
-        # Get cluster check information
-        try:
-            clusterString = f"{redisBinaryDir}src/redis-cli --cluster check {nodeIP}:{portNumber}"
-            if redisPwdAuthentication == 'on':
-                clusterString += f" -a {redisPwd}"
-                
-            check_output = subprocess.check_output(clusterString, shell=True).decode()
-            
-            # First part: summary information
-            summary_lines = []
-            detailed_info = []
-            
-            in_detail_section = False
-            
-            for line in check_output.split('\n'):
-                if line.startswith('>>>'):
-                    in_detail_section = True
-                    detailed_info.append(line)
-                elif in_detail_section:
-                    detailed_info.append(line)
-                else:
-                    summary_lines.append(line)
-            
-            # Format the summary information
-            html_content += """
-            <h3 class="section-title">Cluster Slots Summary</h3>
-            <table class="cluster-info-table">
-                <thead>
-                    <tr>
-                        <th>Endpoint</th>
-                        <th>Node ID</th>
-                        <th>Keys</th>
                         <th>Slots</th>
+                        <th>Keys</th>
                         <th>Replicas</th>
                     </tr>
                 </thead>
                 <tbody>
             """
-            
-            for line in summary_lines:
-                if '->' in line:
-                    parts = line.split('->')
-                    if len(parts) >= 2:
-                        endpoint_part = parts[0].strip()
-                        stats_part = parts[1].strip()
-                        
-                        endpoint = endpoint_part.split(' ')[0]
-                        node_id = endpoint_part.split('(')[1].split('...')[0] if '(' in endpoint_part else ""
-                        
-                        keys = stats_part.split('|')[0].strip()
-                        slots = stats_part.split('|')[1].strip()
-                        slaves = stats_part.split('|')[2].strip() if len(stats_part.split('|')) > 2 else ""
-                        
-                        html_content += f"""
-                        <tr>
-                            <td>{endpoint}</td>
-                            <td><span class="node-id">{node_id}</span></td>
-                            <td>{keys}</td>
-                            <td>{slots}</td>
-                            <td>{slaves}</td>
-                        </tr>
-                        """
-            
+
+            # Process and merge information from both sources
+            for line in master_nodes_output.strip().split('\n'):
+                parts = line.split()
+                if len(parts) >= 8:
+                    node_id = parts[0]
+                    endpoint = parts[1].split('@')[0]
+                    slot_range = ' '.join([part for part in parts[8:] if '-' in part or part.isdigit()])
+
+                    # Get stats from the node_stats dictionary using the node_id prefix
+                    node_id_short = node_id[:8]  # Using first 8 chars as the shortened ID
+                    stats = node_stats.get(node_id_short, {'keys': 'N/A', 'slots': 'N/A', 'slaves': 'N/A'})
+
+                    html_content += f"""
+                    <tr>
+                        <td><span class="node-id master-node">{node_id}</span></td>
+                        <td>{endpoint}</td>
+                        <td>{slot_range}</td>
+                        <td>{stats['slots']}</td>
+                        <td>{stats['keys']}</td>
+                        <td>{stats['slaves']}</td>
+                    </tr>
+                    """
+
             html_content += """
                 </tbody>
             </table>
             """
             
             # Format the status lines
-            for line in summary_lines:
+            status_lines = []
+            for line in check_output.split('\n'):
                 if '[OK]' in line:
+                    status_lines.append(line)
+
+            if status_lines:
+                html_content += "<div class='cluster-check'>"
+                for line in status_lines:
                     html_content += f'<div class="status-ok">{line}</div>'
-                
-            # Format the detailed information
+                html_content += "</div>"
+
+            # Format the detailed information - keep the detailed node information section
             html_content += """
             <h3 class="section-title">Detailed Cluster Status</h3>
             <div class="cluster-check">
             """
             
+            # Extract detailed node information from the check output
+            detailed_info = []
+            in_detail_section = False
+
+            for line in check_output.split('\n'):
+                if line.startswith('>>>'):
+                    in_detail_section = True
+                detailed_info.append(line) if in_detail_section else None
+
             # Master and slave tables
             master_nodes = []
             slave_nodes = []
