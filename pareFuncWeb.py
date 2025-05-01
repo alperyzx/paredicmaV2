@@ -97,57 +97,6 @@ def getredisnodeInfo_wv(serverIP):
 def slotInfo_wv(nodeIP, portNumber):
     try:
         html_content = f"""
-        <style>
-            .cluster-info-table {{
-                width: 100%;
-                border-collapse: collapse;
-                margin-bottom: 15px;
-                font-size: 14px;
-            }}
-            .cluster-info-table th, .cluster-info-table td {{
-                padding: 8px;
-                text-align: left;
-                border: 1px solid #ddd;
-            }}
-            .cluster-info-table th {{
-                background-color: #f2f2f2;
-                font-weight: bold;
-            }}
-            .node-id {{
-                font-family: monospace;
-                background-color: #f8f8f8;
-                padding: 2px 4px;
-                border-radius: 3px;
-                font-size: 0.9em;
-            }}
-            .master-node {{
-                color: #2c7be5;
-                font-weight: bold;
-            }}
-            .slave-node {{
-                color: #95aac9;
-            }}
-            .cluster-check {{
-                background-color: #f9f9f9;
-                padding: 10px;
-                border: 1px solid #e9ecef;
-                border-radius: 4px;
-                margin: 10px 0;
-                font-family: monospace;
-                white-space: pre-wrap;
-            }}
-            .status-ok {{
-                color: #2dce89;
-                font-weight: bold;
-            }}
-            .section-title {{
-                margin-top: 20px;
-                margin-bottom: 10px;
-                border-bottom: 1px solid #e9ecef;
-                padding-bottom: 5px;
-            }}
-        </style>
-
         <h2 class="section-title">Cluster Information from RedisNode: {nodeIP}:{portNumber}</h2>
         """
         
@@ -419,10 +368,10 @@ def slotInfo_wv(nodeIP, portNumber):
         import traceback
         trace = traceback.format_exc()
         return f"""
-        <div style="color: red; padding: 10px; border: 1px solid #f8d7da; background-color: #f8d7da;">
+        <div class="error-message">
             <h3>Error Retrieving Cluster Information</h3>
             <p>An error occurred: {str(e)}</p>
-            <pre style="background-color: #f2f2f2; padding: 10px; white-space: pre-wrap;">{trace}</pre>
+            <pre>{trace}</pre>
         </div>
         """
 
@@ -1906,41 +1855,6 @@ def slotInfoSimplified_wv(nodeIP, portNumber):
     """
     try:
         html_content = f"""
-        <style>
-            .cluster-info-table {{
-                width: 100%;
-                border-collapse: collapse;
-                margin-bottom: 15px;
-                font-size: 14px;
-            }}
-            .cluster-info-table th, .cluster-info-table td {{
-                padding: 8px;
-                text-align: left;
-                border: 1px solid #ddd;
-            }}
-            .cluster-info-table th {{
-                background-color: #f2f2f2;
-                font-weight: bold;
-            }}
-            .node-id {{
-                font-family: monospace;
-                background-color: #f8f8f8;
-                padding: 2px 4px;
-                border-radius: 3px;
-                font-size: 0.9em;
-            }}
-            .master-node {{
-                color: #2c7be5;
-                font-weight: bold;
-            }}
-            .section-title {{
-                margin-top: 20px;
-                margin-bottom: 10px;
-                border-bottom: 1px solid #e9ecef;
-                padding-bottom: 5px;
-            }}
-        </style>
-
         <h2 class="section-title">Cluster Information from RedisNode: {nodeIP}:{portNumber}</h2>
         """
 
@@ -2050,7 +1964,7 @@ def slotInfoSimplified_wv(nodeIP, portNumber):
 
             # Add a note about using node IDs for moving slots
             html_content += """
-            <div style="margin-top: 15px; padding: 10px; background-color: #f8f9fa; border-left: 4px solid #6c757d;">
+            <div class="help-info">
                 <p><strong>Note:</strong> To move slots between nodes, use the Node IDs shown above.</p>
                 <p>Copy the source Node ID to the "FROM Node ID" field and the destination Node ID to the "TO Node ID" field.</p>
             </div>
@@ -2065,9 +1979,10 @@ def slotInfoSimplified_wv(nodeIP, portNumber):
         import traceback
         trace = traceback.format_exc()
         return f"""
-        <div style="color: red; padding: 10px; border: 1px solid #f8d7da; background-color: #f8d7da;">
+        <div class="error-message">
             <h3>Error Retrieving Cluster Information</h3>
             <p>An error occurred: {str(e)}</p>
-            <pre style="background-color: #f2f2f2; padding: 10px; white-space: pre-wrap;">{trace}</pre>
+            <pre>{trace}</pre>
         </div>
         """
+

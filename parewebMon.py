@@ -700,6 +700,103 @@ css_style = """
                 color: #4a9cf7 !important; /* Lighter blue color for better contrast in dark mode */
             }
         }
+        
+        /* Added styles for slot information display */
+        .cluster-info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        .cluster-info-table th, .cluster-info-table td {
+            padding: 8px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        .cluster-info-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .node-id {
+            font-family: monospace;
+            background-color: #f8f8f8;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        .master-node {
+            color: #2c7be5;
+            font-weight: bold;
+        }
+        .slave-node {
+            color: #95aac9;
+        }
+        .cluster-check {
+            background-color: #f9f9f9;
+            padding: 10px;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .status-ok {
+            color: #2dce89;
+            font-weight: bold;
+        }
+        .section-title {
+            margin-top: 20px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 5px;
+        }
+        .log-section {
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+        .help-info {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #6c757d;
+        }
+        
+        /* Dark mode for slot information display */
+        @media (prefers-color-scheme: dark) {
+            .cluster-info-table th {
+                background-color: #333;
+            }
+            .cluster-info-table tr:nth-child(even) {
+                background-color: #222;
+            }
+            .cluster-info-table tr:hover {
+                background-color: #444;
+            }
+            .cluster-info-table th, .cluster-info-table td {
+                border: 1px solid #444;
+            }
+            .node-id {
+                background-color: #333;
+                border: 1px solid #555;
+            }
+            .master-node {
+                color: #4a9cf7;
+            }
+            .slave-node {
+                color: #b3c9e6;
+            }
+            .cluster-check {
+                background-color: #222;
+                border: 1px solid #444;
+            }
+            .help-info {
+                background-color: #222;
+                border-left: 4px solid #555;
+            }
+            .section-title {
+                border-bottom: 1px solid #444;
+            }
+        }
     </style>
 """
 
@@ -1738,7 +1835,7 @@ async def maintain():
                 // If we couldn't find node IDs with the class approach, try regex as fallback
                 if (nodeElements.length === 0) {{
                     // Use regex to extract node IDs from table rows
-                    const nodeIdRegex = /<td><span class="node-id.*?">(.*?)<\/span><\/td>/g;
+                    const nodeIdRegex = new RegExp(String.raw`<td><span class="node-id.*?">(.*?)<\\/span><\\/td>`, 'g');
                     const matches = [...htmlContent.matchAll(nodeIdRegex)];
                     
                     if (matches.length > 0) {{
@@ -2228,5 +2325,7 @@ async def slot_balancer():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+
+
 
 
