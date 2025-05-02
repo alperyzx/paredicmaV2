@@ -1668,7 +1668,7 @@ async def maintain():
      <button class="collapsible">3 - Redis Cluster Nodes Version Upgrade</button>
      <div class="content">
          <h3>Download Redis Release Package</h3>
-         <p>Download a specific Redis version tarball from <a href="https://download.redis.io/releases/" target="_blank">download.redis.io/releases/</a> to the server's current working directory.</p>
+         <p>Download a specific Redis version tarball from <a href="https://download.redis.io/releases/" target="_blank">download.redis.io/releases/</a> to project directory.</p>
          <form id="download-redis-form" onsubmit="downloadRedisVersion(event)">
              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
                  <label for="redis_filename" style="min-width: 20px;"> <button type="submit" id="download-redis-button" class="maintenance-button btn-disabled" disabled><i class="fas fa-download"></i> Download</button>
