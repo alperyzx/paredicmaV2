@@ -5,6 +5,7 @@
 
 import os
 import subprocess
+import traceback
 
 from pareNodeList import *
 from pareConfig import *
@@ -1950,3 +1951,105 @@ def slotInfoSimplified_wv(nodeIP, portNumber):
             <pre>{trace}</pre>
         </div>
         """
+
+
+def download_redis_version_wv(redis_filename: str):
+    """
+    Downloads a specific Redis version package from the official release site
+    to the current working directory.
+
+    Args:
+        redis_filename: The filename of the Redis release (e.g., 'redis-7.2.4.tar.gz').
+
+    Returns:
+        An HTML string indicating the result of the download attempt.
+    """
+    base_url = "https://download.redis.io/releases/"
+    download_url = f"{base_url}{redis_filename}"
+    # Use the current working directory for downloads
+    download_dir = os.getcwd()
+    download_path = os.path.join(download_dir, redis_filename)
+
+    # Construct the wget command
+    # Use -P to specify the download directory
+    # Use --spider to check if the file exists before downloading
+    # Use -q for quiet output during download
+    check_command = ['wget', '--spider', download_url]
+    # Use -nc to avoid downloading if the file already exists locally
+    download_command = ['wget', '-P', download_dir, '-q', '-nc', download_url]
+
+    try:
+        # Check if the file exists on the remote server
+        print(f"Checking availability: {download_url}")
+        check_process = subprocess.run(check_command, capture_output=True, text=True, check=False)
+        if check_process.returncode != 0:
+            error_message = f"File not found at {download_url} or network error."
+            if "404 Not Found" in check_process.stderr:
+                error_message = f"Error: Release file '{redis_filename}' not found on redis.io. Please check the version."
+            return f"""
+            <div class="error-message">
+                <p>Download Check Failed:</p>
+                <p>{error_message}</p>
+                <pre>{check_process.stderr}</pre>
+            </div>
+            """
+
+        # If check passes, proceed with download
+        print(f"Attempting to download: {download_url} to {download_dir}")
+        download_process = subprocess.run(download_command, capture_output=True, text=True, check=True)
+
+        # Verify download
+        if os.path.exists(download_path):
+            # Check if wget actually downloaded or if the file already existed (-nc option)
+            if "saved" in download_process.stderr or download_process.stderr == "": # Wget might not output anything if file exists and -nc is used
+                 return f"""
+                 <div class="response-container" style="color: green;">
+                     <p>Successfully downloaded '{redis_filename}' to '{download_dir}'.</p>
+                 </div>
+                 """
+            else:
+                 # Wget with -nc might return 0 even if it didn't download because the file exists
+                 return f"""
+                 <div class="response-container" style="color: orange;">
+                     <p>File '{redis_filename}' already exists in '{download_dir}'. Download skipped.</p>
+                 </div>
+                 """
+        else:
+            # This case might occur if wget succeeded (returncode 0) but the file isn't there.
+             return f"""
+            <div class="error-message">
+                <p>Download command executed but file not found at '{download_path}'.</p>
+                <pre>Wget stdout: {download_process.stdout}\nWget stderr: {download_process.stderr}</pre>
+            </div>
+            """
+
+    except subprocess.CalledProcessError as e:
+        # Handle cases where wget fails (e.g., network issues during download)
+        return f"""
+        <div class="error-message">
+            <p>Error downloading '{redis_filename}':</p>
+            <pre>{e.stderr}</pre>
+        </div>
+        """
+    except FileNotFoundError:
+         return f"""
+        <div class="error-message">
+            <p>Error: 'wget' command not found. Please ensure wget is installed and in your system's PATH.</p>
+        </div>
+        """
+    except Exception as e:
+        trace = traceback.format_exc()
+        return f"""
+        <div class="error-message">
+            <p>An unexpected error occurred during download:</p>
+            <pre>{str(e)}\n{trace}</pre>
+        </div>
+        """
+
+# Example usage (for testing purposes):
+# Ensure you are in a directory where you have write permissions
+# result_exists = download_redis_version_wv("redis-7.2.4.tar.gz") # Assuming it exists
+# print(result_exists)
+# result_nonexistent = download_redis_version_wv("redis-nonexistent-version.tar.gz")
+# print(result_nonexistent)
+

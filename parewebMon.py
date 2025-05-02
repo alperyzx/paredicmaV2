@@ -1664,15 +1664,34 @@ async def maintain():
         <div id="move-slots-result" style="margin-top: 10px;"></div>
     </div>
 
-    <button class="collapsible">3 - Redis Cluster Nodes Version Upgrade</button>
-    <div class="content">
-        <div style="text-align: center; padding: 20px; color: #888;">
-            <p><i class="fas fa-tools"></i> This feature is not implemented yet.</p>
-            <p>Upgrade Redis nodes to a newer version with minimal downtime.</p>
-            <button onclick="fetchNotImplemented('version-upgrade')" class="btn-disabled">Version Upgrade</button>
-        </div>
-        <div id="version-upgrade-result" style="margin-top: 10px;"></div>
-    </div>
+ <!-- Updated Section 3 -->
+     <button class="collapsible">3 - Redis Cluster Nodes Version Upgrade</button>
+     <div class="content">
+         <h3>Download Redis Release Package</h3>
+         <p>Download a specific Redis version tarball from <a href="https://download.redis.io/releases/" target="_blank">download.redis.io/releases/</a> to the server's current working directory.</p>
+         <form id="download-redis-form" onsubmit="downloadRedisVersion(event)">
+             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                 <label for="redis_filename" style="min-width: 20px;"> <button type="submit" id="download-redis-button" class="maintenance-button btn-disabled" disabled><i class="fas fa-download"></i> Download</button>
+</label>
+                 <input type="text" id="redis_filename" name="redis_filename" required placeholder="e.g., redis-7.2.4.tar.gz" style="width:250px;">
+                  <span id="filename-validation-msg" style="color: red; font-size: 0.9em; margin-left: 10px;"></span> <!-- For validation message -->
+             </div>
+         </form>
+         <div id="version-upgrade-result" style="margin-top: 10px;">
+             <!-- Download results will appear here -->
+         </div>
+         <hr style="margin: 20px 0;">
+         <h3>Upgrade Process (Manual Steps)</h3>
+         <p>The actual upgrade process currently requires manual steps on the server:</p>
+         <ol>
+             <li>Download the desired Redis version using the form above.</li>
+             <li>Extract the downloaded tarball (e.g., `tar xzf redis-X.Y.Z.tar.gz`).</li>
+             <li>Navigate into the extracted directory (e.g., `cd redis-X.Y.Z`).</li>
+             <li>Compile Redis (`make`).</li>
+             <li>Perform a rolling upgrade of your nodes, replacing the `redis-server` binary on each node one by one (slaves first, then masters). Ensure you handle failovers appropriately if needed.</li>
+         </ol>
+         <p><strong>Note:</strong> A fully automated upgrade feature is planned for future versions.</p>
+     </div>
 
     <button class="collapsible">4 - Redis Cluster Nodes Version Control</button>
     <div class="content">
@@ -1727,6 +1746,92 @@ async def maintain():
                 }}
             }});
         }});
+        
+        const redisFilenameInput = document.getElementById('redis_filename');
+        const downloadButton = document.getElementById('download-redis-button');
+        const validationMsg = document.getElementById('filename-validation-msg');
+        const downloadResultDiv = document.getElementById('version-upgrade-result'); // Renamed for clarity
+
+   function validateRedisFilename() {{
+       const filename = redisFilenameInput.value.trim();
+       const isValid = filename.startsWith('redis-') && filename.endsWith('.tar.gz');
+   
+       if (isValid) {{
+           downloadButton.disabled = false;
+           downloadButton.classList.remove('btn-disabled'); // Use existing CSS class
+           validationMsg.textContent = ''; // Clear validation message
+       }} else {{
+           downloadButton.disabled = true;
+           downloadButton.classList.add('btn-disabled');
+           if (filename === '') {{
+               validationMsg.textContent = ''; // Don't show error if empty yet
+           }} else {{
+               validationMsg.textContent = 'Must start with "redis-" and end with ".tar.gz"';
+           }}
+       }}
+       return isValid; // Return validation status
+   }}
+   
+   // Add event listener to the input field
+   if (redisFilenameInput) {{
+       redisFilenameInput.addEventListener('input', validateRedisFilename);
+       // Initial validation check in case the field is pre-filled
+       validateRedisFilename();
+   }}
+   
+   function downloadRedisVersion(event) {{
+       event.preventDefault(); // Prevent default form submission
+   
+       // Re-validate before submitting
+       if (!validateRedisFilename()) {{
+           downloadResultDiv.innerHTML = '<div class="error-message"><p>Invalid filename format. Please ensure it starts with "redis-" and ends with ".tar.gz".</p></div>';
+           return; // Stop if validation fails
+       }}
+   
+       const form = document.getElementById('download-redis-form');
+       const formData = new FormData(form);
+       // Trim the filename when retrieving it
+       const redisFilename = formData.get('redis_filename').trim();
+   
+       // Clear previous results and show loading message
+       downloadResultDiv.innerHTML = '<p>Attempting to download...</p>';
+   
+       // Construct the URL with the query parameter
+       const url = `/maintain/download-redis/?redis_filename=${{encodeURIComponent(redisFilename)}}`;
+   
+       fetch(url)
+           .then(response => {{
+               if (!response.ok) {{
+                   // Try to read the response body for error details
+                   return response.text().then(text => {{
+                       // Attempt to parse as HTML to extract user-friendly message if possible
+                       try {{
+                           const parser = new DOMParser();
+                           const doc = parser.parseFromString(text, "text/html");
+                           const errorElement = doc.querySelector('.error-message p'); // Look for <p> inside .error-message
+                           if (errorElement) {{
+                               throw new Error(`Server error: ${{errorElement.textContent}} (Status: ${{response.status}})`);
+                           }}
+                       }} catch (parseError) {{
+                           // Fallback if parsing fails or structure is unexpected
+                           console.error("Could not parse error response:", parseError);
+                       }}
+                       // Fallback to raw text or generic message
+                       throw new Error(`Download failed: ${{response.statusText}} (Status: ${{response.status}}). ${{text ? 'Details: ' + text.substring(0, 200) : ''}}`);
+                   }});
+               }}
+               return response.text(); // If OK, read the response body as text (HTML)
+           }})
+           .then(html => {{
+               // Display the HTML response from the server
+               downloadResultDiv.innerHTML = html;
+           }})
+           .catch(error => {{
+               console.error('Error downloading Redis version:', error);
+               // Display a user-friendly error message
+               downloadResultDiv.innerHTML = `<div class="error-message"><p>Error during download:</p><pre>${{error.message}}</pre></div>`;
+           }});
+   }}
 
         function toggleMasterDropdown() {{
             const nodeType = document.getElementById('nodeType').value;
@@ -2249,6 +2354,33 @@ async def version_upgrade():
         <p>This feature will be available in a future version.</p>
     </div>
     """)
+
+
+# Add this endpoint within the Maintenance Section of parewebMon.py
+
+@app.get("/maintain/download-redis/", response_class=HTMLResponse)
+async def maintain_download_redis(redis_filename: str = Query(..., title="Redis Filename", description="The exact filename of the Redis release to download (e.g., redis-7.2.4.tar.gz)")):
+    """
+    Endpoint to download a specific Redis version package.
+    Calls the download_redis_version_wv function.
+    """
+    try:
+        # Call the function from pareFuncWeb.py
+        result_html = download_redis_version_wv(redis_filename)
+        # The function already returns HTML, so wrap it in HTMLResponse
+        return HTMLResponse(content=result_html)
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        # Return an error message in the standard HTML format
+        error_html = f"""
+        <div class="error-message">
+            <p>An unexpected error occurred while trying to initiate the download:</p>
+            <pre>{str(e)}\n{trace}</pre>
+        </div>
+        """
+        return HTMLResponse(content=error_html, status_code=500)
+
 
 @app.get("/maintain/version-control/", response_class=HTMLResponse)
 async def version_control():
