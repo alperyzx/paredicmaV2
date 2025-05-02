@@ -1621,39 +1621,38 @@ def restartNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores):
 
 
 def redisBinaryCopier(myServerIP, myRedisVersion):
-
-    if os.path.exists(redisBinaryDir) and os.listdir(redisBinaryDir):  # Check if the directory exists and has content
-        logWrite(pareLogFile, bcolors.OKBLUE + ':: ' + myServerIP + ' :: Skipping copy - Redis binary already exists.' + bcolors.ENDC)
-        return True  # Skip to the next instance
-
     if myServerIP == pareServerIp:
         # Check if the directory exists locally
         if not makeDir(redisBinaryDir):
             return False
 
-        cmdStatus, cmdResponse = subprocess.getstatusoutput('cp -pr redis-' + myRedisVersion + '/* ' + redisBinaryDir)
+        cmdStatus, cmdResponse = subprocess.getstatusoutput(
+            f'cp -pr redis-{myRedisVersion}/* {redisBinaryDir}'
+        )
         if cmdStatus == 0:
             logWrite(pareLogFile,
-                     bcolors.OKGREEN + ':: ' + myServerIP + ' :: OK -> redis binary was copied.' + bcolors.ENDC)
+                     bcolors.OKGREEN + f':: {myServerIP} :: OK -> redis binary was copied.' + bcolors.ENDC)
             return True
         else:
             logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!! A problem occurred while binary copy process !!!' + bcolors.ENDC)
+                     bcolors.FAIL + ' !!! A problem occurred while copying binary files locally !!!' + bcolors.ENDC)
             return False
     else:
         # Check if the directory exists remotely
         if not makeRemoteDir(redisBinaryDir, myServerIP):
             return False
 
+        # Replace scp with rsync for remote copying
         cmdStatus, cmdResponse = subprocess.getstatusoutput(
-            'scp -r redis-' + myRedisVersion + '/* ' + pareOSUser + '@' + myServerIP + ':' + redisBinaryDir)
+            f'rsync -avz redis-{myRedisVersion}/ {pareOSUser}@{myServerIP}:{redisBinaryDir}'
+        )
         if cmdStatus == 0:
             logWrite(pareLogFile,
-                     bcolors.OKGREEN + ':: ' + myServerIP + ' :: OK -> redis binary was copied.' + bcolors.ENDC)
+                     bcolors.OKGREEN + f':: {myServerIP} :: OK -> redis binary was copied via rsync.' + bcolors.ENDC)
             return True
         else:
             logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!! A problem occurred while binary copy process !!!' + bcolors.ENDC)
+                     bcolors.FAIL + ' !!! A problem occurred while copying binary files remotely using rsync !!!' + bcolors.ENDC)
             return False
 
 
@@ -1661,10 +1660,6 @@ def redisNewBinaryCopier(myServerIP, myRedisVersion):
     global redisBinaryDir
     global redisVersion
     redisBinaryDir = redisBinaryDir.replace('redis-' + redisVersion, 'redis-' + myRedisVersion)
-
-    if os.path.exists(redisBinaryDir) and os.listdir(redisBinaryDir):  # Check if the directory exists and has content
-        logWrite(pareLogFile, bcolors.OKBLUE + ':: ' + myServerIP + ' :: Skipping copy - Redis binary already exists.' + bcolors.ENDC)
-        return True  # Skip to the next instance
 
     if myServerIP == pareServerIp:
         # Check if the directory exists locally
@@ -1691,8 +1686,9 @@ def redisNewBinaryCopier(myServerIP, myRedisVersion):
                      bcolors.FAIL + ' !!! A problem occurred while creating remote binary directory !!!' + bcolors.ENDC)
             return False
 
+        # Replace scp with rsync
         cmdStatus = os.system(
-            'scp -r redis-' + myRedisVersion + '/* ' + pareOSUser + '@' + myServerIP + ':' + redisBinaryDir)
+            'rsync -avz redis-' + myRedisVersion + '/ ' + pareOSUser + '@' + myServerIP + ':' + redisBinaryDir)
         if cmdStatus == 0:
             logWrite(pareLogFile,
                      bcolors.OKGREEN + ':: ' + myServerIP + ' :: OK -> redis binary was copied.' + bcolors.ENDC)
@@ -1700,7 +1696,7 @@ def redisNewBinaryCopier(myServerIP, myRedisVersion):
             return True
         else:
             logWrite(pareLogFile,
-                     bcolors.FAIL + ' !!! A problem occurred while copying binary files !!!' + bcolors.ENDC)
+                     bcolors.FAIL + ' !!! A problem occurred while copying binary files using rsync !!!' + bcolors.ENDC)
             return False
 
 
