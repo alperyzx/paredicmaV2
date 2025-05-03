@@ -797,6 +797,32 @@ css_style = """
                 border-bottom: 1px solid #444;
             }
         }
+
+        /* Progress bar styles */
+        .progress-bar-container {
+            width: 100%;
+            background-color: #e0e0e0;
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            width: 0;
+            background-color: #800000;
+            transition: width 0.5s;
+            border-radius: 10px;
+        }
+        
+        /* Dark mode adjustments for progress bar */
+        @media (prefers-color-scheme: dark) {
+            .progress-bar-container {
+                background-color: #444;
+            }
+            .progress-bar {
+                background-color: #990000;
+            }
+        }
     </style>
 """
 
@@ -1687,6 +1713,15 @@ async def maintain():
         <span id="selected-tarfile-display" style="margin-left: 10px; font-style: italic;"></span>
     </div>
     
+    <!-- Progress bar container -->
+    <div id="progress-container" style="display: none; margin-top: 15px;">
+        <div style="margin-bottom: 5px;">Extracting and compiling Redis package... (2mins)</div>
+        <div class="progress-bar-container">
+            <div id="progress-bar" class="progress-bar"></div>
+        </div>
+        <div id="progress-status" style="margin-top: 5px; font-size: 0.9em;">Starting extraction...</div>
+    </div>
+    
     <!-- Results will appear here -->
     <div id="version-upgrade-result" style="margin-top: 15px;"></div>
 </div>
@@ -1830,15 +1865,8 @@ async def maintain():
                if (html.includes('Successfully downloaded') || html.includes('already exists')) {{
                    // Ask the user if they want to extract and compile
                    if (confirm('Download successful. Do you want to extract and compile this Redis package?')) {{
-                       // Call extract compile with the filename
-                       fetch('/maintain/extract-compile-redis/?redis_tarfile=' + encodeURIComponent(redisFilename))
-                           .then(response => response.text())
-                           .then(extractHtml => {{
-                               downloadResultDiv.innerHTML += extractHtml;
-                           }})
-                           .catch(error => {{
-                               downloadResultDiv.innerHTML += `<div class="error-message"><p>Extract/compile error: ${{error.message}}</p></div>`;
-                           }});
+                       // Start the extract compile process with progress bar
+                       extractCompileRedisWithProgress(redisFilename);
                    }}
                }}
            }})
@@ -2115,21 +2143,138 @@ async def maintain():
                 if (html.includes('Successfully uploaded') || html.includes('file-exists-message')) {{
                     // Ask the user if they want to extract and compile
                     if (confirm('File is available. Do you want to extract and compile this Redis package?')) {{
-                        // Call extract compile with the filename
-                        fetch('/maintain/extract-compile-redis/?redis_tarfile=' + encodeURIComponent(file.name))
-                            .then(response => response.text())
-                            .then(extractHtml => {{
-                                resultDiv.innerHTML += extractHtml;
-                            }})
-                            .catch(error => {{
-                                resultDiv.innerHTML += `<div class="error-message"><p>Extract/compile error: ${{error.message}}</p></div>`;
-                            }});
+                        // Start extraction with progress bar
+                        extractCompileRedisWithProgress(file.name);
                     }}
                 }}
             }})
             .catch(error => {{
                 resultDiv.innerHTML = `<div class="error-message"><p>Error: ${{error.message}}</p></div>`;
             }});
+        }}
+        
+        // Function to show progress bar and start updates
+        function showProgressBar() {{
+            // Hide the result div and show progress container
+            document.getElementById('version-upgrade-result').innerHTML = '';
+            document.getElementById('progress-container').style.display = 'block';
+            
+            // Reset progress bar
+            const progressBar = document.getElementById('progress-bar');
+            progressBar.style.width = '0%';
+            
+            // Set initial status message
+            document.getElementById('progress-status').textContent = 'Starting extraction...';
+        }}
+        
+        // Function to update progress bar
+        function updateProgressBar(progressPercentage, statusMessage) {{
+            const progressBar = document.getElementById('progress-bar');
+            progressBar.style.width = progressPercentage + '%';
+            
+            if (statusMessage) {{
+                document.getElementById('progress-status').textContent = statusMessage;
+            }}
+        }}
+        
+        // Function to hide progress bar
+        function hideProgressBar() {{
+            document.getElementById('progress-container').style.display = 'none';
+        }}
+        
+        // Function to extract and compile Redis with progress bar
+        function extractCompileRedisWithProgress(redisFilename) {{
+            // Show progress bar
+            showProgressBar();
+            
+            // Start time for progress calculation
+            const startTime = Date.now();
+            const expectedDurationMs = 120000; // 2 minutes
+            
+            // Simulated progress steps and messages
+            const progressSteps = [
+                {{ percentage: 5, message: 'Starting extraction...', timeOffset: 0 }},
+                {{ percentage: 10, message: 'Extracting Redis package...', timeOffset: 2000 }},
+                {{ percentage: 20, message: 'Extraction complete, starting compilation...', timeOffset: 10000 }},
+                {{ percentage: 30, message: 'Compiling Redis core components...', timeOffset: 20000 }},
+                {{ percentage: 50, message: 'Building Redis server...', timeOffset: 40000 }},
+                {{ percentage: 70, message: 'Building Redis CLI tools...', timeOffset: 60000 }},
+                {{ percentage: 85, message: 'Finalizing compilation...', timeOffset: 80000 }},
+                {{ percentage: 95, message: 'Waiting for process to complete...', timeOffset: 100000 }}
+            ];
+            
+            // Set up progress updates
+            const progressIntervals = [];
+            
+            // Schedule the progress steps
+            progressSteps.forEach(step => {{
+                const interval = setTimeout(() => {{
+                    updateProgressBar(step.percentage, step.message);
+                }}, step.timeOffset);
+                progressIntervals.push(interval);
+            }});
+            
+            // Continuous small progress updates between major steps
+            let lastPercentage = 0;
+            const continuousUpdateInterval = setInterval(() => {{
+                const currentTime = Date.now();
+                const elapsedMs = currentTime - startTime;
+                let calculatedPercentage = Math.min(Math.floor((elapsedMs / expectedDurationMs) * 100), 95);
+                
+                // Find the last scheduled step we passed
+                for (let i = progressSteps.length - 1; i >= 0; i--) {{
+                    if (elapsedMs >= progressSteps[i].timeOffset) {{
+                        lastPercentage = progressSteps[i].percentage;
+                        break;
+                    }}
+                }}
+                
+                // Don't go backwards or jump too far ahead
+                calculatedPercentage = Math.max(calculatedPercentage, lastPercentage);
+                
+                // Update the progress bar
+                updateProgressBar(calculatedPercentage);
+            }}, 1000);
+            progressIntervals.push(continuousUpdateInterval);
+            
+            // Begin the actual extraction and compilation
+            fetch('/maintain/extract-compile-redis/?redis_tarfile=' + encodeURIComponent(redisFilename))
+                .then(response => response.text())
+                .then(html => {{
+                    // Clean up all progress intervals
+                    progressIntervals.forEach(interval => clearTimeout(interval));
+                    clearInterval(continuousUpdateInterval);
+                    
+                    // Complete the progress bar
+                    updateProgressBar(100, 'Process complete!');
+                    
+                    // After a brief delay, hide progress bar and show result
+                    setTimeout(() => {{
+                        hideProgressBar();
+                        document.getElementById('version-upgrade-result').innerHTML = html;
+                    }}, 1000);
+                }})
+                .catch(error => {{
+                    // Clean up intervals
+                    progressIntervals.forEach(interval => clearTimeout(interval));
+                    clearInterval(continuousUpdateInterval);
+                    
+                    // Hide progress and show error
+                    hideProgressBar();
+                    document.getElementById('version-upgrade-result').innerHTML = 
+                        `<div class="error-message"><p>Error during extraction/compilation:</p><pre>${{error.message}}</pre></div>`;
+                }});
+        }}
+        
+        // Function to extract and compile Redis (for direct button click)
+        function extractCompileRedis() {{
+            const redisFilename = document.getElementById('selected-tarfile-display').textContent.trim();
+            if (redisFilename) {{
+                extractCompileRedisWithProgress(redisFilename);
+            }} else {{
+                document.getElementById('version-upgrade-result').innerHTML = 
+                    '<div class="error-message"><p>No Redis package selected. Please upload or download a package first.</p></div>';
+            }}
         }}
         
     </script>
@@ -2494,6 +2639,7 @@ async def maintain_extract_compile_redis(redis_tarfile: str = Query(..., title="
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+
 
 
 
