@@ -2321,7 +2321,7 @@ def redisNewBinaryCopier_wv(redis_version):
         if error_count == 0:
             return f"""
             <div class="success-message">
-                <h4 style="color: green; font-weight: bold;">Redis Directory Copied Successfully</h4>
+                <h4 style="color: green; font-weight: bold;">Redis Binary Copied Successfully</h4>
                 <p>Redis version {redis_version} has been copied to all {success_count} servers.</p>
                 <div class="code-output" style="padding: 10px; border-left: 4px solid green; margin-top: 10px;">
                     {result_details}
@@ -2332,7 +2332,7 @@ def redisNewBinaryCopier_wv(redis_version):
         elif success_count > 0:
             return f"""
             <div class="warning-message">
-                <h4 style="color: #856404; font-weight: bold;">Redis Directory Copied with Warnings</h4>
+                <h4 style="color: #856404; font-weight: bold;">Redis Binary Copied with Warnings</h4>
                 <p>Redis version {redis_version} has been copied to {success_count} servers. Failed on {error_count} servers.</p>
                 <div class="code-output" style="padding: 10px; border-left: 4px solid #856404; margin-top: 10px;">
                     {result_details}
@@ -2364,3 +2364,221 @@ def redisNewBinaryCopier_wv(redis_version):
             <pre style="padding: 10px; border-left: 4px solid red;">{trace}</pre>
         </div>
         """
+
+
+
+#restart all slave nodes with new redis version
+def restartAllSlaves_wv(wait_seconds=60, redis_version=None):
+    """
+    Restarts all slave nodes in the cluster with a delay between each restart.
+    If redis_version is provided, updates the nodes to use that version.
+    
+    Args:
+        wait_seconds: Number of seconds to wait between node restarts
+        redis_version: Optional Redis version to upgrade to (e.g. '7.2.4')
+        
+    Returns:
+        HTML-formatted result of the operation
+    """
+    results = []
+    success_count = 0
+    error_count = 0
+    
+    try:
+        # Store original values to restore later
+        global redisBinaryDir
+        global redisVersion
+        original_binary_dir = redisBinaryDir
+        original_version = redisVersion
+
+        # Update Redis version and binary directory if specified
+        if redis_version:
+            logWrite(pareLogFile, f"Updating Redis binary directory to use version {redis_version}")
+            redisVersion = redis_version
+            redisBinaryDir = f"{redisBinaryBase}redis-{redis_version}/src/"
+            results.append(f"Updated Redis binary path to: {redisBinaryDir}")
+
+        # Get slave nodes from the cluster
+        slave_nodes = []
+        
+        # Log operation start
+        log_message = f"Starting rolling restart of all slave nodes"
+        if redis_version:
+            log_message += f" with upgrade to Redis {redis_version}"
+        logWrite(pareLogFile, log_message)
+        results.append(log_message)
+        
+        # Find all active slave nodes
+        for node_index, pareNode in enumerate(pareNodes, start=1):
+            nodeIP = pareNode[0][0]
+            portNumber = pareNode[1][0]
+            
+            if pareNode[4]:  # If node is active
+                if pingredisNode(nodeIP, portNumber):
+                    # Check if this is a slave node
+                    if slaveORMasterNode(nodeIP, portNumber) == 'S':
+                        dedicateCpuCores = pareNode[2][0]
+                        slave_nodes.append({
+                            'ip': nodeIP,
+                            'port': portNumber,
+                            'node_index': node_index,
+                            'cpu_cores': dedicateCpuCores
+                        })
+        
+        # If no slave nodes found
+        if not slave_nodes:
+            # Restore original binary directory
+            if redis_version:
+                redisBinaryDir = original_binary_dir
+
+            return f"""
+            <div class="warning-message">
+                <h4 style="color: #856404; font-weight: bold;">No Slave Nodes Found</h4>
+                <p>No active slave nodes were found in the cluster.</p>
+                <p>You may restart master nodes separately after verifying cluster health.</p>
+            </div>
+            """
+        
+        # Process each slave node
+        results.append(f"Found {len(slave_nodes)} slave nodes to restart.")
+        
+        for i, node in enumerate(slave_nodes):
+            node_display = f"{node['ip']}:{node['port']} (Node #{node['node_index']})"
+            results.append(f"Processing slave node {i+1}/{len(slave_nodes)}: {node_display}")
+            
+            try:
+                # Check if we need to update redis.conf to use new version
+                if redis_version:
+                    results.append(f"Updating node {node_display} configuration to use Redis {redis_version}")
+                    
+                    # Construct the server path for the new Redis version
+                    new_redis_path = f"{redisBinaryBase}redis-{redis_version}/src"
+                    
+                    # Update the configuration file path
+                    conf_file = f"{redisConfigDir}{pareOSUser}_redisN{node['node_index']}_P{node['port']}.conf"
+                    
+                    if node['ip'] == pareServerIp:
+                        # Local server
+                        cmd = f"sed -i 's|^dir .*|dir {redisDataDir}{pareOSUser}_redisN{node['node_index']}_P{node['port']}/|' {conf_file} && " + \
+                              f"grep -q '^server-binary' {conf_file} && " + \
+                              f"sed -i 's|^server-binary .*|server-binary {new_redis_path}/redis-server|' {conf_file} || " + \
+                              f"echo 'server-binary {new_redis_path}/redis-server' >> {conf_file}"
+                    else:
+                        # Remote server
+                        cmd = f"ssh -q -o \"StrictHostKeyChecking no\" {pareOSUser}@{node['ip']} -C \"" + \
+                              f"sed -i 's|^dir .*|dir {redisDataDir}{pareOSUser}_redisN{node['node_index']}_P{node['port']}/|' {conf_file} && " + \
+                              f"grep -q '^server-binary' {conf_file} && " + \
+                              f"sed -i 's|^server-binary .*|server-binary {new_redis_path}/redis-server|' {conf_file} || " + \
+                              f"echo 'server-binary {new_redis_path}/redis-server' >> {conf_file}\""
+                    
+                    update_status, update_output = subprocess.getstatusoutput(cmd)
+                    if update_status == 0:
+                        results.append(f"<span style='color: green;'>✓ Successfully updated configuration for {node_display}</span>")
+                    else:
+                        results.append(f"<span style='color: orange;'>⚠ Warning: Could not update configuration: {update_output}</span>")
+                
+                # Perform the restart
+                if redis_version:
+                    results.append(f"Restarting slave node with Redis {redis_version}: {node_display}")
+                    # Call restartNode with the redis_version parameter
+                    restartNode(node['ip'], str(node['node_index']), node['port'], node['cpu_cores'], redis_version)
+                else:
+                    results.append(f"Restarting slave node with default Redis version: {node_display}")
+                    # Call restartNode without specifying a version
+                    restartNode(node['ip'], str(node['node_index']), node['port'], node['cpu_cores'])
+                
+                # Verify node is back online
+                sleep(5)  # Give node time to start
+                if pingredisNode(node['ip'], node['port']):
+                    success_count += 1
+                    results.append(f"<span style='color: green;'>✓ Successfully restarted {node_display}</span>")
+                    
+                    # Check Redis version if update was requested
+                    if redis_version:
+                        version_cmd = redisConnectCmd(node['ip'], node['port'], ' info server | grep redis_version')
+                        version_status, version_output = subprocess.getstatusoutput(version_cmd)
+                        if version_status == 0 and 'redis_version' in version_output:
+                            current_version = version_output.split(':')[1].strip()
+                            if current_version == redis_version:
+                                results.append(f"<span style='color: green;'>✓ Node {node_display} now running Redis {current_version}</span>")
+                            else:
+                                results.append(f"<span style='color: orange;'>⚠ Node {node_display} running Redis {current_version} (expected {redis_version})</span>")
+                        else:
+                            results.append(f"<span style='color: orange;'>⚠ Could not verify Redis version for {node_display}</span>")
+                else:
+                    error_count += 1
+                    results.append(f"<span style='color: red;'>✗ Failed to restart {node_display}</span>")
+                
+                # Wait between restarts if not the last node
+                if i < len(slave_nodes) - 1 and wait_seconds > 0:
+                    results.append(f"Waiting {wait_seconds} seconds before next restart...")
+                    sleep(wait_seconds)
+            
+            except Exception as e:
+                error_count += 1
+                results.append(f"<span style='color: red;'>✗ Error processing {node_display}: {str(e)}</span>")
+        
+        # After all operations are complete, restore original values if needed
+        if redis_version:
+            # Only restore for this function's scope - the nodes should keep using new version
+            redisVersion = original_version
+            redisBinaryDir = original_binary_dir
+
+        # Log completion
+        logWrite(pareLogFile, f"Completed restarting slave nodes. Success: {success_count}, Errors: {error_count}")
+        results.append(f"Completed slave node restart process.")
+        
+        # Format the results as HTML
+        result_details = "<br>".join(results)
+        
+        if error_count == 0:
+            return f"""
+            <div class="success-message">
+                <h4 style="color: green; font-weight: bold;">All Slave Nodes Restarted Successfully</h4>
+                <p>Successfully restarted {success_count} slave nodes.</p>
+                <div class="code-output" style="padding: 10px; border-left: 4px solid green; margin-top: 10px; max-height: 400px; overflow-y: auto;">
+                    {result_details}
+                </div>
+                <p style="margin-top: 10px;">Cluster should be healthy with all slave nodes running the new version.</p>
+                <p>You may restart master nodes next after verifying cluster health.</p>
+            </div>
+            """
+        elif success_count > 0:
+            return f"""
+            <div class="warning-message">
+                <h4 style="color: #856404; font-weight: bold;">Slave Nodes Restarted with Warnings</h4>
+                <p>Restarted {success_count} slave nodes successfully. Failed to restart {error_count} nodes.</p>
+                <div class="code-output" style="padding: 10px; border-left: 4px solid #856404; margin-top: 10px; max-height: 400px; overflow-y: auto;">
+                    {result_details}
+                </div>
+                <p style="margin-top: 10px;">Please check the errors and try again for failed nodes.</p>
+            </div>
+            """
+        else:
+            return f"""
+            <div class="error-message">
+                <h4 style="color: red; font-weight: bold;">Failed to Restart Slave Nodes</h4>
+                <p>Failed to restart any slave nodes.</p>
+                <div class="code-output" style="padding: 10px; border-left: 4px solid red; margin-top: 10px; max-height: 400px; overflow-y: auto;">
+                    {result_details}
+                </div>
+                <p style="margin-top: 10px;">Please check the errors and try again.</p>
+            </div>
+            """
+    
+    except Exception as e:
+        # Make sure we restore the binary directory even if there's an exception
+        if 'original_binary_dir' in locals() and redis_version:
+            redisBinaryDir = original_binary_dir
+
+        import traceback
+        trace = traceback.format_exc()
+        return f"""
+        <div class="error-message">
+            <h4 style="color: red; font-weight: bold;">Unexpected Error</h4>
+            <p>An error occurred during the slave node restart process:</p>
+            <p style="color: red;">{str(e)}</p>
+            <pre style="padding: 10px; border-left: 4px solid red; max-height: 300px; overflow-y: auto;">{trace}</pre>
+        </div>
+        """
+

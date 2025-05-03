@@ -259,9 +259,6 @@ async def monitor_slot_info():
                     print(f"Error message: {str(e)}")
                     continue  # Continue to the next node
 
-    if "<h2>" not in html_content:  # Check if no cluster information is found
-        html_content += "<h2>No cluster information available</h2>"
-
     html_content += "</body></html>"
     return Response(content=html_content, media_type="text/html")
 
@@ -667,7 +664,7 @@ css_style = """
             /* Maintenance Confirmation/Error Dark Mode */
             .confirmation-needed { border-color: #b38600; background-color: #332a1a; color: #ffdead; }
             .delete-result { border-color: #3c763d; background-color: #1e351e; color: #90ee90; }
-            .error-message { border-color: #a94442; background-color: #351e1e; color: #f08080; }
+            .error-message { border-color: #d9534f; background-color: #351e1e; color: #f08080; }
             .error-message pre { background-color: #2a2a2a; color: #ccc; } /* Ensure pre inside error is styled */
             .response-container {
                 background-color: #1e1e1e;
@@ -1609,36 +1606,39 @@ async def maintain():
     <div class="content">
         <h3>Add a New Redis Node</h3>
         <form id="add-node-form" onsubmit="addNode(event)">
-            <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
                 <label for="serverIP" style="width: 150px;">Server IP:</label>
                 <input type="text" id="serverIP" name="serverIP" required placeholder="e.g., 192.168.1.10">
             </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
                 <label for="serverPORT" style="width: 150px;">Port Number:</label>
                 <input type="number" id="serverPORT" name="serverPORT" required placeholder="e.g., 6379">
             </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
                 <label for="maxMemSize" style="width: 150px;">Maximum Memory:</label>
                 <input type="text" id="maxMemSize" name="maxMemSize" required placeholder="e.g., 2gb or 500mb">
             </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
                 <label for="cpuCoreIDs" style="width: 150px;">CPU Core IDs:</label>
                 <input type="text" id="cpuCoreIDs" name="cpuCoreIDs" required placeholder="e.g., 1 or 1,2,3">
             </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
+           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
                 <label for="nodeType" style="width: 150px;">Node Type:</label>
                 <select id="nodeType" name="nodeType" onchange="toggleMasterDropdown()">
                     <option value="master">Master Node</option>
                     <option value="slave-specific">Slave Node</option>
                 </select>
             </div>
-            <div id="masterDropdownField" style="display: none; flex; align-items: center; gap: 10px;">
+            <div id="masterNodeWarning" style="color: #856404; padding: 10px; border-radius: 4px; margin: 10px 0; display: none;">
+                <strong>Warning:</strong> Adding a master node will require slot migration afterward. <br>Make sure you have planned for slot allocation.
+            </div>
+            <div id="masterDropdownField" style="display: none; align-items: center; gap: 10px; margin-bottom: 10px;">
                 <label for="masterID" style="width: 150px;">Master Node:</label>
                 <select id="masterID" name="masterID">
                     <option value="">Loading...</option>
                 </select>
             </div>
-            <div style="display: flex; justify-content: flex-start;">
+            <div style="display: flex; justify-content: flex-start; margin-top: 15px;">
                 <input class="maintenance-button" type="submit" value="Add Node" style="width: auto;">
             </div>
         </form>
@@ -1680,11 +1680,8 @@ async def maintain():
                 </select>
             </div>
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                <label for="numberOfSlots" style="width: 150px;">Number of Slots:</label>
+                <label for="numberOfSlots" style="width: 150px;"><input class="maintenance-button" type="submit" value="Move Slots" style="width: auto;"></label>
                 <input type="number" id="numberOfSlots" name="numberOfSlots" required placeholder="Number of slots to move" min="1" max="16384">
-            </div>
-            <div style="display: flex; justify-content: flex-start;">
-                <input class="maintenance-button" type="submit" value="Move Slots" style="width: auto;">
             </div>
         </form>
         <div id="move-slots-result" style="margin-top: 10px;"></div>
@@ -1728,14 +1725,33 @@ async def maintain():
     <!-- Add the new section for copying binaries -->
     <div id="copy-binaries-container" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
         <h3>Deploy Redis Binary to Cluster Nodes</h3>
-        <p>After successful compilation, copy the Redis binaries to all nodes in your cluster:</p>
+        <p>After successful compilation, copy the Redis binary to all nodes in your cluster:</p>
         <div style="display: flex; align-items: center; gap: 15px;">
             <button id="copy-binaries-button" class="maintenance-button" onclick="copyRedisBinaries()">Copy Binary to All Nodes</button>
                         <input type="text" id="redis_copy_version" placeholder="e.g., 7.2.4" style="width: 100px;">
         </div>
         <div id="copy-binaries-result" style="margin-top: 15px;"></div>
     </div>
+    
+    <!-- New section for restarting slave nodes -->
+    <div id="restart-slaves-container" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+        <h3>Restart Slave Nodes with New Version</h3>
+        <p>After copying binary, restart all slave nodes with the new Redis version:</p>
+            
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 15px;"> 
+        <button id="restart-slaves-button" class="maintenance-button" onclick="validateAndRestartSlaves()">Restart All Slave Nodes</button>
+            <div style="display: flex; align-items: center; gap: 15px;">
+    <div style="display: flex; align-items: center;">
+        <input type="text" id="redis_restart_version" placeholder="e.g., 7.2.4" style="width: 120px;">
+    </div>
+    <div style="display: flex; align-items: center;">
+        <label for="restart_wait_seconds">Wait between restarts (seconds):</label>
+        <input type="number" id="restart_wait_seconds" min="0" value="30" style="width: 80px; margin-left: 5px;">
+    </div>
 </div>
+        </div>
+        <div id="restart-slaves-result" style="margin-top: 15px;"></div>
+    </div>
 </div>
 
     <button class="collapsible">4 - Redis Cluster Nodes Version Control</button>
@@ -1888,24 +1904,28 @@ async def maintain():
            }});
    }}
 
-        function toggleMasterDropdown() {{
+         function toggleMasterDropdown() {{
             const nodeType = document.getElementById('nodeType').value;
             const masterDropdownField = document.getElementById('masterDropdownField');
+            const masterNodeWarning = document.getElementById('masterNodeWarning');
+            
             if (nodeType === 'slave-specific') {{
                 masterDropdownField.style.display = 'flex';
+                masterNodeWarning.style.display = 'none';
+                // Fetch master nodes for dropdown
                 fetch('/maintain/view-master-nodes-dropdown')
                     .then(response => response.text())
                     .then(data => {{
                         document.getElementById('masterID').innerHTML = data;
-                    }})
-                    .catch(error => {{
-                        console.error('Error fetching master nodes:', error);
-                        document.getElementById('masterID').innerHTML = "<option value=''>Error loading master nodes</option>";
                     }});
             }} else {{
                 masterDropdownField.style.display = 'none';
+                masterNodeWarning.style.display = 'block';
             }}
         }}
+
+        // Call the function once on page load to set initial state
+        document.addEventListener('DOMContentLoaded', toggleMasterDropdown);
 
         function addNode(event) {{
             event.preventDefault();
@@ -2294,7 +2314,7 @@ async def maintain():
             
             // Basic validation
             if (!version) {{
-                document.getElementById('copy-binaries-result').innerHTML = '<div class="error-message"><p>Please enter a Redis version</p></div>';
+                document.getElementById('copy-binaries-result').innerHTML = '<div class="error-message">Please enter a Redis version</div>';
                 return;
             }}
             
@@ -2306,7 +2326,7 @@ async def maintain():
             }}
             
             // Show loading message
-            document.getElementById('copy-binaries-result').innerHTML = '<p>Copying Redis binaries to all nodes in the cluster. Please wait...</p>';
+            document.getElementById('copy-binaries-result').innerHTML = '<p>Copying Redis binary to all nodes in the cluster. Please wait...</p>';
             
             // Call the API endpoint
             fetch(`/maintain/copy-redis-binaries/?redis_version=${{encodeURIComponent(version)}}`)
@@ -2316,9 +2336,94 @@ async def maintain():
                 }})
                 .catch(error => {{
                     document.getElementById('copy-binaries-result').innerHTML = 
-                        `<div class="error-message"><p>Error copying Redis binaries:</p><pre>${{error.message}}</pre></div>`;
+                        `<div class="error-message"><p>Error copying Redis binary:</p><pre>${{error.message}}</pre></div>`;
                 }});
         }}
+
+        function restartSlaveNodes() {{
+            const versionInput = document.getElementById('redis_restart_version');
+            const waitInput = document.getElementById('restart_wait_seconds');
+            const version = versionInput.value.trim();
+            const waitSeconds = parseInt(waitInput.value) || 0;
+            
+            // Validate wait seconds
+            if (waitSeconds < 0) {{
+                document.getElementById('restart-slaves-result').innerHTML = '<div class="error-message"><p>Wait time cannot be negative</p></div>';
+                return;
+            }}
+            
+            // Validate version format if specified
+            if (version && !/^\\d+\\.\\d+\\.\\d+$/.test(version)) {{
+                document.getElementById('restart-slaves-result').innerHTML = '<div class="error-message"><p>Invalid version format. Use format like: 7.2.4</p></div>';
+                return;
+            }}
+            
+            // Show loading message
+            document.getElementById('restart-slaves-result').innerHTML = '<p>Processing request...</p>';
+            
+            // Call API with confirmation=false first to get the confirmation dialog
+            const versionParam = version ? `&redis_version=${{encodeURIComponent(version)}}` : '';
+            fetch(`/maintain/restart-slaves/?wait_seconds=${{waitSeconds}}${{versionParam}}`)
+                .then(response => response.text())
+                .then(html => {{
+                    document.getElementById('restart-slaves-result').innerHTML = html;
+                }})
+                .catch(error => {{
+                    document.getElementById('restart-slaves-result').innerHTML = 
+                        `<div class="error-message"><p>Error processing request:</p><pre>${{error.message}}</pre></div>`;
+                }});
+        }}
+
+        function confirmRestartSlaves(waitSeconds, redisVersion) {{
+            document.getElementById('restart-slaves-result').innerHTML = '<p>Restarting slave nodes. This may take several minutes...</p>';
+            
+            const versionParam = redisVersion ? `&redis_version=${{encodeURIComponent(redisVersion)}}` : '';
+            fetch(`/maintain/restart-slaves/?wait_seconds=${{waitSeconds}}${{versionParam}}&confirmed=true`)
+                .then(response => response.text())
+                .then(html => {{
+                    document.getElementById('restart-slaves-result').innerHTML = html;
+                }})
+                .catch(error => {{
+                    document.getElementById('restart-slaves-result').innerHTML = 
+                        `<div class="error-message"><p>Error restarting slave nodes:</p><pre>${{error.message}}</pre></div>`;
+                }});
+        }}
+
+        function cancelRestartSlaves() {{
+            document.getElementById('restart-slaves-result').innerHTML = '<p>Operation cancelled.</p>';
+        }}
+        
+    function validateAndRestartSlaves() {{
+    const versionField = document.getElementById('redis_restart_version');
+    const resultElement = document.getElementById('restart-slaves-result');
+    
+    // Check if version field is filled
+    if (!versionField.value.trim()) {{
+        resultElement.innerHTML = '<div class="error-message">Redis version is required. Please enter a version number.</div>';
+        versionField.focus();
+        return;
+    }}
+    
+    // Check if binary exists before proceeding
+    const version = versionField.value.trim();
+    fetch(`/maintain/verify-redis-binary/?redis_version=${{encodeURIComponent(version)}}`)
+        .then(response => response.json())
+        .then(data => {{
+            if (data.exists) {{
+                // Binary exists, proceed with restart
+                restartSlaveNodes();
+            }} else {{
+                // Binary doesn't exist, show error
+                resultElement.innerHTML = `<div class="error-message">Redis ${{version}} binary not found at ${{data.path}}
+                <br>Please make sure to upload and compile the binary first!</div>`;
+            }}
+        }})
+        .catch(error => {{
+            resultElement.innerHTML = `<div class="error-message">Error verifying Redis binary: ${{error.message}}</div>`;
+        }});
+   }}
+    
+        
     </script>
     </body>
     </html>
@@ -2695,11 +2800,58 @@ async def maintain_copy_redis_binaries(redis_version: str = Query(..., title="Re
         error_html = f"""
         <div class="error-message">
             <h4>Processing Error</h4>
-            <p>An unexpected error occurred while trying to copy Redis binaries:</p>
+            <p>An unexpected error occurred while trying to copy Redis binary:</p>
             <pre style="font-size: 12px;">{str(e)}\n{trace}</pre>
         </div>
         """
         return HTMLResponse(content=error_html, status_code=500)
+
+@app.get("/maintain/restart-slaves/", response_class=HTMLResponse)
+async def maintain_restart_slaves(wait_seconds: int = 30, redis_version: str = None, confirmed: bool = False):
+    """
+    Endpoint to restart all slave nodes with a specified delay between restarts.
+    If redis_version is provided, updates the nodes to use that version.
+    """
+    try:
+        if not confirmed:
+            # Return confirmation dialog
+            return HTMLResponse(content=f"""
+            <div class="confirmation-needed">
+                <h4>Confirm Restart of All Slave Nodes</h4>
+                <p>You are about to restart <strong>all slave nodes</strong> in your Redis cluster.</p>
+                <p>Wait time between restarts: <strong>{wait_seconds} seconds</strong></p>
+                {f"<p>Update to Redis version: <strong>{redis_version}</strong></p>" if redis_version else ""}
+                <p>This operation may cause temporary unavailability for replicated data.</p>
+                <div class="button-container">
+                    <button class="confirm-btn" onclick="confirmRestartSlaves({wait_seconds}, '{redis_version or ''}')">Confirm Restart</button>
+                    <button class="cancel-btn" onclick="cancelRestartSlaves()">Cancel</button>
+                </div>
+            </div>
+            """)
+
+        # If confirmed, call the function to restart slave nodes
+        result = restartAllSlaves_wv(wait_seconds, redis_version)
+        return HTMLResponse(content=result)
+
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        error_html = f"""
+        <div class="error-message">
+            <h4>Error Restarting Slave Nodes</h4>
+            <p>An unexpected error occurred:</p>
+            <pre style="font-size: 12px;">{str(e)}\n{trace}</pre>
+        </div>
+        """
+        return HTMLResponse(content=error_html)
+
+
+@app.get("/maintain/verify-redis-binary/")
+async def verify_redis_binary(redis_version: str):
+    """Check if the Redis binary exists for the specified version."""
+    binary_path = f"{redisBinaryBase}redis-{redis_version}/src/redis-server"
+    exists = os.path.isfile(binary_path)
+    return {"exists": exists, "path": binary_path}
 
 
 if __name__ == "__main__":

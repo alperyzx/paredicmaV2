@@ -1311,15 +1311,20 @@ def getMasterNodesID():
                 break
 
 
-def startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores):
+
+def startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores,redis_version=redisVersion):
     startResult = 1
+
+    # Build the correct Redis binary path
+    redis_binary_path = redisBinaryBase + 'redis-' + redis_version + '/src/redis-server'
+
     if pingredisNode(nodeIP, portNumber):
         logWrite(pareLogFile,
                  bcolors.WARNING + ':: ' + nodeIP + ' :: WARNING !!! redis node  ' + nodeNumber + ' has been  already started. The process was canceled.' + bcolors.ENDC)
     else:
         if nodeIP == pareServerIp:
             if dedicateCore:
-                start_cmd = 'cd ' + redisDataDir + ';numactl --physcpubind=' + dedicateCpuCores + ' --localalloc ' + redisBinaryDir + 'src/redis-server ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf'
+                start_cmd = 'cd ' + redisDataDir + ';numactl --physcpubind=' + dedicateCpuCores + ' --localalloc ' + redis_binary_path + ' ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf'
                 print(start_cmd)  # Print the command for debugging
                 startResult, startOutput = subprocess.getstatusoutput(start_cmd)
 
@@ -1329,7 +1334,7 @@ def startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores):
                         bcolors.FAIL + ':: ' + nodeIP + ' :: ERROR starting redis node ' + nodeNumber + ': ' + startOutput + bcolors.ENDC)
                     print(bcolors.FAIL + 'Error output: ' + startOutput + bcolors.ENDC)
             else:
-                start_cmd = 'cd ' + redisDataDir + ';' + redisBinaryDir + 'src/redis-server ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf'
+                start_cmd = 'cd ' + redisDataDir + ';' + redis_binary_path + ' ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf'
                 print(start_cmd)  # Print the command for debugging
                 startResult, startOutput = subprocess.getstatusoutput(start_cmd)
 
@@ -1340,7 +1345,7 @@ def startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores):
                     print(bcolors.FAIL + 'Error output: ' + startOutput + bcolors.ENDC)
         else:
             if dedicateCore:
-                start_cmd = 'ssh -q -o "StrictHostKeyChecking no"  ' + pareOSUser + '@' + nodeIP + ' -C  "cd ' + redisDataDir + ';numactl --physcpubind=' + dedicateCpuCores + ' --localalloc ' + redisBinaryDir + 'src/redis-server ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf"'
+                start_cmd = 'ssh -q -o "StrictHostKeyChecking no"  ' + pareOSUser + '@' + nodeIP + ' -C  "cd ' + redisDataDir + ';numactl --physcpubind=' + dedicateCpuCores + ' --localalloc ' + redis_binary_path + ' ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf"'
                 print(start_cmd)  # Print the command for debugging
                 startResult, startOutput = subprocess.getstatusoutput(start_cmd)
 
@@ -1350,7 +1355,7 @@ def startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores):
                         bcolors.FAIL + ':: ' + nodeIP + ' :: ERROR starting redis node ' + nodeNumber + ': ' + startOutput + bcolors.ENDC)
                     print(bcolors.FAIL + 'Error output: ' + startOutput + bcolors.ENDC)
             else:
-                start_cmd = 'ssh -q -o "StrictHostKeyChecking no"  ' + pareOSUser + '@' + nodeIP + ' -C  "cd ' + redisDataDir + ';' + redisBinaryDir + 'src/redis-server ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf"'
+                start_cmd = 'ssh -q -o "StrictHostKeyChecking no"  ' + pareOSUser + '@' + nodeIP + ' -C  "cd ' + redisDataDir + ';' + redis_binary_path + ' ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf"'
                 print(start_cmd)  # Print the command for debugging
                 startResult, startOutput = subprocess.getstatusoutput(start_cmd)
 
@@ -1388,13 +1393,12 @@ def startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores):
                                 bcolors.FAIL + 'ERROR: Config file does not exist: ' + config_path + bcolors.ENDC)
 
                     # Check if the binary exists
-                    redis_binary = redisBinaryDir + 'src/redis-server'
-                    if not os.path.exists(redis_binary):
+                    if not os.path.exists(redis_binary_path):
                         logWrite(pareLogFile,
-                                bcolors.FAIL + 'ERROR: Redis server binary does not exist: ' + redis_binary + bcolors.ENDC)
+                                bcolors.FAIL + 'ERROR: Redis server binary does not exist: ' + redis_binary_path + bcolors.ENDC)
 
                     # Try to get more info by running redis-server with the config directly
-                    check_cmd = redis_binary + ' ' + config_path + ' --test-conf'
+                    check_cmd = redis_binary_path + ' ' + config_path + ' --test-conf'
                     logWrite(pareLogFile,
                             bcolors.BOLD + 'Running config check: ' + check_cmd + bcolors.ENDC)
                     check_status, check_output = subprocess.getstatusoutput(check_cmd)
@@ -1615,10 +1619,30 @@ def wait_for_remote_process_end(nodeIP, processID, max_attempts=12):
     return False
 
 
-def restartNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores):
+def restartNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores, redis_version=redisVersion):
     stopNode(nodeIP, nodeNumber, portNumber)
-    startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores)
+    startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores, redis_version)
 
+
+def logWrite(logfile, message):
+    """
+    Write a message to the specified log file and print to console.
+
+    Args:
+        logfile: The path to the log file
+        message: The message to write to the log file
+    """
+    try:
+        with open(logfile, 'a') as f:
+            f.write(f"{message}\n")
+        print(message)  # Also print to console
+    except Exception as e:
+        print(f"Error writing to log file: {e}")
+
+
+# Make sure pareLogFile is defined
+if 'pareLogFile' not in globals():
+    pareLogFile = "/tmp/paredicma.log"
 
 def redisBinaryCopier(myServerIP, myRedisVersion):
     if myServerIP == pareServerIp:
