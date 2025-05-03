@@ -1952,7 +1952,8 @@ def slotInfoSimplified_wv(nodeIP, portNumber):
         </div>
         """
 
-
+## upgrade functions
+#step1 download direct from redis.io
 def download_redis_version_wv(redis_filename: str):
     """
     Downloads a specific Redis version package from the official release site
@@ -2046,10 +2047,148 @@ def download_redis_version_wv(redis_filename: str):
         </div>
         """
 
-# Example usage (for testing purposes):
-# Ensure you are in a directory where you have write permissions
-# result_exists = download_redis_version_wv("redis-7.2.4.tar.gz") # Assuming it exists
-# print(result_exists)
-# result_nonexistent = download_redis_version_wv("redis-nonexistent-version.tar.gz")
-# print(result_nonexistent)
+#upload from local
+def upload_redis_version_wv(upload_file, filename):
+    """
+    Saves an uploaded Redis version package to the project directory.
+
+    Args:
+        upload_file: The uploaded file content
+        filename: The name of the uploaded file (must be in format redis-X.Y.Z.tar.gz)
+
+    Returns:
+        An HTML string indicating the result of the upload.
+    """
+    try:
+        # Validate filename format
+        import re
+        if not re.match(r'^redis-\d+\.\d+\.\d+\.tar\.gz$', filename):
+            return """
+            <div class="error-message">
+                <p>Invalid Redis package filename format.</p>
+                <p>The filename must be in the format: redis-X.Y.Z.tar.gz (e.g., redis-7.2.4.tar.gz)</p>
+            </div>
+            """
+
+        # Use the current working directory for storing uploads
+        download_dir = os.getcwd()
+        file_path = os.path.join(download_dir, filename)
+
+        # Check if file already exists
+        if os.path.exists(file_path):
+            return f"""
+            <div class="warning-message" id="file-exists-message">
+                <p>File {filename} already exists!</p>
+                <p>You can use the existing file for extraction and compilation.</p>
+            </div>
+            """
+
+        # Save the file
+        with open(file_path, "wb") as f:
+            f.write(upload_file)
+
+        # Return success message
+        return f"""
+        <div class="success-message">
+            <p>Successfully uploaded {filename}</p>
+            <p>The file is ready for extraction and compilation.</p>
+        </div>
+        """
+
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return f"""
+        <div class="error-message">
+            <p>Error uploading file: {str(e)}</p>
+            <pre>{trace}</pre>
+        </div>
+        """
+
+
+#step2 extract & compile
+def extract_compile_redis_wv(redis_tarfile):
+    """
+    Extract and compile Redis from a previously downloaded tarball for web UI.
+    Returns HTML content with the operation results.
+    """
+    try:
+        # Extract version number from filename (e.g. redis-7.2.4.tar.gz -> 7.2.4)
+        import re
+        version_match = re.search(r'redis-([0-9]+\.[0-9]+\.[0-9]+)', redis_tarfile)
+        if not version_match:
+            return f"""
+            <div class="error-message">
+                <p>Invalid Redis filename format: {redis_tarfile}</p>
+                <p>Expected format: redis-VERSION.tar.gz</p>
+            </div>
+            """
+
+        redis_version = version_match.group(1)
+
+        # Check if file exists
+        if not os.path.exists(redis_tarfile):
+            return f"""
+            <div class="error-message">
+                <p>Redis tarfile not found: {redis_tarfile}</p>
+                <p>Please download the Redis release package first.</p>
+            </div>
+            """
+
+        # Extract the tarball
+        logWrite(pareLogFile, f"Extracting {redis_tarfile}...")
+        extract_cmd = f"tar -xf {redis_tarfile}"
+        extract_status, extract_output = subprocess.getstatusoutput(extract_cmd)
+
+        if extract_status != 0:
+            return f"""
+            <div class="error-message">
+                <h4>Extraction Failed</h4>
+                <p>Failed to extract {redis_tarfile}:</p>
+                <pre>{extract_output}</pre>
+            </div>
+            """
+
+        # Compile Redis
+        logWrite(pareLogFile, f"Compiling Redis {redis_version}...")
+        compile_cmd = f"cd redis-{redis_version} && make"
+        compile_status, compile_output = subprocess.getstatusoutput(compile_cmd)
+
+        if compile_status != 0:
+            return f"""
+            <div class="error-message">
+                <h4>Compilation Failed</h4>
+                <p>Failed to compile Redis {redis_version}:</p>
+                <pre>{compile_output}</pre>
+            </div>
+            """
+
+        # Successful compilation
+        logWrite(pareLogFile, f"Redis {redis_version} compiled successfully")
+
+        return f"""
+        <div class="success-message">
+            <h4>Redis {redis_version} Compiled Successfully</h4>
+            <p>Redis version {redis_version} has been extracted and compiled successfully.</p>
+            <div class="code-output">
+                <pre style="max-height: 200px; overflow-y: auto;">{compile_output[-1000:].replace('<', '&lt;').replace('>', '&gt;')}</pre>
+            </div>
+            <p>Next steps:</p>
+            <ul>
+                <li>Hint: It's a good idea to run 'make test' ;)</li>
+            </ul>
+        </div>
+        """
+
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return f"""
+        <div class="error-message">
+            <h4>Unexpected Error</h4>
+            <p>An error occurred while extracting and compiling Redis:</p>
+            <p>{str(e)}</p>
+            <pre>{trace}</pre>
+        </div>
+        """
 

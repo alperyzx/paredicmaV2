@@ -1664,34 +1664,33 @@ async def maintain():
         <div id="move-slots-result" style="margin-top: 10px;"></div>
     </div>
 
- <!-- Updated Section 3 -->
-     <button class="collapsible">3 - Redis Cluster Nodes Version Upgrade</button>
-     <div class="content">
-         <h3>Download Redis Release Package</h3>
-         <p>Download a specific Redis version tarball from <a href="https://download.redis.io/releases/" target="_blank">download.redis.io/releases/</a> to project directory.</p>
-         <form id="download-redis-form" onsubmit="downloadRedisVersion(event)">
-             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                 <label for="redis_filename" style="min-width: 20px;"> <button type="submit" id="download-redis-button" class="maintenance-button btn-disabled" disabled><i class="fas fa-download"></i> Download</button>
-</label>
-                 <input type="text" id="redis_filename" name="redis_filename" required placeholder="e.g., redis-7.2.4.tar.gz" style="width:250px;">
-                  <span id="filename-validation-msg" style="color: red; font-size: 0.9em; margin-left: 10px;"></span> <!-- For validation message -->
-             </div>
-         </form>
-         <div id="version-upgrade-result" style="margin-top: 10px;">
-             <!-- Download results will appear here -->
-         </div>
-         <hr style="margin: 20px 0;">
-         <h3>Upgrade Process (Manual Steps)</h3>
-         <p>The actual upgrade process currently requires manual steps on the server:</p>
-         <ol>
-             <li>Download the desired Redis version using the form above.</li>
-             <li>Extract the downloaded tarball (e.g., `tar xzf redis-X.Y.Z.tar.gz`).</li>
-             <li>Navigate into the extracted directory (e.g., `cd redis-X.Y.Z`).</li>
-             <li>Compile Redis (`make`).</li>
-             <li>Perform a rolling upgrade of your nodes, replacing the `redis-server` binary on each node one by one (slaves first, then masters). Ensure you handle failovers appropriately if needed.</li>
-         </ol>
-         <p><strong>Note:</strong> A fully automated upgrade feature is planned for future versions.</p>
-     </div>
+<!-- Updated Section 3 -->
+<button class="collapsible">3 - Redis Cluster Nodes Version Upgrade</button>
+<div class="content">
+    <h3>Choose a redis tarball from local machine or direct from redis.io</h3>
+    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+        <form id="upload-redis-form" enctype="multipart/form-data" style="margin: 0; display: inline-block;">
+            <button class="maintenance-button" type="button" onclick="document.getElementById('redis_file').click()">Upload local file</button>
+            <input type="file" id="redis_file" name="upload_file" accept=".tar.gz" required style="display: none;" onchange="uploadRedisPackage()">
+        </form>
+        <span>OR</span>
+        <form id="download-redis-form" onsubmit="downloadRedisVersion(event)" style="margin: 0; display: inline-flex; align-items: center; gap: 10px;">
+            <button id="download-redis-button" class="maintenance-button" type="submit">Download from redis.io</button>
+            <input type="text" id="redis_filename" name="redis_filename" required placeholder="e.g., redis-7.2.4.tar.gz" style="width:200px;">
+        </form>
+    </div>
+    <span id="filename-validation-msg" style="color: red; font-size: 0.9em; display: block; margin-bottom: 10px;"></span>
+    
+    <!-- Extract and compile section (hidden by default) -->
+    <div id="extract-compile-container" style="display: none; margin-top: 15px;">
+        <button id="extract-compile-button" class="maintenance-button" onclick="extractCompileRedis()">Extract & Compile Package</button>
+        <span id="selected-tarfile-display" style="margin-left: 10px; font-style: italic;"></span>
+    </div>
+    
+    <!-- Results will appear here -->
+    <div id="version-upgrade-result" style="margin-top: 15px;"></div>
+</div>
+</div>
 
     <button class="collapsible">4 - Redis Cluster Nodes Version Control</button>
     <div class="content">
@@ -1751,6 +1750,7 @@ async def maintain():
         const downloadButton = document.getElementById('download-redis-button');
         const validationMsg = document.getElementById('filename-validation-msg');
         const downloadResultDiv = document.getElementById('version-upgrade-result'); // Renamed for clarity
+
 
    function validateRedisFilename() {{
        const filename = redisFilenameInput.value.trim();
@@ -1825,6 +1825,22 @@ async def maintain():
            .then(html => {{
                // Display the HTML response from the server
                downloadResultDiv.innerHTML = html;
+               
+               // Check if download was successful
+               if (html.includes('Successfully downloaded')) {{
+                   // Ask the user if they want to extract and compile
+                   if (confirm('Download successful. Do you want to extract and compile this Redis package?')) {{
+                       // Call extract compile with the filename
+                       fetch('/maintain/extract-compile-redis/?redis_tarfile=' + encodeURIComponent(redisFilename))
+                           .then(response => response.text())
+                           .then(extractHtml => {{
+                               downloadResultDiv.innerHTML += extractHtml;
+                           }})
+                           .catch(error => {{
+                               downloadResultDiv.innerHTML += `<div class="error-message"><p>Extract/compile error: ${{error.message}}</p></div>`;
+                           }});
+                   }}
+               }}
            }})
            .catch(error => {{
                console.error('Error downloading Redis version:', error);
@@ -2060,6 +2076,60 @@ async def maintain():
                 .catch(error => {{
                     document.getElementById('move-slots-result').innerHTML = "<p style='color: red;'>Error: " + error + "</p>";
                 }});
+        }}
+        
+        function uploadRedisPackage() {{
+            const fileInput = document.getElementById('redis_file');
+            const file = fileInput.files[0];
+            
+            if (!file) {{
+                return;
+            }}
+            
+            // Validate file name format
+            const filenamePattern = /^redis-\\d+\\.\\d+\\.\\d+\\.tar\\.gz$/;
+            if (!filenamePattern.test(file.name)) {{
+                document.getElementById('version-upgrade-result').innerHTML = '<div class="error-message"><p>Invalid format. Use: redis-x.y.z.tar.gz</p></div>';
+                return;
+            }}
+            
+            // Clear previous results and show loading message
+            const resultDiv = document.getElementById('version-upgrade-result');
+            resultDiv.innerHTML = '<p>Uploading Redis package...</p>';
+            
+            // Create FormData object
+            const formData = new FormData();
+            formData.append('upload_file', file);
+            
+            // Send the file to the server
+            fetch('/maintain/upload-redis/', {{
+                method: 'POST',
+                body: formData
+            }})
+            .then(response => response.text())
+            .then(html => {{
+                // Update the result area
+                resultDiv.innerHTML = html;
+                
+                // If upload was successful, ask user if they want to extract and compile
+                if (html.includes('Successfully uploaded') || html.includes('file-exists-message')) {{
+                    // Ask the user if they want to extract and compile
+                    if (confirm('File is available. Do you want to extract and compile this Redis package?')) {{
+                        // Call extract compile with the filename
+                        fetch('/maintain/extract-compile-redis/?redis_tarfile=' + encodeURIComponent(file.name))
+                            .then(response => response.text())
+                            .then(extractHtml => {{
+                                resultDiv.innerHTML += extractHtml;
+                            }})
+                            .catch(error => {{
+                                resultDiv.innerHTML += `<div class="error-message"><p>Extract/compile error: ${{error.message}}</p></div>`;
+                            }});
+                    }}
+                }}
+            }})
+            .catch(error => {{
+                resultDiv.innerHTML = `<div class="error-message"><p>Error: ${{error.message}}</p></div>`;
+            }});
         }}
         
     </script>
@@ -2337,27 +2407,9 @@ async def move_slots(fromNodeID: str, toNodeID: str, numberOfSlots: str):
         </div>
         """)
 
-@app.get("/maintain/version-upgrade/", response_class=HTMLResponse)
-async def version_upgrade():
-    """
-    Endpoint for upgrading Redis node versions (not implemented yet).
-    """
-    return HTMLResponse(content="""
-    <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin: 10px 0;">
-        <h4>Feature Not Implemented</h4>
-        <p>The Version Upgrade feature is not implemented yet. This will allow you to:</p>
-        <ul>
-            <li>Upgrade Redis nodes to newer versions</li>
-            <li>Perform rolling upgrades with minimal downtime</li>
-            <li>Verify compatibility across your cluster</li>
-        </ul>
-        <p>This feature will be available in a future version.</p>
-    </div>
-    """)
 
-
-# Add this endpoint within the Maintenance Section of parewebMon.py
-
+### upgrade progress
+## first step, download redis release package
 @app.get("/maintain/download-redis/", response_class=HTMLResponse)
 async def maintain_download_redis(redis_filename: str = Query(..., title="Redis Filename", description="The exact filename of the Redis release to download (e.g., redis-7.2.4.tar.gz)")):
     """
@@ -2382,81 +2434,70 @@ async def maintain_download_redis(redis_filename: str = Query(..., title="Redis 
         return HTMLResponse(content=error_html, status_code=500)
 
 
-@app.get("/maintain/version-control/", response_class=HTMLResponse)
-async def version_control():
-    """
-    Endpoint for Redis version control (not implemented yet).
-    """
-    return HTMLResponse(content="""
-    <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin: 10px 0;">
-        <h4>Feature Not Implemented</h4>
-        <p>The Version Control feature is not implemented yet. This will allow you to:</p>
-        <ul>
-            <li>Check Redis versions across your cluster</li>
-            <li>Ensure version consistency</li>
-            <li>Manage version compatibility issues</li>
-        </ul>
-        <p>This feature will be available in a future version.</p>
-    </div>
-    """)
+from fastapi import File, UploadFile
 
-@app.get("/maintain/server-maintain/", response_class=HTMLResponse)
-async def server_maintain():
+@app.post("/maintain/upload-redis/", response_class=HTMLResponse)
+async def maintain_upload_redis(upload_file: UploadFile = File(...)):
     """
-    Endpoint for server maintenance operations (not implemented yet).
+    Endpoint to upload a Redis release tarball.
     """
-    return HTMLResponse(content="""
-    <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin: 10px 0;">
-        <h4>Feature Not Implemented</h4>
-        <p>The Server Maintenance feature is not implemented yet. This will allow you to:</p>
-        <ul>
-            <li>Monitor server resources</li>
-            <li>Perform server maintenance tasks</li>
-            <li>Schedule and automate maintenance operations</li>
-        </ul>
-        <p>This feature will be available in a future version.</p>
-    </div>
-    """)
+    try:
+        # Read file content
+        file_content = await upload_file.read()
 
-@app.get("/maintain/migrate-data/", response_class=HTMLResponse)
-async def migrate_data():
-    """
-    Endpoint for migrating data from remote Redis (not implemented yet).
-    """
-    return HTMLResponse(content="""
-    <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin: 10px 0;">
-        <h4>Feature Not Implemented</h4>
-        <p>The Migrate Data feature is not implemented yet. This will allow you to:</p>
-        <ul>
-            <li>Import data from external Redis instances</li>
-            <li>Migrate between Redis deployment types</li>
-            <li>Perform incremental data migration</li>
-        </ul>
-        <p>This feature will be available in a future version.</p>
-    </div>
-    """)
+        # Get filename
+        filename = upload_file.filename
 
-@app.get("/maintain/slot-balancer/", response_class=HTMLResponse)
-async def slot_balancer():
+        # Use the upload function from pareFuncWeb.py
+        result_html = upload_redis_version_wv(file_content, filename)
+
+        return HTMLResponse(content=result_html)
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        error_html = f"""
+        <div class="error-message">
+            <h4>Upload Error</h4>
+            <p>An error occurred while processing your upload:</p>
+            <p>{str(e)}</p>
+            <pre style="font-size: 12px;">{trace}</pre>
+        </div>
+        """
+        return HTMLResponse(content=error_html, status_code=500)
+
+
+@app.get("/maintain/extract-compile-redis/", response_class=HTMLResponse)
+async def maintain_extract_compile_redis(redis_tarfile: str = Query(..., title="Redis Tarfile", description="The filename of the Redis tarball to extract and compile (e.g., redis-7.2.4.tar.gz)")):
     """
-    Endpoint for cluster slot balancing (not implemented yet).
+    Endpoint to extract and compile a Redis release package.
+    Calls the extract_compile_redis_wv function.
     """
-    return HTMLResponse(content="""
-    <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin: 10px 0;">
-        <h4>Feature Not Implemented</h4>
-        <p>The Slot Balancer feature is not implemented yet. This will allow you to:</p>
-        <ul>
-            <li>Automatically balance slots across Redis masters</li>
-            <li>Optimize for memory usage or CPU load</li>
-            <li>Schedule rebalancing operations</li>
-        </ul>
-        <p>This feature will be available in a future version.</p>
-    </div>
-    """)
+    try:
+        # Call the function from pareFuncWeb.py
+        result_html = extract_compile_redis_wv(redis_tarfile)
+        # Return the HTML response
+        return HTMLResponse(content=result_html)
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        # Return an error message in the standard HTML format
+        error_html = f"""
+        <div class="error-message">
+            <h4>Processing Error</h4>
+            <p>An unexpected error occurred while trying to extract and compile Redis:</p>
+            <pre style="font-size: 12px;">{str(e)}\n{trace}</pre>
+        </div>
+        """
+        return HTMLResponse(content=error_html, status_code=500)
+
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+
+
+
+
 
 
 
