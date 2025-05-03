@@ -11,6 +11,7 @@ redisLogDir = '/data/'+pareOSUser+'/projects/'+projectName+'/log/'
 redisVersion = '7.4.2'
 redisTarFile = 'redis-7.4.2.tar.gz'
 redisBinaryDir = '/data/'+pareOSUser+'/reBin/redis-'+redisVersion+'/'
+redisBinaryBase = '/data/'+pareOSUser+'/reBin/'
 dedicateCore = True   # True/False
 doCompile = True
 doStartNodes = True

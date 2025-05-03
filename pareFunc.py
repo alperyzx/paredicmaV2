@@ -1644,7 +1644,7 @@ def redisBinaryCopier(myServerIP, myRedisVersion):
 
         # Replace scp with rsync for remote copying
         cmdStatus, cmdResponse = subprocess.getstatusoutput(
-            f'rsync -avz redis-{myRedisVersion}/ {pareOSUser}@{myServerIP}:{redisBinaryDir}'
+            f'rsync -aqz redis-{myRedisVersion}/ {pareOSUser}@{myServerIP}:{redisBinaryDir}'
         )
         if cmdStatus == 0:
             logWrite(pareLogFile,
@@ -1668,7 +1668,8 @@ def redisNewBinaryCopier(myServerIP, myRedisVersion):
                      bcolors.FAIL + ' !!! A problem occurred while creating local binary directory !!!' + bcolors.ENDC)
             return False
 
-        cmdStatus = os.system('cp -pr redis-' + myRedisVersion + '/* ' + redisBinaryDir + ' > /dev/null ')
+        # Replace cp with rsync for local copying to prevent failures with busy files
+        cmdStatus = os.system('rsync -a redis-' + myRedisVersion + '/ ' + redisBinaryDir + ' > /dev/null')
 
         if cmdStatus == 0:
             logWrite(pareLogFile,
@@ -1688,7 +1689,7 @@ def redisNewBinaryCopier(myServerIP, myRedisVersion):
 
         # Replace scp with rsync
         cmdStatus = os.system(
-            'rsync -avz redis-' + myRedisVersion + '/ ' + pareOSUser + '@' + myServerIP + ':' + redisBinaryDir)
+            'rsync -aqz redis-' + myRedisVersion + '/ ' + pareOSUser + '@' + myServerIP + ':' + redisBinaryDir)
         if cmdStatus == 0:
             logWrite(pareLogFile,
                      bcolors.OKGREEN + ':: ' + myServerIP + ' :: OK -> redis binary was copied.' + bcolors.ENDC)
@@ -2003,6 +2004,7 @@ def logWrite(logFile, logText):
         fileAppendWrite(logFile, logText)
     else:
         print(logText)
+
 
 
 
