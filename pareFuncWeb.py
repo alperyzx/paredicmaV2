@@ -537,10 +537,16 @@ def node_action_wv(redisNode, action, confirmed=False):
             final_ping_status = pingredisNode(nodeIP, portNumber)
 
             result_message = f"Action '{action}' completed for node {redisNode}."
+            # Create the status span separately
+            status_span = ""
             if action.lower() == 'start' or action.lower() == 'restart':
-                result_message += f" Final status: {'<span style=\'color: green;\'>Running</span>' if final_ping_status else '<span style=\'color: red;\'>Not Running</span>'}."
+                status_span = "<span style='color: green;'>Running</span>" if final_ping_status else "<span style='color: red;'>Not Running</span>"
             elif action.lower() == 'stop':
-                result_message += f" Final status: {'<span style=\'color: gray;\'>Stopped</span>' if not final_ping_status else '<span style=\'color: red;\'>Still Running?</span>'}."
+                status_span = "<span style='color: gray;'>Stopped</span>" if not final_ping_status else "<span style='color: red;'>Still Running?</span>"
+
+            # Add the status span to the result message
+            if status_span:
+                result_message += f" Final status: {status_span}."
 
             # Format captured logs
             log_output = "<br>".join(log_messages).replace('\n', '<br>')  # Ensure newlines are breaks
