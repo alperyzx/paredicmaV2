@@ -1827,7 +1827,7 @@ async def maintain():
                downloadResultDiv.innerHTML = html;
                
                // Check if download was successful
-               if (html.includes('Successfully downloaded')) {{
+               if (html.includes('Successfully downloaded') || html.includes('already exists')) {{
                    // Ask the user if they want to extract and compile
                    if (confirm('Download successful. Do you want to extract and compile this Redis package?')) {{
                        // Call extract compile with the filename

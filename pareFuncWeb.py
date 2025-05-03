@@ -1971,13 +1971,22 @@ def download_redis_version_wv(redis_filename: str):
     download_dir = os.getcwd()
     download_path = os.path.join(download_dir, redis_filename)
 
+    # First check if the file already exists locally
+    if os.path.exists(download_path):
+        return f"""
+        <div class="warning-message" id="file-exists-message">
+            <p>File '{redis_filename}' already exists in '{download_dir}'!</p>
+            <p>You can use the existing file for extraction and compilation.</p>
+        </div>
+        """
+
     # Construct the wget command
     # Use -P to specify the download directory
     # Use --spider to check if the file exists before downloading
     # Use -q for quiet output during download
     check_command = ['wget', '--spider', download_url]
-    # Use -nc to avoid downloading if the file already exists locally
-    download_command = ['wget', '-P', download_dir, '-q', '-nc', download_url]
+    # No need for -nc since we've already checked if the file exists
+    download_command = ['wget', '-P', download_dir, '-q', download_url]
 
     try:
         # Check if the file exists on the remote server
@@ -2001,23 +2010,14 @@ def download_redis_version_wv(redis_filename: str):
 
         # Verify download
         if os.path.exists(download_path):
-            # Check if wget actually downloaded or if the file already existed (-nc option)
-            if "saved" in download_process.stderr or download_process.stderr == "": # Wget might not output anything if file exists and -nc is used
-                 return f"""
-                 <div class="response-container" style="color: green;">
-                     <p>Successfully downloaded '{redis_filename}' to '{download_dir}'.</p>
-                 </div>
-                 """
-            else:
-                 # Wget with -nc might return 0 even if it didn't download because the file exists
-                 return f"""
-                 <div class="response-container" style="color: orange;">
-                     <p>File '{redis_filename}' already exists in '{download_dir}'. Download skipped.</p>
-                 </div>
-                 """
+            return f"""
+            <div class="success-message">
+                <p>Successfully downloaded '{redis_filename}' to '{download_dir}'.</p>
+            </div>
+            """
         else:
             # This case might occur if wget succeeded (returncode 0) but the file isn't there.
-             return f"""
+            return f"""
             <div class="error-message">
                 <p>Download command executed but file not found at '{download_path}'.</p>
                 <pre>Wget stdout: {download_process.stdout}\nWget stderr: {download_process.stderr}</pre>
@@ -2033,7 +2033,7 @@ def download_redis_version_wv(redis_filename: str):
         </div>
         """
     except FileNotFoundError:
-         return f"""
+        return f"""
         <div class="error-message">
             <p>Error: 'wget' command not found. Please ensure wget is installed and in your system's PATH.</p>
         </div>
@@ -2119,8 +2119,8 @@ def extract_compile_redis_wv(redis_tarfile):
         if not version_match:
             return f"""
             <div class="error-message">
-                <p>Invalid Redis filename format: {redis_tarfile}</p>
-                <p>Expected format: redis-VERSION.tar.gz</p>
+                <p style="color: orange; font-weight: bold;">Invalid Redis package filename format.</p>
+                <p>The filename must be in the format: redis-X.Y.Z.tar.gz (e.g., redis-7.2.4.tar.gz)</p>
             </div>
             """
 
@@ -2130,8 +2130,8 @@ def extract_compile_redis_wv(redis_tarfile):
         if not os.path.exists(redis_tarfile):
             return f"""
             <div class="error-message">
-                <p>Redis tarfile not found: {redis_tarfile}</p>
-                <p>Please download the Redis release package first.</p>
+                <p style="color: orange; font-weight: bold;">File not found!</p>
+                <p>The file {redis_tarfile} does not exist in the current directory.</p>
             </div>
             """
 
@@ -2143,9 +2143,9 @@ def extract_compile_redis_wv(redis_tarfile):
         if extract_status != 0:
             return f"""
             <div class="error-message">
-                <h4>Extraction Failed</h4>
-                <p>Failed to extract {redis_tarfile}:</p>
-                <pre>{extract_output}</pre>
+                <p style="color: orange; font-weight: bold;">Extraction Failed!</p>
+                <p>Failed to extract {redis_tarfile}. Error output:</p>
+                <pre style="padding: 10px; border-left: 4px solid orange;">{extract_output}</pre>
             </div>
             """
 
@@ -2157,9 +2157,9 @@ def extract_compile_redis_wv(redis_tarfile):
         if compile_status != 0:
             return f"""
             <div class="error-message">
-                <h4>Compilation Failed</h4>
-                <p>Failed to compile Redis {redis_version}:</p>
-                <pre>{compile_output}</pre>
+                <p style="color: orange; font-weight: bold;">Compilation Failed!</p>
+                <p>Failed to compile Redis {redis_version}. Error output:</p>
+                <pre style="padding: 10px; border-left: 4px solid orange;">{compile_output}</pre>
             </div>
             """
 
@@ -2168,15 +2168,13 @@ def extract_compile_redis_wv(redis_tarfile):
 
         return f"""
         <div class="success-message">
-            <h4>Redis {redis_version} Compiled Successfully</h4>
-            <p>Redis version {redis_version} has been extracted and compiled successfully.</p>
-            <div class="code-output">
-                <pre style="max-height: 200px; overflow-y: auto;">{compile_output[-1000:].replace('<', '&lt;').replace('>', '&gt;')}</pre>
+            <h4 style="color: green; font-weight: bold;">Redis {redis_version} Compiled Successfully</h4>
+            <p style="color: green;">Redis version {redis_version} has been extracted and compiled successfully.</p>
+            <div class="code-output" style="padding: 10px; border-left: 4px solid green;">
+                <p>✓ Extracted: {redis_tarfile}</p>
+                <p>✓ Compiled: redis-{redis_version}</p>
+                <p>✓ Binary location: redis-{redis_version}/src/</p>
             </div>
-            <p>Next steps:</p>
-            <ul>
-                <li>Hint: It's a good idea to run 'make test' ;)</li>
-            </ul>
         </div>
         """
 
@@ -2185,10 +2183,9 @@ def extract_compile_redis_wv(redis_tarfile):
         trace = traceback.format_exc()
         return f"""
         <div class="error-message">
-            <h4>Unexpected Error</h4>
+            <h4 style="color: orange; font-weight: bold;">Unexpected Error</h4>
             <p>An error occurred while extracting and compiling Redis:</p>
-            <p>{str(e)}</p>
-            <pre>{trace}</pre>
+            <p style="color: orange;">{str(e)}</p>
+            <pre style="padding: 10px; border-left: 4px solid orange;">{trace}</pre>
         </div>
         """
-
