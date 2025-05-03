@@ -1702,7 +1702,7 @@ async def maintain():
         <span>OR</span>
         <form id="download-redis-form" onsubmit="downloadRedisVersion(event)" style="margin: 0; display: inline-flex; align-items: center; gap: 10px;">
             <button id="download-redis-button" class="maintenance-button" type="submit">Download from redis.io</button>
-            <input type="text" id="redis_filename" name="redis_filename" required placeholder="e.g., redis-7.2.4.tar.gz" style="width:200px;">
+            <input type="text" id="redis_filename" name="redis_filename" required placeholder="e.g., redis-7.2.4.tar.gz" style="width:150px;">
         </form>
     </div>
     <span id="filename-validation-msg" style="color: red; font-size: 0.9em; display: block; margin-bottom: 10px;"></span>
@@ -1724,6 +1724,17 @@ async def maintain():
     
     <!-- Results will appear here -->
     <div id="version-upgrade-result" style="margin-top: 15px;"></div>
+
+    <!-- Add the new section for copying binaries -->
+    <div id="copy-binaries-container" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+        <h3>Deploy Redis Binary to Cluster Nodes</h3>
+        <p>After successful compilation, copy the Redis binaries to all nodes in your cluster:</p>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <button id="copy-binaries-button" class="maintenance-button" onclick="copyRedisBinaries()">Copy Binary to All Nodes</button>
+                        <input type="text" id="redis_copy_version" placeholder="e.g., 7.2.4" style="width: 100px;">
+        </div>
+        <div id="copy-binaries-result" style="margin-top: 15px;"></div>
+    </div>
 </div>
 </div>
 
@@ -2276,7 +2287,38 @@ async def maintain():
                     '<div class="error-message"><p>No Redis package selected. Please upload or download a package first.</p></div>';
             }}
         }}
-        
+
+        function copyRedisBinaries() {{
+            const versionInput = document.getElementById('redis_copy_version');
+            const version = versionInput.value.trim();
+            
+            // Basic validation
+            if (!version) {{
+                document.getElementById('copy-binaries-result').innerHTML = '<div class="error-message"><p>Please enter a Redis version</p></div>';
+                return;
+            }}
+            
+            // Format validation (should be like 7.2.4)
+            const versionPattern = /^\\d+\\.\\d+\\.\\d+$/;
+            if (!versionPattern.test(version)) {{
+                document.getElementById('copy-binaries-result').innerHTML = '<div class="error-message"><p>Invalid version format. Use format like: 7.2.4</p></div>';
+                return;
+            }}
+            
+            // Show loading message
+            document.getElementById('copy-binaries-result').innerHTML = '<p>Copying Redis binaries to all nodes in the cluster. Please wait...</p>';
+            
+            // Call the API endpoint
+            fetch(`/maintain/copy-redis-binaries/?redis_version=${{encodeURIComponent(version)}}`)
+                .then(response => response.text())
+                .then(html => {{
+                    document.getElementById('copy-binaries-result').innerHTML = html;
+                }})
+                .catch(error => {{
+                    document.getElementById('copy-binaries-result').innerHTML = 
+                        `<div class="error-message"><p>Error copying Redis binaries:</p><pre>${{error.message}}</pre></div>`;
+                }});
+        }}
     </script>
     </body>
     </html>
@@ -2635,16 +2677,31 @@ async def maintain_extract_compile_redis(redis_tarfile: str = Query(..., title="
         """
         return HTMLResponse(content=error_html, status_code=500)
 
+@app.get("/maintain/copy-redis-binaries/", response_class=HTMLResponse)
+async def maintain_copy_redis_binaries(redis_version: str = Query(..., title="Redis Version", description="The version of Redis to copy (e.g., 7.2.4)")):
+    """
+    Endpoint to copy newly compiled Redis binaries to all nodes in the cluster.
+    Calls the redisNewBinaryCopier_wv function.
+    """
+    try:
+        # Call the function from pareFuncWeb.py
+        result_html = redisNewBinaryCopier_wv(redis_version)
+        # Return the HTML response
+        return HTMLResponse(content=result_html)
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        # Return an error message in the standard HTML format
+        error_html = f"""
+        <div class="error-message">
+            <h4>Processing Error</h4>
+            <p>An unexpected error occurred while trying to copy Redis binaries:</p>
+            <pre style="font-size: 12px;">{str(e)}\n{trace}</pre>
+        </div>
+        """
+        return HTMLResponse(content=error_html, status_code=500)
+
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
-
-
-
-
-
-
-
-
-
