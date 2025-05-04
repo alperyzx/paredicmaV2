@@ -403,7 +403,7 @@ css_style = """
             margin-right: 10px;
         }
         input[type="text"], input[type="number"], select {
-            width: 160px;
+            width: 180px;
             padding: 8px; /* Increased padding */
             border: 1px solid #cccccc;
             border-radius: 5px;
@@ -1742,7 +1742,7 @@ async def maintain():
         <button id="restart-slaves-button" class="maintenance-button" onclick="validateAndRestartSlaves()">Restart All Slave Nodes</button>
             <div style="display: flex; align-items: center; gap: 15px;">
     <div style="display: flex; align-items: center;">
-        <input type="text" id="redis_restart_version" placeholder="e.g., 7.2.4" style="width: 120px;">
+        <input type="text" id="redis_restart_version" placeholder="e.g., 7.2.4" style="width: 100px;">
     </div>
     <div style="display: flex; align-items: center;">
         <label for="restart_wait_seconds">Wait between restarts (seconds):</label>
