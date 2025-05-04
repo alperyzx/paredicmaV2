@@ -354,60 +354,227 @@ async def monitor_cluster_state_info():
 
 @app.get("/monitor/memory-usage", response_class=HTMLResponse)
 async def show_memory_usage():
-    memory_usage_info = "<title>Memory Usage</title><h2>Memory Usage</h2>"
-    memory_usage_info += "<table border='1'><tr><th>NodeType</th><th>NodeNum</th><th>NodeIP</th><th>NodePort</th><th>UsedMem(GB)</th><th>MaxMem(GB)</th><th>Usage(%)</th></tr>"
+    memory_usage_html = f"""
+    {css_style}
+    <html>
+    <head>
+        <title>Memory Usage</title>
+        <style>
+            .memory-table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin: 20px 0;
+                font-family: Arial, sans-serif;
+                box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+            }}
+            .memory-table th {{
+                padding: 12px 15px;
+                text-align: left;
+            }}
+            .memory-table td {{
+                padding: 10px 15px;
+                border-bottom: 1px solid #ddd;
+            }}
+            .memory-table tr:hover {{
+                background-color: rgba(200, 200, 200, 0.1);
+            }}
+            /* Different background colors for master and slave nodes */
+            .master-node {{
+                background-color: rgba(33, 150, 243, 0.1);
+                border-left: 4px solid #2196F3;
+            }}
+            .slave-node {{
+                background-color: rgba(76, 175, 80, 0.1);
+                border-left: 4px solid #4CAF50;
+            }}
+            /* Memory usage indicators */
+            .memory-usage-low {{ color: #4CAF50; }}
+            .memory-usage-medium {{ color: #FFC107; }}
+            .memory-usage-high {{ color: #F44336; }}
+            .node-down {{ 
+                color: #999; 
+                background-color: rgba(150, 150, 150, 0.1);
+                border-left: 4px solid #9E9E9E;
+            }}
+            .summary-box {{
+                margin-top: 20px;
+                padding: 15px;
+                border-radius: 5px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                background-color: rgba(33, 150, 243, 0.05);
+                border: 1px solid rgba(33, 150, 243, 0.2);
+            }}
+            .meter {{
+                height: 10px;
+                width: 100%;
+                background: rgba(200, 200, 200, 0.2);
+                border-radius: 5px;
+                margin-top: 5px;
+            }}
+            .meter-fill {{
+                height: 100%;
+                border-radius: 5px;
+                background: linear-gradient(to right, #4CAF50, #FFC107, #F44336);
+            }}
+            .section-header {{
+                padding: 10px 15px;
+                margin-top: 15px;
+                border-radius: 3px;
+                font-weight: bold;
+            }}
+            .master-header {{
+                background-color: #2196F3;
+                color: white;
+            }}
+            .slave-header {{
+                background-color: #4CAF50;
+                color: white;
+            }}
+            .down-header {{
+                background-color: #9E9E9E;
+                color: white;
+            }}
+        </style>
+    </head>
+    <body>
+        <h2>Redis Cluster Memory Usage</h2>
+        
+        <div class="section-header master-header">Master Nodes</div>
+        <table class="memory-table">
+            <tr>
+                <th>Node Address</th>
+                <th>Used Memory</th>
+                <th>Max Memory</th>
+                <th>Usage</th>
+            </tr>
+    """
+
     total_used_mem_byte = 0
     total_max_mem_byte = 0
     master_nodes_info = ""
     slave_nodes_info = ""
     down_nodes_info = ""
-    for node_number, pare_node in enumerate(pareNodes, start=1):
+
+    for pare_node in pareNodes:
         if pare_node[4]:  # Check if the node is marked as active
             node_ip = pare_node[0][0]
             port_number = pare_node[1][0]
+            node_address = f"{node_ip}:{port_number}"
 
             # Check SSH availability first
             if is_ssh_available(node_ip):
                 isPing = pingredisNode(node_ip, port_number)
                 if isPing:
                     mem_status, mem_response = subprocess.getstatusoutput(
-                        redisConnectCmd(node_ip, port_number, ' info memory | grep  -e "used_memory:" -e "maxmemory:" '))
+                        redisConnectCmd(node_ip, port_number, 'info memory | grep -e "used_memory:" -e "maxmemory:"')
+                    )
                     if mem_status == 0:
                         used_mem_byte = float(mem_response[12:mem_response.find('maxmemory:') - 1])
                         max_mem_byte = float(mem_response[mem_response.find('maxmemory:') + 10:])
                         used_mem_gb = round(used_mem_byte / (1024 * 1024 * 1024), 3)
                         max_mem_gb = round(max_mem_byte / (1024 * 1024 * 1024), 3)
                         usage_per_mem = round((used_mem_gb / max_mem_gb) * 100, 2)
-                        total_used_mem_byte += used_mem_byte
-                        total_max_mem_byte += max_mem_byte
-                        node_type = "Master" if isNodeMaster(node_ip, node_number, port_number) else "Slave"
-                        usage_color = "#d3ffce" if usage_per_mem < 70 else "yellow" if 70 <= usage_per_mem < 85 else "red"
-                        node_info = f"{css_style}<tr style='background-color:{usage_color};'><td>{node_type}</td><td>{node_number}</td><td>{node_ip}</td><td>{port_number}</td><td>{used_mem_gb}</td><td>{max_mem_gb}</td><td>{usage_per_mem}</td></tr>"
-                        if node_type == "Master":
+
+                        is_master = isNodeMaster(node_ip, None, port_number)
+                        node_class = "master-node" if is_master else "slave-node"
+
+                        # Determine usage level
+                        usage_class = "memory-usage-low" if usage_per_mem < 70 else \
+                                      "memory-usage-medium" if 70 <= usage_per_mem < 85 else \
+                                      "memory-usage-high"
+
+                        # Create a visual meter for memory usage
+                        usage_meter = f"""
+                        <div class="meter">
+                            <div class="meter-fill" style="width: {usage_per_mem}%;"></div>
+                        </div>
+                        """
+
+                        node_info = f"""
+                        <tr class="{node_class}">
+                            <td>{node_address}</td>
+                            <td>{used_mem_gb} GB</td>
+                            <td>{max_mem_gb} GB</td>
+                            <td class="{usage_class}">{usage_per_mem}% {usage_meter}</td>
+                        </tr>
+                        """
+
+                        if is_master:
                             master_nodes_info += node_info
+                            total_used_mem_byte += used_mem_byte
+                            total_max_mem_byte += max_mem_byte
                         else:
                             slave_nodes_info += node_info
                     else:
-                        print(
-                            f"Error retrieving memory information for Node IP: {node_ip}, Port: {port_number}")
+                        print(f"Error retrieving memory information for Node IP: {node_ip}, Port: {port_number}")
                 else:
-                    down_nodes_info += f"<tr><td>Down</td><td>{node_number}</td><td>{node_ip}</td><td>{port_number}</td><td></td><td></td><td></td></tr>"
+                    down_nodes_info += f"""
+                    <tr class="node-down">
+                        <td>{node_address}</td>
+                        <td colspan="3">Node not responding</td>
+                    </tr>
+                    """
             else:
-                down_nodes_info += f"<tr><td>Unknown</td><td>{node_number}</td><td>{node_ip}</td><td>{port_number}</td><td></td><td></td><td></td></tr>"
+                down_nodes_info += f"""
+                <tr class="node-down">
+                    <td>{node_address}</td>
+                    <td colspan="3">SSH unavailable</td>
+                </tr>
+                """
 
-    memory_usage_info += master_nodes_info + slave_nodes_info + down_nodes_info
+    memory_usage_html += master_nodes_info
+    memory_usage_html += """</table>"""
 
-    memory_usage_info += "</table>"
+    memory_usage_html += """
+        <div class="section-header slave-header">Slave Nodes</div>
+        <table class="memory-table">
+            <tr>
+                <th>Node Address</th>
+                <th>Used Memory</th>
+                <th>Max Memory</th>
+                <th>Usage</th>
+            </tr>
+    """
 
+    memory_usage_html += slave_nodes_info
+    memory_usage_html += """</table>"""
+
+    if down_nodes_info:
+        memory_usage_html += """
+            <div class="section-header down-header">Down Nodes</div>
+            <table class="memory-table">
+                <tr>
+                    <th>Node Address</th>
+                    <th colspan="3">Status</th>
+                </tr>
+        """
+        memory_usage_html += down_nodes_info
+        memory_usage_html += """</table>"""
+
+    # Calculate summary information
     total_used_mem = round((total_used_mem_byte / (1024 * 1024 * 1024)), 3)
     total_max_mem = round((total_max_mem_byte / (1024 * 1024 * 1024)), 3)
-    total_mem_per = round(((total_used_mem / total_max_mem) * 100), 2)
+    total_mem_per = round(((total_used_mem / total_max_mem) * 100), 2) if total_max_mem > 0 else 0
 
-    memory_usage_info += f"<p><b>Total (Only Master):</b> {total_used_mem}GB / {total_max_mem}GB ({total_mem_per}%)</p>"
+    # Create a visual meter for total memory usage
+    total_meter = f"""
+    <div class="meter">
+        <div class="meter-fill" style="width: {total_mem_per}%;"></div>
+    </div>
+    """
 
-    return HTMLResponse(content=memory_usage_info)
+    # Add summary box
+    memory_usage_html += f"""
+    <div class="summary-box">
+        <h3>Cluster Summary (Master Nodes)</h3>
+        <p><b>Total Memory Usage:</b> {total_used_mem} GB / {total_max_mem} GB ({total_mem_per}%)</p>
+        {total_meter}
+    </div>
+    </body>
+    </html>
+    """
 
-
+    return HTMLResponse(content=memory_usage_html)
 
 # Define the CSS styles for different button types
 css_style = """
