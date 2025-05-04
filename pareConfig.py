@@ -41,3 +41,155 @@ slowlog-max-len 10
 rename-command FLUSHALL "aO**3p**qw"
 rename-command FLUSHDB  "qw**f0**tU"
 '''
+
+#### Config File was Changed by paredicma at 2025.05.04 15:01:35
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:01:35
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:02:50
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:02:50
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:06:17
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:06:17
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:06:21
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:06:21
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:06:42
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:06:42
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:06:44
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:06:44
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:06:45
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:06:45
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:06:46
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:06:46
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:10:12
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:10:12
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:13:34
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:13:34
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:21:36
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:21:36
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:24:03
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:24:03
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:25:28
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:25:28
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:29:21
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:29:21
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:37:58
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:37:58
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:40:19
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:40:19
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:46:14
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:46:14
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:47:47
+#### old value:redisVersion = '7.4.2'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:47:47
+#### old value:redisTarFile = 'redis-7.4.2.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:54:25
+#### old value:redisVersion = '7.4.1'
+#### new value:redisVersion = '7.4.2'
+
+#### Config File was Changed by paredicma at 2025.05.04 15:54:25
+#### old value:redisTarFile = 'redis-7.4.1.tar.gz'
+#### new value:redisTarFile = 'redis-7.4.2.tar.gz'

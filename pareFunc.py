@@ -1320,7 +1320,15 @@ def getMasterNodesID():
 
 
 
-def startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores,redis_version=redisVersion):
+def startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores,redis_version=None):
+    startResult = 1
+    # Get the latest redisVersion if not explicitly provided
+    if redis_version is None:
+        import importlib
+        importlib.reload(sys.modules['pareConfig'])
+        from pareConfig import redisVersion
+        redis_version = redisVersion
+
     startResult = 1
 
     # Build the correct Redis binary path
@@ -1627,7 +1635,7 @@ def wait_for_remote_process_end(nodeIP, processID, max_attempts=12):
     return False
 
 
-def restartNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores, redis_version=redisVersion):
+def restartNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores, redis_version=None):
     stopNode(nodeIP, nodeNumber, portNumber)
     startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores, redis_version)
 

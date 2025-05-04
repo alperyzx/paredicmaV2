@@ -2555,3 +2555,89 @@ def restartAllSlaves_wv(wait_seconds=60, redis_version=None):
         </div>
         """
 
+#update redisVersion in pareConfig.py
+def update_redis_config_wv(new_redis_version):
+    """
+    Update Redis version in configuration files for web UI.
+    """
+    try:
+        # Get current configuration
+        from pareConfig import redisVersion, redisBinaryDir
+
+        # Check if version is the same
+        if new_redis_version == redisVersion:
+            return f"""
+            <div class="warning-message">
+                <h4 style="color: orange; font-weight: bold;">No Change Required</h4>
+                <p>The specified version is already the current version (Redis {new_redis_version}).</p>
+            </div>
+            """
+
+        # Check if new binary directory exists
+        new_binary_dir = redisBinaryDir.replace(f'redis-{redisVersion}', f'redis-{new_redis_version}')
+        if not os.path.exists(new_binary_dir):
+            return f"""
+            <div class="error-message">
+                <h4 style="color: red; font-weight: bold;">Binary Directory Not Found</h4>
+                <p>The binary directory for Redis {new_redis_version} ({new_binary_dir}) does not exist.</p>
+                <p>Please compile Redis {new_redis_version} first.</p>
+            </div>
+            """
+
+        # Update configuration file
+        success = True
+        success = success and changePareConfigFile(f"redisVersion = '{redisVersion}'",
+                                                 f"redisVersion = '{new_redis_version}'")
+        success = success and changePareConfigFile(f"redisTarFile = 'redis-{redisVersion}.tar.gz'",
+                                                 f"redisTarFile = 'redis-{new_redis_version}.tar.gz'")
+
+        if success:
+            # Get node information for display
+            node_info = []
+            for i, pareNode in enumerate(pareNodes, 1):
+                if pareNode[4]:  # If node is active
+                    nodeIP = pareNode[0][0]
+                    portNumber = pareNode[1][0]
+                    version_cmd = redisConnectCmd(nodeIP, portNumber, 'info server | grep redis_version')
+                    _, version_output = subprocess.getstatusoutput(version_cmd)
+                    node_info.append(f"<tr><td>{i}</td><td>{nodeIP}</td><td>{portNumber}</td><td>{version_output.strip()}</td></tr>")
+
+            node_table = f"""
+            <table>
+                <tr>
+                    <th>Node #</th>
+                    <th>IP</th>
+                    <th>Port</th>
+                    <th>Redis Version</th>
+                </tr>
+                {''.join(node_info)}
+            </table>
+            """
+
+            return f"""
+            <div class="success-message">
+                <h4 style="color: green; font-weight: bold;">Configuration Updated Successfully</h4>
+                <p>Redis version in configuration updated from {redisVersion} to {new_redis_version}.</p>
+                <p>Binary directory updated to: {new_binary_dir}</p>
+                <p>Current node versions:</p>
+                {node_table}
+                <p><strong>Note:</strong> You may need to restart the application for changes to take effect.</p>
+            </div>
+            """
+        else:
+            return f"""
+            <div class="error-message">
+                <h4 style="color: red; font-weight: bold;">Configuration Update Failed</h4>
+                <p>Failed to update Redis version in configuration files.</p>
+            </div>
+            """
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return f"""
+        <div class="error-message">
+            <h4 style="color: red; font-weight: bold;">Error Updating Configuration</h4>
+            <p>Error: {str(e)}</p>
+            <pre>{trace}</pre>
+        </div>
+        """

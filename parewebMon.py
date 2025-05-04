@@ -1752,6 +1752,24 @@ async def maintain():
         </div>
         <div id="restart-slaves-result" style="margin-top: 15px;"></div>
     </div>
+    
+    <!-- Update Redis Version in Configuration section -->
+<div id="update-config-container" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+    <h3>Update Redis Version in Configuration</h3>
+    <p>After copying binaries, update the Redis version in configuration files:</p>
+    
+    <div>
+      <p>Update Redis Version in Configuration</p>
+      <p>After copying binaries, update the Redis version in configuration files:</p>
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+        <button id="update-config-button" class="maintenance-button" onclick="updateRedisConfig()">Update Configuration</button>
+        <span>Current Version: <strong id="current-redis-version">Loading...</strong></span>
+        <label for="new_redis_version" style="width: 20px;">To:</label>
+        <input type="text" id="new_redis_version" placeholder="e.g., 7.2.4" style="width: 80px;">
+      </div>
+      <div id="update-config-result" style="margin-top: 15px;"></div>
+    </div>
+  </div>    
 </div>
 
     <button class="collapsible">4 - Redis Cluster Nodes Version Control</button>
@@ -2423,6 +2441,51 @@ async def maintain():
         }});
    }}
     
+    // Fetch current Redis version when page loads
+document.addEventListener('DOMContentLoaded', function() {{
+    fetch('/maintain/get-redis-version/')
+        .then(response => response.text())
+        .then(data => {{
+            document.getElementById('current-redis-version').textContent = data;
+        }})
+        .catch(error => {{
+            console.error('Error fetching Redis version:', error);
+            document.getElementById('current-redis-version').textContent = 'Unknown';
+        }});
+}});
+
+function updateRedisConfig() {{
+    const newVersionField = document.getElementById('new_redis_version');
+    const resultElement = document.getElementById('update-config-result');
+    
+    // Validate version input
+    if (!newVersionField.value.trim()) {{
+        resultElement.innerHTML = `
+            <div style="color: #856404; background-color: #fff3cd; padding: 10px; border-left: 4px solid #856404;">
+                Please enter a valid Redis version.
+            </div>
+        `;
+        return;
+    }}
+    
+    const redisVersion = newVersionField.value.trim();
+    resultElement.innerHTML = '<p>Updating configuration...</p>';
+    
+    fetch(`/maintain/update-redis-config/?redis_version=${{encodeURIComponent(redisVersion)}}`)
+        .then(response => response.text())
+        .then(data => {{
+            resultElement.innerHTML = data;
+            // Refresh displayed current version
+            document.getElementById('current-redis-version').textContent = redisVersion;
+        }})
+        .catch(error => {{
+            resultElement.innerHTML = `
+                <div style="color: #721c24; background-color: #f8d7da; padding: 10px; border-left: 4px solid #721c24;">
+                    Error updating configuration: ${{error.message}}
+                </div>
+            `;
+        }});
+}}
         
     </script>
     </body>
@@ -2852,6 +2915,30 @@ async def verify_redis_binary(redis_version: str):
     binary_path = f"{redisBinaryBase}redis-{redis_version}/src/redis-server"
     exists = os.path.isfile(binary_path)
     return {"exists": exists, "path": binary_path}
+
+
+@app.get("/maintain/update-redis-config/", response_class=HTMLResponse)
+async def update_redis_config(redis_version: str):
+    """
+    Endpoint to update Redis version in configuration files.
+    """
+    try:
+        result = update_redis_config_wv(redis_version)
+        return HTMLResponse(content=result)
+    except Exception as e:
+        return HTMLResponse(content=f'<div class="error-message"><h4>Error</h4><p>{str(e)}</p></div>')
+
+
+@app.get("/maintain/get-redis-version/", response_class=HTMLResponse)
+async def get_redis_version():
+    """
+    Get current Redis version from configuration.
+    """
+    try:
+        from pareConfig import redisVersion
+        return HTMLResponse(content=redisVersion)
+    except Exception as e:
+        return HTMLResponse(content=f"Error: {str(e)}")
 
 
 if __name__ == "__main__":
