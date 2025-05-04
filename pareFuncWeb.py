@@ -1002,6 +1002,7 @@ def rolling_restart_wv(wait_minutes=0, restart_masters=True):
                             # Wait between restarts if specified
                             if wait_seconds > 0 and node_index < len(pareNodes):
                                 results.append(f"<p>Waiting {wait_minutes} minute(s) before next restart...</p>")
+                                sleep(wait_seconds)  # Actually wait the specified time
 
                         except Exception as e:
                             # Restore original logWrite in case of error
@@ -1073,6 +1074,7 @@ def rolling_restart_wv(wait_minutes=0, restart_masters=True):
                                 # Wait between restarts if specified
                                 if wait_seconds > 0 and node_index < len(pareNodes):
                                     results.append(f"<p>Waiting {wait_minutes} minute(s) before next restart...</p>")
+                                    sleep(wait_seconds)  # Actually wait the specified time
 
                             except Exception as e:
                                 # Restore original logWrite in case of error
@@ -2646,7 +2648,7 @@ def update_redis_config_wv(new_redis_version):
                 <p>Binary directory updated to: {new_binary_dir}</p>
                 <p>Current node versions:</p>
                 {node_table}
-                <p><strong>Note:</strong> You may need to restart the application for changes to take effect.</p>
+                <p><strong>Note:</strong> To complete upgrade, switch masters and restart them to take effect.</p>
             </div>
             """
         else:
@@ -2743,7 +2745,7 @@ def redisNodesVersionControl_wv():
             <div class="version-summary">
                 <p>Configured Redis Version: <strong>{configured_version}</strong></p>
                 <p class="{'warning-text' if inconsistent_versions else ''}">
-                    {("⚠️ Inconsistent versions detected" if inconsistent_versions else "✓ All nodes running configured version")}
+                    {("⚠️ Inconsistent versions detected, restart node(s) to fix" if inconsistent_versions else "✓ All nodes running configured version")}
                 </p>
             </div>
             
@@ -2786,11 +2788,6 @@ def redisNodesVersionControl_wv():
         html_output += """
                 </tbody>
             </table>
-            
-            <div class="version-control-actions">
-                <h4>Version Management</h4>
-                <p>Use the upgrade tools above to update Redis version.</p>
-            </div>
         </div>
         """
 

@@ -1432,17 +1432,17 @@ async def manager():
             <br><br>
             <label for="parameter">Parameter:</label>
             <select id="parameter" name="parameter">
-                <option value="">--- Select or type below ---</option>
+                <option value="">--- Select below ---</option>
                 {''.join([f"<option value='{param}'>{param}</option>" for param in common_configs])}
             </select>
             <br><br>
             <label for="value">New Value:</label>
             <input type="text" id="value" name="value" placeholder="e.g., 2gb">
             <br><br>
-            <label for="persist">Persist to config:</label>
+           <div><input class="manager-button" type="submit" value="Apply Change">
+           <label for="persist" style="margin-left: 45px; width: auto">Persist to config:</label>
             <input type="checkbox" id="persist" name="persist" value="true">
-            <br><br>
-            <input class="manager-button" type="submit" value="Apply Change">
+            </div>
         </form>
         <div id="change-config-result" style="margin-top: 10px;"></div>
     </div>
@@ -1623,18 +1623,41 @@ async def manager():
         }}
 
         function rollingRestart(event) {{
-            event.preventDefault();
-            const formData = new FormData(document.getElementById('rolling-restart-form'));
-            const params = new URLSearchParams(formData).toString();
-            fetch('/manager/rolling-restart/?' + params)
-                .then(response => response.text())
-                .then(data => {{
-                    document.getElementById('rolling-restart-result').innerHTML = data;
-                }})
-                .catch(error => {{
-                    document.getElementById('rolling-restart-result').innerHTML = "<p style='color: red;'>Error performing rolling restart: " + error + "</p>";
-                }});
-        }}
+                event.preventDefault();
+                const form = document.getElementById('rolling-restart-form');
+                const formData = new FormData(form);
+            
+                // Explicitly check the checkbox state
+                const restartMastersChecked = form.querySelector('#restart_masters').checked;
+            
+                // Always include the parameter with true/false
+                formData.set('restart_masters', restartMastersChecked ? 'true' : 'false');
+            
+                // Add confirmation dialog if master nodes will be restarted
+                if (restartMastersChecked) {{
+                    if (!confirm("WARNING: You are about to restart master nodes which will trigger failover. This may cause temporary service interruption. Continue?")) {{
+                        return;
+                    }}
+                }}
+            
+                const params = new URLSearchParams(formData);
+            
+                // Show initial status message
+                document.getElementById('rolling-restart-result').innerHTML =
+                    "<p>Starting rolling restart. This may take several minutes...</p>" +
+                    "<div class='progress-bar-container'><div class='progress-bar' id='restart-progress'></div></div>";
+            
+                // Make the request to the correct endpoint
+                fetch('/manager/rolling-restart/?' + params)
+                    .then(response => response.text())
+                    .then(data => {{
+                        document.getElementById('rolling-restart-result').innerHTML = data;
+                    }})
+                    .catch(error => {{
+                        document.getElementById('rolling-restart-result').innerHTML =
+                            "<p style='color: red;'>Error during rolling restart: " + error + "</p>";
+                    }});
+            }}
 
         function executeCommand(event) {{
             event.preventDefault();
@@ -1648,7 +1671,7 @@ async def manager():
                 .catch(error => {{
                     document.getElementById('execute-command-result').innerHTML = "<p style='color: red;'>Error executing command: " + error + "</p>";
                 }});
-        }}
+         }}
 
         function showLog(event) {{
             event.preventDefault();
@@ -1722,7 +1745,7 @@ async def manager_save_config(redisNode: str):
         return HTMLResponse(content=f'<div class="response-container error-message"><p>Error: {str(e)}</p></div>')
 
 @app.get("/manager/rolling-restart/", response_class=HTMLResponse)
-async def manager_rolling_restart(wait_minutes: int = 0, restart_masters: bool = True):
+async def manager_rolling_restart(wait_minutes: int = 0, restart_masters: bool = False):
     """
     Endpoint to perform a rolling restart of Redis nodes.
     Returns styled HTML.
