@@ -1296,6 +1296,10 @@ def add_delete_node_wv(operation, node_info=None):
             if not serverPORT.isdigit():
                 return "<p style='color: red;'>Error: Invalid port number</p>"
 
+            # New check: Ensure port is a 4-digit number (1000-9999)
+            if len(serverPORT) != 4 or int(serverPORT) < 1000:
+                return "<p style='color: red;'>Error: Port number must be a 4-digit number (1000-9999)</p>"
+
             if not maxMemSize or not (maxMemSize[:-2].isdigit() and maxMemSize[-2:] in ['gb', 'mb']):
                 return "<p style='color: red;'>Error: Invalid memory size format. Use format like '1gb' or '500mb'</p>"
 
