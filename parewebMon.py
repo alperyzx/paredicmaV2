@@ -1503,11 +1503,11 @@ async def manager():
     <button class="collapsible">5 - Rolling Restart</button>
     <div class="content">
         <form id="rolling-restart-form" onsubmit="rollingRestart(event)">
-            <label for="wait_minutes">Wait between restarts (min):</label>
-            <input type="number" id="wait_minutes" name="wait_minutes" min="0" value="1">
+            <label for="wait_minutes" style="width: auto;">Wait between restarts:</label>
+            <input type="number" id="wait_minutes" name="wait_minutes" min="0" max="10" placeholder="minutes" required>
             <br><br>
-            <label for="restart_masters">Restart master nodes:</label>
-            <input type="checkbox" id="restart_masters" name="restart_masters" value="true" checked>
+            <label for="restart_masters">Include masters:</label>
+            <input type="checkbox" id="restart_masters" name="restart_masters" value="true">
             <br><br>
             <input class="manager-button" type="submit" value="Start Rolling Restart">
         </form>
@@ -1540,8 +1540,8 @@ async def manager():
             </select>
             <br><br>
             <label for="line_count"> <input class="manager-button" type="submit" value="View Log File">
-</label>
-            <input type="number" id="line_count" name="line_count" min="10" max="10000" value="100">
+            </label>
+            <input type="number" id="line_count" name="line_count" min="10" max="500" value="50">
             <br><br>
         </form>
         <div id="show-log-result" style="margin-top: 10px;"></div>
@@ -1796,7 +1796,7 @@ async def manager_rolling_restart(wait_minutes: int = 0, restart_masters: bool =
         return HTMLResponse(content=f'<div class="response-container error-message"><p>Error: {str(e)}</p></div>')
 
 @app.get("/manager/show-log/", response_class=HTMLResponse)
-async def manager_show_log(redisNode: str, line_count: int = 100):
+async def manager_show_log(redisNode: str, line_count: int = 50):
     """
     Endpoint to display the Redis log file for a specific node.
     Returns styled HTML.

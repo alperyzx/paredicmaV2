@@ -1193,7 +1193,7 @@ def execute_command_wv(command, only_masters=False, wait_seconds=0):
         return f"<p style='color: red;'>An unexpected error occurred: {str(e)}</p>"
 
 
-def show_redis_log_wv(redisNode, line_count=100):
+def show_redis_log_wv(redisNode, line_count=50):
     """
     Shows Redis log file content for a given node using CSS classes for styling.
 
