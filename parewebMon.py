@@ -215,22 +215,22 @@ def list_nodes():
         <h2>Cluster Node Status</h2>
         <table class="cluster-info-table" style="width: 100%; border-collapse: collapse; margin: 20px 0;">
             <tr>
-                <th style="padding: 10px; background-color: #2196F3; color: white; text-align: left;">Master Nodes</th>
+                <th style="padding: 10px; color: #2196F3; text-align: left;">Master Nodes</th>
             </tr>
             {"".join(f'<tr><td style="padding: 8px; border: 1px solid #ddd;">{node[0]} (ID: {node[1]}...)</td></tr>' for node in master_nodes) if master_nodes else '<tr><td style="padding: 8px; border: 1px solid #ddd; color: #777;">No master nodes found</td></tr>'}
 
             <tr>
-                <th style="padding: 10px; background-color: #4CAF50; color: white; text-align: left;">Slave Nodes</th>
+                <th style="padding: 10px; color: #4CAF50; text-align: left;">Slave Nodes</th>
             </tr>
             {"".join(f'<tr><td style="padding: 8px; border: 1px solid #ddd;">{node[0]} (Master: {node[1]}...)</td></tr>' for node in slave_nodes) if slave_nodes else '<tr><td style="padding: 8px; border: 1px solid #ddd; color: #777;">No slave nodes found</td></tr>'}
 
             <tr>
-                <th style="padding: 10px; background-color: #f44336; color: white; text-align: left;">Down Nodes</th>
+                <th style="padding: 10px; color: #f44336; text-align: left;">Down Nodes</th>
             </tr>
             {"".join(f'<tr><td style="padding: 8px; border: 1px solid #ddd;">{node[0]} (ID: {node[1]}...) {f"(Was Slave of: {node[2]}...)" if node[3] == "slave" else f"(Was Master)" if node[3] == "master" else ""}</td></tr>' for node in down_nodes) if down_nodes else '<tr><td style="padding: 8px; border: 1px solid #ddd; color: #777;">No down nodes detected</td></tr>'}
 
             <tr>
-                <th style="padding: 10px; background-color: #9E9E9E; color: white; text-align: left;">Unknown Status</th>
+                <th style="padding: 10px; color: #9E9E9E; text-align: left;">Unknown Status</th>
             </tr>
             {"".join(f'<tr><td style="padding: 8px; border: 1px solid #ddd;">{node[0]} (ID: {node[1]}...)</td></tr>' for node in unknown_nodes) if unknown_nodes else '<tr><td style="padding: 8px; border: 1px solid #ddd; color: #777;">No nodes with unknown status</td></tr>'}
         </table>
@@ -414,7 +414,8 @@ async def show_memory_usage():
             .meter-fill {{
                 height: 100%;
                 border-radius: 5px;
-                background: linear-gradient(to right, #4CAF50, #FFC107, #F44336);
+                background-color: var(--meter-color, #4CAF50);
+                transition: width 0.3s ease, background-color 0.3s ease;
             }}
             .section-header {{
                 padding: 10px 15px;
@@ -423,16 +424,13 @@ async def show_memory_usage():
                 font-weight: bold;
             }}
             .master-header {{
-                background-color: #2196F3;
-                color: white;
+                color: #2196F3;
             }}
             .slave-header {{
-                background-color: #4CAF50;
-                color: white;
+                color: #4CAF50;
             }}
             .down-header {{
-                background-color: #9E9E9E;
-                color: white;
+                color: #9E9E9E;
             }}
         </style>
     </head>
@@ -1325,6 +1323,47 @@ async def monitor():
                     document.getElementById('memory-usage-result').innerHTML = "<p style='color: red;'>Error fetching memory usage: " + error + "</p>";
                 }});
         }}
+        
+        function updateMeter(element, percentage) {{
+            element.style.width = percentage + '%';
+            
+            // Set color based on percentage thresholds
+            if (percentage < 40) {{
+                element.style.backgroundColor = '#4CAF50'; // Green for low usage
+            }} else if (percentage < 70) {{
+                element.style.backgroundColor = '#FFC107'; // Yellow for medium usage
+            }} else {{
+                element.style.backgroundColor = '#F44336'; // Red for high usage
+            }}
+        }}
+        
+        function initializeMeters() {{
+            const meters = document.querySelectorAll('.meter-fill');
+            meters.forEach(meter => {{
+                const width = meter.style.width;
+                const percentage = parseFloat(width);
+                updateMeter(meter, percentage);
+            }});
+        }}
+        
+        document.addEventListener('DOMContentLoaded', function() {{
+            initializeMeters();
+        }});
+        
+        function fetchMemoryUsage() {{
+            fetch('/monitor/memory-usage/')
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('memory-usage-result').innerHTML = data;
+                    setTimeout(initializeMeters, 100);
+                }})
+                .catch(error => {{
+                    document.getElementById('memory-usage-result').innerHTML =
+                        "<p style='color: red;'>Error fetching memory usage: " + error + "</p>";
+                }});
+        }}
+        
+        
     </script>
     </body>
     </html>
