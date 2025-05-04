@@ -1093,23 +1093,31 @@ def makeRedisCluster(nodesString, redisReplicationNumber):
 
 def delPareNode(delNodeID):
     try:
-        # Validate the node ID
-        node_id_int = int(delNodeID)
-        if node_id_int < 1 or node_id_int > len(pareNodes):
-            logWrite(pareLogFile, bcolors.FAIL + f'Error: Invalid node ID {delNodeID}. Valid range is 1-{len(pareNodes)}' + bcolors.ENDC)
-            return False
-
-        # Check if the node is active
-        if not pareNodes[node_id_int - 1][4]:
-            logWrite(pareLogFile, bcolors.FAIL + f'Error: Node {delNodeID} is already marked as inactive' + bcolors.ENDC)
-            return False
-
+        # Force reload pareNodeList to get the latest data
         try:
+            import importlib
+            importlib.reload(sys.modules['pareNodeList'])
+            from pareNodeList import pareNodes as fresh_pareNodes
+
+            # Use the fresh_pareNodes list for validation
+            node_id_int = int(delNodeID)
+            if node_id_int < 1 or node_id_int > len(fresh_pareNodes):
+                logWrite(pareLogFile, f'Error: Invalid node ID {delNodeID}. Valid range is 1-{len(fresh_pareNodes)}')
+                return False
+
+            # Use the fresh node data
+            pareNode = fresh_pareNodes[node_id_int - 1]
+            serverIP = pareNode[0][0]
+            serverPORT = pareNode[1][0]
+        except Exception as e:
+            # Fall back to current pareNodes if reload fails
+            node_id_int = int(delNodeID)
+            if node_id_int < 1 or node_id_int > len(pareNodes):
+                logWrite(pareLogFile, f'Error: Invalid node ID {delNodeID}. Valid range is 1-{len(pareNodes)}')
+                return False
+
             serverIP = pareNodes[node_id_int - 1][0][0]
             serverPORT = pareNodes[node_id_int - 1][1][0]
-        except (IndexError, TypeError) as e:
-            logWrite(pareLogFile, bcolors.FAIL + f'Error accessing node details for node {delNodeID}: {str(e)}' + bcolors.ENDC)
-            return False
 
         nodeNumber = 0
         contactNodeIP = ""
