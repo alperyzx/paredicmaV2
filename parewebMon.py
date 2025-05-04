@@ -141,45 +141,104 @@ def ping_nodes():
 # Define the list-nodes endpoint
 @app.get("/monitor/list-nodes/")
 def list_nodes():
-    master_node_list = ''
-    slave_node_list = ''
-    unknown_node_list = ''
-    down_node_list = ''
-    node_number = 0
-
+    # Find an active node to query
+    contact_node = None
     for pare_node in pareNodes:
         node_ip = pare_node[0][0]
         port_number = pare_node[1][0]
-        node_number += 1
+        if pare_node[4] and pingredisNode(node_ip, port_number):
+            contact_node = (node_ip, port_number)
+            break
 
-        if pare_node[4]:
-            if pingServer(node_ip):  # Check if the server is reachable
-                if is_ssh_available(node_ip):  # Check if SSH connection is available
-                    if pingredisNode(node_ip,port_number):  # Check if the Redis node is pingable
-                        return_val = slaveORMasterNode(node_ip, port_number)
-                        if return_val == 'M':
-                            master_node_list += f'<b style="color: green;">Server IP :</b> <span style="color: green;">{node_ip}</span> <b style="color: green;">Port:</b> <span style="color: green;">{port_number}</span> <span style="color: green;">UP</span><br>'
-                        elif return_val == 'S':
-                            status, response = getstatusoutput(redisConnectCmd(node_ip, port_number, ' info replication | grep  -e "master_host:" -e "master_port:" '))
-                            if status == 0:
-                                response = response.replace("\nmaster_port", "")
-                                slave_node_list += f'<b style="color: #001f3f;">Server IP :</b> <span style="color: #001f3f;">{node_ip}</span> <b style="color: #001f3f;">Port:</b> <span style="color: #001f3f;">{port_number}</span> <span style="color: #001f3f;">UP</span> -> <span style="color: #001f3f;">{response}</span><br>'
-                            else:
-                                slave_node_list += f'<b style="color: #001f3f;">Server IP :</b> <span style="color: #001f3f;">{node_ip}</span> <b style="color: #001f3f;">Port:</b> <span style="color: #001f3f;">{port_number}</span> <span style="color: red;">DOWN</span><br>'
-                        else:
-                            down_node_list += f'<b style="color: red;">Server IP :</b> <span style="color: red;">{node_ip}</span> <b style="color: red;">Port:</b> <span style="color: red;">{port_number}</span> <span style="color: red;">DOWN</span><br>'
-                    else:
-                        unknown_node_list += f'<b style="color: gray;">Server IP :</b> <span style="color: gray;">{node_ip}</span> <b style="color: gray;">Port:</b> <span style="color: gray;">{port_number}</span> <span style="color: red;">No Ping</span><br>'
-                else:
-                    unknown_node_list += f'<b style="color: gray;">Server IP :</b> <span style="color: gray;">{node_ip}</span> <b style="color: gray;">Port:</b> <span style="color: gray;">{port_number}</span> <span style="color: red;">No SSH connection</span><br>'
-            else:
-                unknown_node_list += f'<b style="color: gray;">Server IP :</b> <span style="color: gray;">{node_ip}</span> <b style="color: gray;">Port:</b> <span style="color: gray;">{port_number}</span> <span style="color: red;">Server Unreachable</span><br>'
+    if not contact_node:
+        return Response(
+            content=f"{css_style}<html><title>Node List</title><body><h2>Error</h2><p>No active node found to query cluster status.</p></body></html>",
+            media_type="text/html"
+        )
 
-    # Prepare the response message
-    response_message = f"{css_style}<html><title>Node List</title><body><h2>Master Nodes</h2>{master_node_list}<h2>Slave Nodes</h2>{slave_node_list}<h2>Down Nodes</h2>{down_node_list}<h2>Unknown Nodes</h2>{unknown_node_list}</body></html>"
+    # Query cluster nodes from the active node
+    cluster_cmd = f"{redisConnectCmd(contact_node[0], contact_node[1], 'CLUSTER NODES')}"
+    status, output = subprocess.getstatusoutput(cluster_cmd)
 
-    # Return the response with content type set to text/html
-    return Response(content=response_message, media_type="text/html")
+    if status != 0:
+        return Response(
+            content=f"{css_style}<html><title>Node List</title><body><h2>Error</h2><p>Failed to get cluster nodes information.</p></body></html>",
+            media_type="text/html"
+        )
+
+    # Prepare data structures for each node type
+    master_nodes = []
+    slave_nodes = []
+    down_nodes = []
+    unknown_nodes = []
+
+    # Parse the output to categorize nodes
+    for line in output.strip().split('\n'):
+        parts = line.split()
+        if len(parts) < 8:
+            continue
+
+        node_id = parts[0]
+        address = parts[1].split('@')[0]  # Remove cluster bus port if present
+        node_ip, node_port = address.split(':')
+        role_status = parts[2]  # Contains role and possibly "fail" flag
+
+        # Determine node status and role
+        is_master = "master" in role_status
+        is_slave = "slave" in role_status
+        is_fail = "fail" in role_status or "disconnected" in parts[7] if len(parts) > 7 else False
+
+        node_address = f"{node_ip}:{node_port}"
+
+        if is_fail:
+            if is_slave and len(parts) > 3:  # Down slave node
+                master_id = parts[3]
+                down_nodes.append((node_address, node_id[:8], master_id[:8], "slave"))
+            elif is_master:  # Down master node
+                down_nodes.append((node_address, node_id[:8], None, "master"))
+            else:  # Down node with unknown role
+                down_nodes.append((node_address, node_id[:8], None, "unknown"))
+        elif is_master:
+            master_nodes.append((node_address, node_id[:8]))
+        elif is_slave:
+            master_id = parts[3] if len(parts) > 3 else "Unknown"
+            slave_nodes.append((node_address, master_id[:8]))
+        else:
+            unknown_nodes.append((node_address, node_id[:8]))
+
+    # Generate HTML table for the response
+    html = f"""
+    {css_style}
+    <html>
+    <title>Node List</title>
+    <body>
+        <h2>Cluster Node Status</h2>
+        <table class="cluster-info-table" style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <tr>
+                <th style="padding: 10px; background-color: #2196F3; color: white; text-align: left;">Master Nodes</th>
+            </tr>
+            {"".join(f'<tr><td style="padding: 8px; border: 1px solid #ddd;">{node[0]} (ID: {node[1]}...)</td></tr>' for node in master_nodes) if master_nodes else '<tr><td style="padding: 8px; border: 1px solid #ddd; color: #777;">No master nodes found</td></tr>'}
+
+            <tr>
+                <th style="padding: 10px; background-color: #4CAF50; color: white; text-align: left;">Slave Nodes</th>
+            </tr>
+            {"".join(f'<tr><td style="padding: 8px; border: 1px solid #ddd;">{node[0]} (Master: {node[1]}...)</td></tr>' for node in slave_nodes) if slave_nodes else '<tr><td style="padding: 8px; border: 1px solid #ddd; color: #777;">No slave nodes found</td></tr>'}
+
+            <tr>
+                <th style="padding: 10px; background-color: #f44336; color: white; text-align: left;">Down Nodes</th>
+            </tr>
+            {"".join(f'<tr><td style="padding: 8px; border: 1px solid #ddd;">{node[0]} (ID: {node[1]}...) {f"(Was Slave of: {node[2]}...)" if node[3] == "slave" else f"(Was Master)" if node[3] == "master" else ""}</td></tr>' for node in down_nodes) if down_nodes else '<tr><td style="padding: 8px; border: 1px solid #ddd; color: #777;">No down nodes detected</td></tr>'}
+
+            <tr>
+                <th style="padding: 10px; background-color: #9E9E9E; color: white; text-align: left;">Unknown Status</th>
+            </tr>
+            {"".join(f'<tr><td style="padding: 8px; border: 1px solid #ddd;">{node[0]} (ID: {node[1]}...)</td></tr>' for node in unknown_nodes) if unknown_nodes else '<tr><td style="padding: 8px; border: 1px solid #ddd; color: #777;">No nodes with unknown status</td></tr>'}
+        </table>
+    </body>
+    </html>
+    """
+
+    return Response(content=html, media_type="text/html")
 
 
 # Define the node-info endpoint
@@ -215,6 +274,8 @@ def get_node_info(redisNode, command):
     response_message = f"{css_style}<html><body><h2>Node Info</h2><p>RedisNode: {redisNode}<br>Command: {command}<br>{node_info_val}</p></body></html>"
 
     return Response(content=response_message, media_type="text/html")
+
+
 
 @app.get("/monitor/server-info/")
 async def get_server_info(server_ip: str):
@@ -289,7 +350,6 @@ async def monitor_cluster_state_info():
             continue  # Continue to the next node
 
     return all_cluster_state_info
-
 
 
 @app.get("/monitor/memory-usage", response_class=HTMLResponse)
