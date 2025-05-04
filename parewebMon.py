@@ -1774,12 +1774,7 @@ async def maintain():
 
     <button class="collapsible">4 - Redis Cluster Nodes Version Control</button>
     <div class="content">
-        <div style="text-align: center; padding: 20px; color: #888;">
-            <p><i class="fas fa-tools"></i> This feature is not implemented yet.</p>
-            <p>Check and control Redis versions across your cluster.</p>
-            <button onclick="fetchNotImplemented('version-control')" class="btn-disabled">Version Control</button>
-        </div>
-        <div id="version-control-result" style="margin-top: 10px;"></div>
+        <div id="redis-version-control-container"></div>
     </div>
 
     <button class="collapsible">5 - Maintain Server</button>
@@ -2486,6 +2481,43 @@ function updateRedisConfig() {{
             `;
         }});
 }}
+
+function loadRedisVersionControl() {{
+    const versionControlContainer = document.getElementById('redis-version-control-container');
+    if (!versionControlContainer) return;
+
+    versionControlContainer.innerHTML = '<div class=\"loading\">Loading version data...</div>';
+
+    fetch('/maintain/redis-version-control/')
+        .then(response => response.text())
+        .then(html => {{
+            versionControlContainer.innerHTML = html;
+        }})
+        .catch(error => {{
+            versionControlContainer.innerHTML = `
+                <div class=\"error-message\">
+                    <p>Failed to load Redis version information: ${{error}}</p>
+                </div>
+            `;
+        }});
+}}
+
+// Add event listener for Redis Version Control section
+document.addEventListener('DOMContentLoaded', function() {{
+    const collapsibles = document.querySelectorAll('.collapsible');
+    collapsibles.forEach((button, index) => {{
+        if (index === 3) {{ // Index 3 is the 4th collapsible (0-based index)
+            button.addEventListener("click", function() {{
+                // Check if content is being expanded (not collapsed)
+                const content = this.nextElementSibling;
+                if (getComputedStyle(content).maxHeight === "0px" || !content.style.maxHeight) {{
+                    // Content is being expanded, load the version control data
+                    loadRedisVersionControl();
+                }}
+            }});
+        }}
+    }});
+}});
         
     </script>
     </body>
@@ -2940,6 +2972,29 @@ async def get_redis_version():
     except Exception as e:
         return HTMLResponse(content=f"Error: {str(e)}")
 
+
+@app.get("/maintain/redis-version-control/", response_class=HTMLResponse)
+async def redis_version_control():
+    """
+    Endpoint for Redis version control functionality.
+    Shows current Redis versions across all nodes and provides controls.
+    """
+    try:
+        from pareFuncWeb import redisNodesVersionControl_wv
+        version_html = redisNodesVersionControl_wv()
+        return HTMLResponse(content=version_html)
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return HTMLResponse(
+            content=f"""
+            <div class="error-message">
+                <h4>Error</h4>
+                <p>Failed to retrieve Redis version information: {str(e)}</p>
+                <pre>{trace}</pre>
+            </div>
+            """
+        )
 
 if __name__ == "__main__":
     import uvicorn

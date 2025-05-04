@@ -2641,3 +2641,143 @@ def update_redis_config_wv(new_redis_version):
             <pre>{trace}</pre>
         </div>
         """
+
+
+# redis version control
+def redisNodesVersionControl_wv():
+    """
+    Get Redis version information for all nodes in the cluster.
+    Returns HTML-formatted table showing all nodes and their Redis versions.
+    """
+    try:
+        # Reload pareConfig to get the latest redisVersion
+        import importlib
+        import sys
+        importlib.reload(sys.modules['pareConfig'])
+        from pareConfig import redisVersion as configured_version
+
+        # Container for results
+        node_versions = []
+        inconsistent_versions = False
+
+        # Check each active node
+        for i, pareNode in enumerate(pareNodes):
+            nodeIP = pareNode[0][0]
+            portNumber = pareNode[1][0]
+            node_num = i + 1
+
+            if not pareNode[4]:  # Skip inactive nodes
+                continue
+
+            # Get node role
+            role = slaveORMasterNode(nodeIP, portNumber)
+            node_role = "Master" if role == "M" else "Replica" if role == "S" else "Unknown"
+
+            # Check if node is reachable
+            if not pingredisNode(nodeIP, portNumber):
+                node_versions.append({
+                    "node_id": node_num,
+                    "ip": nodeIP,
+                    "port": portNumber,
+                    "role": node_role,
+                    "version": "Unreachable",
+                    "status": "error"
+                })
+                continue
+
+            # Get Redis version from the node
+            cmd_status, cmd_output = subprocess.getstatusoutput(
+                redisConnectCmd(nodeIP, portNumber, "info server | grep redis_version")
+            )
+
+            if cmd_status != 0 or "redis_version" not in cmd_output:
+                node_version = "Error"
+                status = "error"
+            else:
+                node_version = cmd_output.split(":")[1].strip()
+                # Check if version matches configured version
+                if node_version != configured_version:
+                    status = "warning"
+                    inconsistent_versions = True
+                else:
+                    status = "ok"
+
+            node_versions.append({
+                "node_id": node_num,
+                "ip": nodeIP,
+                "port": portNumber,
+                "role": node_role,
+                "version": node_version,
+                "status": status
+            })
+
+        # Format the HTML output
+        html_output = f"""
+        <div class="version-control-container">
+            <h3>Redis Version Control</h3>
+            <div class="version-summary">
+                <p>Configured Redis Version: <strong>{configured_version}</strong></p>
+                <p class="{'warning-text' if inconsistent_versions else ''}">
+                    {("⚠️ Inconsistent versions detected" if inconsistent_versions else "✓ All nodes running configured version")}
+                </p>
+            </div>
+            
+            <table class="version-table">
+                <thead>
+                    <tr>
+                        <th>Node #</th>
+                        <th>IP:Port</th>
+                        <th>Role</th>
+                        <th>Version</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+
+        for node in node_versions:
+            status_class = {
+                "ok": "status-ok",
+                "warning": "status-warning",
+                "error": "status-error"
+            }.get(node["status"], "")
+
+            status_icon = {
+                "ok": "✓",
+                "warning": "⚠️",
+                "error": "❌"
+            }.get(node["status"], "?")
+
+            html_output += f"""
+                <tr class="{status_class}">
+                    <td>{node["node_id"]}</td>
+                    <td>{node["ip"]}:{node["port"]}</td>
+                    <td>{node["role"]}</td>
+                    <td>{node["version"]}</td>
+                    <td>{status_icon}</td>
+                </tr>
+            """
+
+        html_output += """
+                </tbody>
+            </table>
+            
+            <div class="version-control-actions">
+                <h4>Version Management</h4>
+                <p>Use the upgrade tools above to update Redis version.</p>
+            </div>
+        </div>
+        """
+
+        return html_output
+
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return f"""
+        <div class="error-message">
+            <h4>Error Retrieving Version Information</h4>
+            <p>An error occurred: {str(e)}</p>
+            <pre>{trace}</pre>
+        </div>
+        """
