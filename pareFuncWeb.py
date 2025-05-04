@@ -2117,10 +2117,11 @@ def upload_redis_version_wv(upload_file, filename):
         """
 
 
-#step2 extract & compile
+#step1 extract & compile
 def extract_compile_redis_wv(redis_tarfile):
     """
     Extract and compile Redis from a previously downloaded tarball for web UI.
+    Then copy the compiled binaries to the redisBinaryBase directory.
     Returns HTML content with the operation results.
     """
     try:
@@ -2177,6 +2178,24 @@ def extract_compile_redis_wv(redis_tarfile):
         # Successful compilation
         logWrite(pareLogFile, f"Redis {redis_version} compiled successfully")
 
+        # Create target directory if it doesn't exist
+        target_dir = f"{redisBinaryBase}redis-{redis_version}"
+        os.makedirs(os.path.dirname(target_dir), exist_ok=True)
+
+        # Copy the compiled binaries to the redisBinaryBase directory
+        logWrite(pareLogFile, f"Copying Redis {redis_version} to {target_dir}...")
+        rsync_cmd = f"rsync -a --delete redis-{redis_version}/ {target_dir}/"
+        copy_status, copy_output = subprocess.getstatusoutput(rsync_cmd)
+
+        if copy_status != 0:
+            return f"""
+            <div class="warning-message">
+                <h4 style="color: orange; font-weight: bold;">Compilation Successful, But Copy Failed</h4>
+                <p>Redis {redis_version} compiled successfully, but failed to copy to {target_dir}. Error output:</p>
+                <pre style="padding: 10px; border-left: 4px solid orange;">{copy_output}</pre>
+            </div>
+            """
+
         return f"""
         <div class="success-message">
             <h4 style="color: green; font-weight: bold;">Redis {redis_version} Compiled Successfully</h4>
@@ -2184,7 +2203,8 @@ def extract_compile_redis_wv(redis_tarfile):
             <div class="code-output" style="padding: 10px; border-left: 4px solid green;">
                 <p>✓ Extracted: {redis_tarfile}</p>
                 <p>✓ Compiled: redis-{redis_version}</p>
-                <p>✓ Binary location: redis-{redis_version}/src/</p>
+                <p>✓ Copied to: {target_dir}</p>
+                <p>✓ Binary location: {target_dir}/src/</p>
             </div>
         </div>
         """
@@ -2200,6 +2220,128 @@ def extract_compile_redis_wv(redis_tarfile):
             <pre style="padding: 10px; border-left: 4px solid orange;">{trace}</pre>
         </div>
         """
+
+
+#step2 extract & compile
+def redisNewBinaryCopier_wv(redis_version):
+            """
+            Copies newly compiled Redis binaries to all nodes in the cluster.
+            Skips the host server (pareServerIp) as binaries are already there from compilation.
+
+            Args:
+                redis_version: The version of Redis to copy (e.g., 7.2.4)
+
+            Returns:
+                HTML-formatted result of the operation
+            """
+            try:
+                # Validate version format
+                import re
+                if not re.match(r'^\d+\.\d+\.\d+$', redis_version):
+                    return f"""
+                    <div class="error-message">
+                        <p style="color: orange; font-weight: bold;">Invalid Redis Version Format</p>
+                        <p>The version must be in the format X.Y.Z (e.g., 7.2.4)</p>
+                    </div>
+                    """
+
+                # Construct source directory path
+                source_dir = f"{redisBinaryBase}redis-{redis_version}/"
+
+                # Check if the source directory exists
+                if not os.path.exists(source_dir):
+                    return f"""
+                    <div class="error-message">
+                        <p style="color: orange; font-weight: bold;">Source Directory Not Found</p>
+                        <p>The Redis {redis_version} binaries directory was not found at:</p>
+                        <p>{source_dir}</p>
+                        <p>Please compile Redis {redis_version} first.</p>
+                    </div>
+                    """
+
+                # Results container
+                results = []
+                successful_copies = 0
+                failed_copies = 0
+                skipped_nodes = 0
+
+                # Iterate through all nodes
+                for node in pareNodes:
+                    nodeIP = node[0][0]
+
+                    # Skip the host server as requested
+                    if nodeIP == pareServerIp:
+                        results.append(f"<p>⏭️ Skipping host server {nodeIP} as binaries are already there</p>")
+                        skipped_nodes += 1
+                        continue
+
+                    if not node[4]:  # Skip inactive nodes
+                        results.append(f"<p>⏭️ Skipping inactive node on {nodeIP}</p>")
+                        skipped_nodes += 1
+                        continue
+
+                    # Check if server is reachable
+                    if not pingServer(nodeIP):
+                        results.append(f"<p style='color: orange;'>⚠️ Server {nodeIP} is not reachable</p>")
+                        failed_copies += 1
+                        continue
+
+                    # Create destination directory on remote server
+                    dest_dir = f"{redisBinaryBase}redis-{redis_version}"
+                    mkdir_cmd = f"ssh {pareOSUser}@{nodeIP} 'mkdir -p {dest_dir}'"
+                    mkdir_status, mkdir_output = subprocess.getstatusoutput(mkdir_cmd)
+
+                    if mkdir_status != 0:
+                        results.append(f"<p style='color: red;'>❌ Failed to create directory on {nodeIP}: {mkdir_output}</p>")
+                        failed_copies += 1
+                        continue
+
+                    # Use rsync to copy files to the remote server
+                    rsync_cmd = f"rsync -a --delete {source_dir} {pareOSUser}@{nodeIP}:{dest_dir}/"
+                    copy_status, copy_output = subprocess.getstatusoutput(rsync_cmd)
+
+                    if copy_status != 0:
+                        results.append(f"""
+                        <p style='color: red;'>❌ Failed to copy binaries to {nodeIP}:</p>
+                        <pre style="padding: 10px; border-left: 4px solid red;">{copy_output}</pre>
+                        """)
+                        failed_copies += 1
+                    else:
+                        results.append(f"<p style='color: green;'>✅ Successfully copied Redis {redis_version} binaries to {nodeIP}</p>")
+                        successful_copies += 1
+
+                # Generate summary
+                summary = f"""
+                <div class="summary-box">
+                    <h4 style="margin-bottom: 10px;">Binary Copy Summary</h4>
+                    <p>✅ Successful copies: {successful_copies}</p>
+                    <p>❌ Failed copies: {failed_copies}</p>
+                    <p>⏭️ Skipped nodes: {skipped_nodes}</p>
+                    <p>Total nodes processed: {successful_copies + failed_copies + skipped_nodes}</p>
+                </div>
+                """
+
+                return f"""
+                <div class="operation-result">
+                    <h3 style="color: #336699;">Redis {redis_version} Binary Distribution</h3>
+                    {summary}
+                    <div class="detail-section">
+                        <h4>Detailed Results:</h4>
+                        {"".join(results)}
+                    </div>
+                </div>
+                """
+
+            except Exception as e:
+                import traceback
+                trace = traceback.format_exc()
+                return f"""
+                <div class="error-message">
+                    <h3 style="color: orange; font-weight: bold;">Error Copying Redis Binaries</h3>
+                    <p>An unexpected error occurred: {str(e)}</p>
+                    <pre style="padding: 10px; border-left: 4px solid orange; overflow-x: auto;">{trace}</pre>
+                </div>
+                """
 
 
 #copy new redis binaries to all nodes
@@ -2231,9 +2373,9 @@ def redisNewBinaryCopier_wv(redis_version):
         if not os.path.exists(compiled_dir):
             return f"""
             <div class="error-message">
-                <p style="color: orange; font-weight: bold;">Compiled Redis version not found!</p>
+                <p style="color: claret; font-weight: bold;">Compiled Redis version not found!</p>
                 <p>Could not find the directory: {compiled_dir}</p>
-                <p>Please make sure you have extracted Redis {redis_version} first.</p>
+                <p>Please make sure you have extracted & compiled redis-{redis_version}.tar.gz first</p>
             </div>
             """
 
