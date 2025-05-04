@@ -1683,8 +1683,7 @@ async def manager():
             
                 // Show initial status message
                 document.getElementById('rolling-restart-result').innerHTML =
-                    "<p>Starting rolling restart. This may take several minutes...</p>" +
-                    "<div class='progress-bar-container'><div class='progress-bar' id='restart-progress'></div></div>";
+                    "<p>Starting rolling restart. This may take several minutes...</p>" ;
             
                 // Make the request to the correct endpoint
                 fetch('/manager/rolling-restart/?' + params)
