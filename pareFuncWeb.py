@@ -455,8 +455,18 @@ def node_action_wv(redisNode, action, confirmed=False):
         dedicateCpuCores = node_details[2][0]
         node_num_str = str(node_index)
 
-        # For stop action, check if the node is master and if confirmation is required
-        if action.lower() == 'stop':
+        # Check if the node is already running when trying to start it
+        if action.lower() == 'start':
+            if pingredisNode(nodeIP, portNumber):
+                return f"""
+                <div class="response-container">
+                    <p style='color: orange;'><strong>Notice:</strong> Node {redisNode} is already running.</p>
+                    <p>No action was taken as the node is already in the desired state.</p>
+                </div>
+                """
+
+        # For stop or restart action, check if the node is master and if confirmation is required
+        if action.lower() == 'stop' or action.lower() == 'restart':
             is_master, has_slave = check_if_master(nodeIP, portNumber)
 
             if is_master and not confirmed:
@@ -465,9 +475,9 @@ def node_action_wv(redisNode, action, confirmed=False):
                     return f"""
                     <div class="confirmation-needed" id="confirmation-dialog">
                         <p style='color: red; font-weight: bold;'>Warning: This node ({redisNode}) is a MASTER node with slaves!</p>
-                        <p>Stopping this node will trigger master/slave failover.</p>
+                        <p>{"Stopping" if action.lower() == 'stop' else "Restarting"} this node will trigger master/slave failover.</p>
                         <p>Do you want to continue?</p>
-                        <button class="confirm-btn" data-node="{redisNode}" data-action="stop">Yes, Stop the Node</button>
+                        <button class="confirm-btn" data-node="{redisNode}" data-action="{action.lower()}">Yes, {action.capitalize()} the Node</button>
                         <button class="cancel-btn">Cancel</button>
                     </div>
                     """
@@ -475,12 +485,21 @@ def node_action_wv(redisNode, action, confirmed=False):
                     return f"""
                     <div class="confirmation-needed" id="confirmation-dialog">
                         <p style='color: red; font-weight: bold;'>Warning: This node ({redisNode}) is a MASTER node with NO slaves!</p>
-                        <p style='color: red;'>Stopping this node will cause Redis cluster to FAIL!</p>
+                        <p style='color: red;'>{"Stopping" if action.lower() == 'stop' else "Restarting"} this node will cause Redis cluster to FAIL!</p>
                         <p>Do you want to continue?</p>
-                        <button class="confirm-btn" data-node="{redisNode}" data-action="stop">Yes, Stop the Node</button>
+                        <button class="confirm-btn" data-node="{redisNode}" data-action="{action.lower()}">Yes, {action.capitalize()} the Node</button>
                         <button class="cancel-btn">Cancel</button>
                     </div>
                     """
+
+        # Check if trying to stop a node that's already stopped
+        if action.lower() == 'stop' and not pingredisNode(nodeIP, portNumber):
+            return f"""
+            <div class="response-container">
+                <p style='color: orange;'><strong>Notice:</strong> Node {redisNode} is already stopped.</p>
+                <p>No action was taken as the node is already in the desired state.</p>
+            </div>
+            """
 
         action_func = None
         action_gerund = ""  # For user feedback
@@ -510,8 +529,8 @@ def node_action_wv(redisNode, action, confirmed=False):
         logWrite = capture_log
 
         try:
-            # For stop action with confirmation, handle it differently
-            if action.lower() == 'stop' and confirmed:
+            # For stop and restart actions with confirmation, handle it differently
+            if (action.lower() == 'stop' or action.lower() == 'restart') and confirmed:
                 # First check if node is master and has slaves
                 is_master, has_slave = check_if_master(nodeIP, portNumber)
                 if is_master and has_slave:
@@ -519,9 +538,15 @@ def node_action_wv(redisNode, action, confirmed=False):
                     # Perform master/slave failover before stopping
                     switchMasterSlave(nodeIP, node_index, portNumber)
 
-                # Now stop the node
-                log_messages.append(f"Stopping Redis node {nodeIP}:{portNumber}")
-                stopNode(nodeIP, node_num_str, portNumber)
+                # Now perform the action
+                if action.lower() == 'stop':
+                    log_messages.append(f"Stopping Redis node {nodeIP}:{portNumber}")
+                    stopNode(nodeIP, node_num_str, portNumber, non_interactive=True)
+                elif action.lower() == 'restart':
+                    log_messages.append(f"Restarting Redis node {nodeIP}:{portNumber}")
+                    # Call stopNode with non_interactive flag first, then startNode
+                    stopNode(nodeIP, node_num_str, portNumber, non_interactive=True)
+                    startNode(nodeIP, node_num_str, portNumber, dedicateCpuCores)
             else:
                 # Normal action execution for non-stop actions or non-master nodes
                 if action.lower() in ['start', 'restart']:
