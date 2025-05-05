@@ -755,6 +755,7 @@ css_style = """
         .monitor-card .card-header { background-color: #4f4f4f; }
         .manager-card .card-header { background-color: #001f3f; }
         .maintain-card .card-header { background-color: #800000; }
+        .maker-card .card-header { background-color: #4f4f4f; }
         .card-content { padding: 15px; flex-grow: 1; color: #555; font-size: 14px; }
         .card-footer { padding: 15px; text-align: center; border-top: 1px solid #eee; }
         .card-button { display: inline-block; width: auto; } /* Adjust width */
@@ -1103,6 +1104,17 @@ async def welcome_page():
                     </div>
                     <div class="card-footer">
                         <a href="/maintain" class="card-button">Go to Maintenance</a>
+                    </div>
+                </div>
+                
+                <div class="section-card maker-card">
+                    <h2 class="card-header">Maker</h2>
+                    <div class="card-content">
+                        <p>Create a redis cluster, check requirements</p>
+                        <p>Not Implemented Yet.</p>
+                    </div>
+                    <div class="card-footer">
+                        <a href="/maker" class="card-button">Go to Maker</a>
                     </div>
                 </div>
             
