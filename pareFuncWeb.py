@@ -1839,7 +1839,7 @@ def move_slots_wv(nodeNumber, fromNodeID, toNodeID, numberOfSlots):
                     <p style="color: green;">Successfully moved {numberOfSlots} slots from node {fromNodeID_str} to node {toNodeID_str}</p>
                     <div class="log-section">
                         <h4>Operation Log:</h4>
-                        <pre style="background-color: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto;">{log_output}</pre>
+                        <pre style="padding: 10px; border-radius: 5px; overflow-x: auto;">{log_output}</pre>
                     </div>
                     <p>Note: You may need to refresh the slot information to see the updated distribution.</p>
                 </div>
@@ -1854,7 +1854,7 @@ def move_slots_wv(nodeNumber, fromNodeID, toNodeID, numberOfSlots):
                     <p>Failed to move {numberOfSlots} slots from node {fromNodeID_str} to node {toNodeID_str}</p>
                     <div class="log-section">
                         <h4>Error Log:</h4>
-                        <pre style="background-color: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto;">{log_output}</pre>
+                        <pre style="padding: 10px; border-radius: 5px; overflow-x: auto;">{log_output}</pre>
                     </div>
                     <p>Please check the logs for details and try again.</p>
                 </div>
