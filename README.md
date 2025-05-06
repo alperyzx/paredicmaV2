@@ -6,13 +6,18 @@
 #### UpdateDate				: 07.12.2023
 #### UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) 
 #### Release Note			: Python3 support
-#### Software Requirement		: Python3.x or above, sshd( with passwordless ssh-keygen auth. between servers ), numactl 
+#### Software Requirement	: Python3.x or above, sshd( with passwordless ssh-keygen auth. between servers ), numactl 
 #### OS System 				: Redhat/Centos 7+ ( possible Ubuntu, debian )
 
 ## Version: 2.1
 #### UpdateDate				: 27.02.2024
 #### UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) 
 #### Release Note			: Web View Support with FastAPI (Monitoring Section)
+
+## Version: 2.5
+#### UpdateDate				: 05.05.2025
+#### UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) 
+#### Release Note			: Enhanced Management and Maintenance features, including Redis Cluster Upgrade.
 
 ## Python Automatic REDIs Cluster MAnager&MAker
 This program is developed by Mustafa YAVUZ (msyavuz@gmail.com) to make Redis Cluster installation, managament, upgrade and maintanence easier, especially for non-Docker environments.
