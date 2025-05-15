@@ -1,33 +1,15 @@
 # !/usr/bin/python
-
 from pareNodeList import *
-import socket
+from pareFuncWeb import get_local_ip
 
-def get_local_ip():
-    """
-    Returns the primary IP address of the local machine by creating a
-    temporary socket connection to an external server.
-    """
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        s.close()
-        return local_ip
-    except Exception:
-        try:
-            hostname = socket.gethostname()
-            local_ip = socket.gethostbyname(hostname)
-            return local_ip
-        except Exception:
-            return "127.0.0.1"
-
-projectName = 'releaseTest'+'Cache'
+#set  your own parameters
+projectName = 'releaseTest' + 'Cache'
 pareOSUser = 'alper'
 pareWebPort = 8000
-redisVersion = '7.4.1'
-redisTarFile = 'redis-7.4.1.tar.gz'
-#pareServerIp = '127.0.0.1'  # paredicma host server
+redisVersion = '7.4.2'
+redisTarFile = 'redis-7.4.2.tar.gz'
+
+# do not change if you are not sure
 pareServerIp = get_local_ip()  # paredicma host server
 redisDataDir = '/data/'+pareOSUser+'/projects/'+projectName+'/'
 redisConfigDir = '/data/'+pareOSUser+'/projects/'+projectName+'/conf/'
