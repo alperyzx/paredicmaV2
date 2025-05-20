@@ -2,7 +2,6 @@
 
 echo "Starting Paredicma - Redis Cluster Management Tool..."
 
-
 # Function to find the highest Python 3.x version available
 find_latest_python() {
     # First check if a specific version is requested through environment variable
@@ -49,6 +48,44 @@ find_latest_python() {
     echo "Using $python_cmd (version $python_full_version)" >&2
     echo $python_cmd
 }
+
+# Get local IP address for server info
+get_local_ip() {
+    local python_cmd
+    python_cmd=$(find_latest_python)
+    $python_cmd -c "import socket
+try:
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(('8.8.8.8', 80))
+    print(s.getsockname()[0])
+    s.close()
+except Exception:
+    try:
+        hostname = socket.gethostname()
+        print(socket.gethostbyname(hostname))
+    except Exception:
+        print('127.0.0.1')"
+}
+
+# Prevent running multiple instances
+PID_FILE="/tmp/paredicma_web.pid"
+SERVER_IP=$(get_local_ip)
+SERVER_ADDR="http://$SERVER_IP:8000"
+
+if [ -f "$PID_FILE" ]; then
+    existing_pid=$(cat "$PID_FILE")
+    if ps -p $existing_pid > /dev/null 2>&1; then
+        echo "Paredicma Web Interface is already running (PID: $existing_pid)."
+        echo "Access it at: $SERVER_ADDR"
+        exit 1
+    else
+        # Stale PID file
+        rm -f "$PID_FILE"
+    fi
+fi
+
+echo $$ > "$PID_FILE"
+trap 'rm -f "$PID_FILE"' EXIT
 
 # Check and install required packages
 check_and_install_packages() {
