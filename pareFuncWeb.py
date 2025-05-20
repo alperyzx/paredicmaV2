@@ -17,26 +17,6 @@ from time import sleep
 import sys
 
 
-def get_local_ip():
-    """
-    Returns the primary IP address of the local machine by creating a
-    temporary socket connection to an external server.
-    """
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        s.close()
-        return local_ip
-    except Exception:
-        try:
-            hostname = socket.gethostname()
-            local_ip = socket.gethostbyname(hostname)
-            return local_ip
-        except Exception:
-            return "127.0.0.1"
-
-
 def nodeInfo_wv(redisNode, cmd):
     nodeIP, nodePort = redisNode.split(':')
     retVal = 'Unknown'

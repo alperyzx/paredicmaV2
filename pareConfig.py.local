@@ -1,6 +1,5 @@
 # !/usr/bin/python
 from pareNodeList import *
-from pareFuncWeb import get_local_ip
 
 #set  your own parameters
 projectName = 'releaseTest' + 'Cache'
@@ -8,9 +7,9 @@ pareOSUser = 'alper'
 pareWebPort = 8000
 redisVersion = '7.4.2'
 redisTarFile = 'redis-7.4.2.tar.gz'
+pareServerIp = 192.168.1.15 # paredicma host server
 
 # do not change if you are not sure
-pareServerIp = get_local_ip()  # paredicma host server
 redisDataDir = '/data/'+pareOSUser+'/projects/'+projectName+'/'
 redisConfigDir = '/data/'+pareOSUser+'/projects/'+projectName+'/conf/'
 redisLogDir = '/data/'+pareOSUser+'/projects/'+projectName+'/log/'
