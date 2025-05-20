@@ -17,15 +17,16 @@ find_latest_python() {
         fi
     fi
 
-    # Try to find the highest Python 3.x version
-    for version in 3.11 3.10 3.9 3.8 3.7 3.6; do
-        if command -v python$version &>/dev/null; then
-            python_cmd="python$version"
-            echo "Found Python $version" >&2
+    # Dynamically find all python3.x executables, sort, and pick the highest
+    highest_python=$(compgen -c | grep -E '^python3\.[0-9]+$' | sort -V | tail -n 1)
+    if [[ -n "$highest_python" && "$highest_python" =~ ^python3\.[0-9]+$ ]]; then
+        if command -v $highest_python &>/dev/null; then
+            python_cmd="$highest_python"
+            echo "Found highest Python: $python_cmd" >&2
             echo $python_cmd
             return
         fi
-    done
+    fi
 
     # Fallback to generic python3
     if command -v python3 &>/dev/null; then
@@ -93,13 +94,20 @@ check_and_install_packages() {
             pip_cmd="pip3"
         fi
 
-        # Install missing packages with --user flag to avoid permission issues
-        $pip_cmd install --user "${missing_packages[@]}"
+        # Install missing packages
+        if [[ -n "$VIRTUAL_ENV" ]]; then
+            # In venv: do NOT use --user
+            $pip_cmd install "${missing_packages[@]}"
+        else
+            # System Python: use --user
+            $pip_cmd install --user "${missing_packages[@]}"
+        fi
         echo "Package installation complete."
     fi
 }
 
 # Check for virtual environment and use it if available
+venv_created=0
 if [ -d ".venv" ]; then
     echo "Virtual environment found. Activating..."
 
@@ -124,12 +132,32 @@ if [ -d ".venv" ]; then
         PYTHON_CMD=$(find_latest_python)
     fi
 else
-    echo "No virtual environment found. Using system Python..."
-    PYTHON_CMD=$(find_latest_python)
+    echo "No virtual environment found."
+    read -p "Would you like to create a virtual environment now? (y/n): " create_venv
+    if [[ "$create_venv" =~ ^[Yy]$ ]]; then
+        PYTHON_CMD=$(find_latest_python)
+        echo "Creating virtual environment with $PYTHON_CMD..."
+        $PYTHON_CMD -m venv .venv
+        if [ $? -eq 0 ]; then
+            echo "Virtual environment created. Activating..."
+            source .venv/bin/activate
+            PYTHON_CMD="python"
+            venv_created=1
+        else
+            echo "Failed to create virtual environment. Falling back to system Python..."
+            PYTHON_CMD=$(find_latest_python)
+        fi
+    else
+        echo "Continuing without virtual environment. Using system Python..."
+        PYTHON_CMD=$(find_latest_python)
+    fi
 fi
 
-# Check and install packages (only if not using venv)
-if [[ "$VIRTUAL_ENV" == "" ]]; then
+# Always choose the max python version available
+PYTHON_CMD=$(find_latest_python)
+
+# Install packages if not using venv, or if venv was just created
+if [[ "$VIRTUAL_ENV" == "" || $venv_created -eq 1 ]]; then
     check_and_install_packages $PYTHON_CMD
 fi
 
@@ -138,3 +166,4 @@ echo "Launching Paredicma Web Interface..."
 $PYTHON_CMD parewebMon.py
 
 exit $?
+
