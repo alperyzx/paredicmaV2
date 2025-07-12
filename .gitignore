@@ -3,3 +3,5 @@
 /pareNodeList.py
 /pareConfig.py
 /*.log
+__pycache__/
+*.pyc
