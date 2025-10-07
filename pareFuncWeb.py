@@ -2298,11 +2298,24 @@ def redisNewBinaryCopier_wv(redis_version):
             if node[4]:  # Only consider active nodes
                 unique_servers.add(node[0][0])
 
-        # Remove the host server from the list
-        if pareServerIp in unique_servers:
-            unique_servers.remove(pareServerIp)
-            results.append(f"<p>⏭️ Skipping host server {pareServerIp} as binaries are already there</p>")
-            skipped_servers += 1
+        # Get local IP to skip the server where this script is running
+        import socket
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(('8.8.8.8', 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+        except Exception:
+            local_ip = '127.0.0.1'
+
+        # Remove the host server from the list (either by pareServerIp or local IP)
+        servers_to_skip = {pareServerIp, local_ip, '127.0.0.1'}
+        skipped_servers = 0
+        for server_ip in list(unique_servers):
+            if server_ip in servers_to_skip:
+                unique_servers.remove(server_ip)
+                results.append(f"<p>⏭️ Skipping host server {server_ip} as binaries are already there</p>")
+                skipped_servers += 1
 
         # Copy binaries to each unique server
         for server_ip in unique_servers:
