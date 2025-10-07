@@ -1061,13 +1061,13 @@ async def welcome_page():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Paredicma - Redis Cluster Management</title>
+        <title>Paredicma - {projectName} - Redis Cluster Management</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
     <body>
         <div class="welcome-container">
             <div class="welcome-header">
-                <h1>Paredicma</h1>
+                <h1>Paredicma - {projectName}</h1>
                 <div class="welcome-description">
                     Redis Cluster Management Tool
                 </div>
@@ -1154,10 +1154,10 @@ async def monitor():
     {css_style}
     <html>
     <head>
-        <title>Redis Cluster Monitor</title>
+        <title>Redis Cluster Monitor - {projectName}</title>
     </head>
     <body>
-    <h1 class="monitor-title">Redis Cluster Monitor</h1>
+    <h1 class="monitor-title">Redis Cluster Monitor - {projectName}</h1>
     <div class="nav-buttons">
         <a href="/manager" class="manager-nav">Go to Manager</a>
         <a href="/maintain" class="maintenance-nav">Go to Maintenance</a>
@@ -1433,10 +1433,10 @@ async def manager():
     {css_style}
     <html>
     <head>
-        <title>Redis Cluster Manager</title>
+        <title>Redis Cluster Manager - {projectName}</title>
     </head>
     <body>
-    <h1 class="manager-title">Redis Cluster Manager</h1>
+    <h1 class="manager-title">Redis Cluster Manager - {projectName}</h1>
     <div class="nav-buttons">
         <a href="/monitor" class="monitor-nav">Go to Monitor</a>
         <a href="/maintain" class="maintenance-nav">Go to Maintenance</a>
@@ -1892,10 +1892,10 @@ async def maintain():
     {css_style}
     <html>
     <head>
-        <title>Redis Cluster Maintenance</title>
+        <title>Redis Cluster Maintenance - {projectName}</title>
     </head>
     <body>
-    <h1 class="maintenance-title">Redis Cluster Maintenance</h1>
+    <h1 class="maintenance-title">Redis Cluster Maintenance - {projectName}</h1>
     <div class="nav-buttons">
         <a href="/monitor" class="monitor-nav">Go to Monitor</a>
         <a href="/manager" class="manager-nav">Go to Manager</a>

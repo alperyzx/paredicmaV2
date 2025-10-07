@@ -221,6 +221,8 @@ else
     export PARE_WEB_PORT=8000
 fi
 
+export PARE_SERVER_IP=$SERVER_IP
+
 SERVER_ADDR="http://$SERVER_IP:$AVAILABLE_PORT"
 
 $PYTHON_CMD parewebMon.py
