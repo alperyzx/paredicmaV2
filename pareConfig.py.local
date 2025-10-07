@@ -7,7 +7,7 @@ pareOSUser = 'alper'
 pareWebPort = 8000
 redisVersion = '7.4.2'
 redisTarFile = 'redis-7.4.2.tar.gz'
-pareServerIp = 192.168.1.15 # paredicma host server
+pareServerIp = '192.168.1.15' # paredicma host server
 
 # do not change if you are not sure
 redisDataDir = '/data/'+pareOSUser+'/projects/'+projectName+'/'

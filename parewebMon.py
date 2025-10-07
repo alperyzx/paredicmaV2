@@ -3299,5 +3299,6 @@ async def redis_version_control():
 if __name__ == "__main__":
     import uvicorn
     import os
-    port = int(os.environ.get('PARE_WEB_PORT', pareWebPort))
-    uvicorn.run(app, host=(pareServerIp), port=port)
+    port = int(os.environ.get('PARE_WEB_PORT', 8000))
+    host = os.environ.get('PARE_SERVER_IP', '0.0.0.0')
+    uvicorn.run(app, host=host, port=port)

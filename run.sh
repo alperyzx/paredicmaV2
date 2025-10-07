@@ -73,6 +73,9 @@ SERVER_IP=$(get_local_ip)
 
 if [ -f "$PID_FILE" ]; then
     read existing_pid existing_port < "$PID_FILE"
+    if [ -z "$existing_port" ]; then
+        existing_port=8000
+    fi
     if ps -p $existing_pid > /dev/null 2>&1; then
         echo "Paredicma Web Interface is already running (PID: $existing_pid)."
         echo "Access it at: http://$SERVER_IP:$existing_port"
