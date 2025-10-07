@@ -70,13 +70,12 @@ except Exception:
 # Prevent running multiple instances
 PID_FILE="/tmp/paredicma_web.pid"
 SERVER_IP=$(get_local_ip)
-SERVER_ADDR="http://$SERVER_IP:8000"
 
 if [ -f "$PID_FILE" ]; then
-    existing_pid=$(cat "$PID_FILE")
+    read existing_pid existing_port < "$PID_FILE"
     if ps -p $existing_pid > /dev/null 2>&1; then
         echo "Paredicma Web Interface is already running (PID: $existing_pid)."
-        echo "Access it at: $SERVER_ADDR"
+        echo "Access it at: http://$SERVER_IP:$existing_port"
         exit 1
     else
         # Stale PID file
@@ -84,7 +83,7 @@ if [ -f "$PID_FILE" ]; then
     fi
 fi
 
-echo $$ > "$PID_FILE"
+echo "$$ $AVAILABLE_PORT" > "$PID_FILE"
 trap 'rm -f "$PID_FILE"' EXIT
 
 # Check and install required packages
@@ -200,6 +199,27 @@ fi
 
 # Run the application
 echo "Launching Paredicma Web Interface..."
+
+# Function to find the next available port starting from 8000
+find_available_port() {
+    local port=8000
+    while lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; do
+        port=$((port + 1))
+    done
+    echo $port
+}
+
+# Find an available port
+AVAILABLE_PORT=$(find_available_port)
+if [ "$AVAILABLE_PORT" -ne 8000 ]; then
+    echo "Port 8000 is busy. Using port $AVAILABLE_PORT instead."
+    export PARE_WEB_PORT=$AVAILABLE_PORT
+else
+    export PARE_WEB_PORT=8000
+fi
+
+SERVER_ADDR="http://$SERVER_IP:$AVAILABLE_PORT"
+
 $PYTHON_CMD parewebMon.py
 
 exit $?
