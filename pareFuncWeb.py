@@ -2028,7 +2028,7 @@ def download_redis_version_wv(redis_filename: str):
     try:
         # Check if the file exists on the remote server
         print(f"Checking availability: {download_url}")
-        check_process = subprocess.run(check_command, capture_output=True, text=True, check=False)
+        check_process = subprocess.run(check_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=False)
         if check_process.returncode != 0:
             error_message = f"File not found at {download_url} or network error."
             if "404 Not Found" in check_process.stderr:
@@ -2043,7 +2043,7 @@ def download_redis_version_wv(redis_filename: str):
 
         # If check passes, proceed with download
         print(f"Attempting to download: {download_url} to {download_dir}")
-        download_process = subprocess.run(download_command, capture_output=True, text=True, check=True)
+        download_process = subprocess.run(download_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True)
 
         # Verify download
         if os.path.exists(download_path):
