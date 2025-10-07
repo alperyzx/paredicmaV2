@@ -1238,7 +1238,19 @@ def show_redis_log_wv(redisNode, line_count=50):
             return f"<p style='color: red;'>Error: Server {nodeIP} is not reachable.</p>"
 
         # Get the log content
-        if nodeIP == pareServerIp:
+        # Check if node is on local server
+        import socket
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(('8.8.8.8', 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+        except Exception:
+            local_ip = '127.0.0.1'
+
+        is_local = nodeIP in [pareServerIp, local_ip, '127.0.0.1', 'localhost']
+
+        if is_local:
             # Local server
             cmd = f"tail -n {line_count} {log_file_path}"
             status, output = subprocess.getstatusoutput(cmd)

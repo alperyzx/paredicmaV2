@@ -68,7 +68,7 @@ except Exception:
 }
 
 # Prevent running multiple instances
-PID_FILE="/tmp/paredicma_web.pid"
+PID_FILE="./run.pid"
 SERVER_IP=$(get_local_ip)
 
 if [ -f "$PID_FILE" ]; then
