@@ -12,6 +12,63 @@ from screenMenu import *
 import importlib
 
 
+def is_local_server(serverIP):
+    """
+    Comprehensive check if a server IP refers to the local machine.
+    
+    This function checks multiple conditions to determine if an IP address
+    refers to the local server where the application is running:
+    1. Direct match with configured pareServerIp
+    2. Localhost addresses (127.0.0.1, localhost)
+    3. Match with any local network interface IP addresses
+    
+    Args:
+        serverIP: The IP address or hostname to check
+        
+    Returns:
+        True if the IP refers to the local server, False otherwise
+    """
+    # Check if it matches the configured server IP
+    if serverIP == pareServerIp:
+        return True
+    
+    # Check for localhost addresses
+    if serverIP in ['127.0.0.1', 'localhost', '::1']:
+        return True
+    
+    # Get all local IP addresses from network interfaces
+    try:
+        # Get the hostname
+        hostname = socket.gethostname()
+        
+        # Get all IP addresses associated with the hostname
+        local_ips = socket.gethostbyname_ex(hostname)[2]
+        
+        # Also add the result of gethostbyname for the hostname
+        local_ips.append(socket.gethostbyname(hostname))
+        
+        # Check if serverIP matches any local IP
+        if serverIP in local_ips:
+            return True
+            
+        # Additional check: try to resolve the serverIP and compare
+        try:
+            # If serverIP is a hostname, resolve it
+            resolved_ip = socket.gethostbyname(serverIP)
+            if resolved_ip in local_ips or resolved_ip == pareServerIp:
+                return True
+        except socket.gaierror:
+            # If we can't resolve, continue with other checks
+            pass
+            
+    except Exception as e:
+        # If we can't determine local IPs, fall back to pareServerIp check only
+        print(f"Warning: Could not determine local IPs: {e}")
+        pass
+    
+    return False
+
+
 def validIP(IPaddr):
     try:
         socket.inet_aton(IPaddr)
@@ -173,7 +230,7 @@ def clusterFix(contactNode):
 
 
 def showRedisLogFile(nodeIP, nodeNum, portNumber, myLineNum):
-    if nodeIP == pareServerIp:
+    if is_local_server(nodeIP):
         returnCmd, cmdResponse = subprocess.getstatusoutput(
             'tail -' + myLineNum + ' ' + redisLogDir + 'redisN' + nodeNum + '_P' + portNumber + '.log')
         print(bcolors.OKGREEN + cmdResponse + bcolors.ENDC)
@@ -798,7 +855,7 @@ def funcNodesList():
 
 
 def serverInfo(serverIP):
-    if serverIP == pareServerIp:
+    if is_local_server(serverIP):
         print('\n------- Server Informations (' + serverIP + ') ------\n')
         print('\n------- CPU Cores -------------------------------\n')
         os.system("numactl --hardware")
@@ -1338,7 +1395,7 @@ def startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores,redis_version=Non
         logWrite(pareLogFile,
                  bcolors.WARNING + ':: ' + nodeIP + ' :: WARNING !!! redis node  ' + nodeNumber + ' has been  already started. The process was canceled.' + bcolors.ENDC)
     else:
-        if nodeIP == pareServerIp:
+        if is_local_server(nodeIP):
             if dedicateCore:
                 start_cmd = 'cd ' + redisDataDir + ';numactl --physcpubind=' + dedicateCpuCores + ' --localalloc ' + redis_binary_path + ' ' + redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf'
                 print(start_cmd)  # Print the command for debugging
@@ -1402,7 +1459,7 @@ def startNode(nodeIP, nodeNumber, portNumber, dedicateCpuCores,redis_version=Non
             # Check for common error conditions
             try:
                 # Verify directory and file permissions
-                if nodeIP == pareServerIp:
+                if is_local_server(nodeIP):
                     config_path = redisConfigDir + 'node' + nodeNumber + '/redisN' + nodeNumber + '_P' + portNumber + '.conf'
                     if not os.path.exists(config_path):
                         logWrite(pareLogFile,
@@ -1528,7 +1585,7 @@ def killNode(nodeIP, nodeNumber, portNumber):
         redisConnectCmd(nodeIP, portNumber, ' info server | grep process_id:'))
     prCursor = processResponse.find('process_id:')
     processID = processResponse[prCursor + 11:].strip()  # Extract process ID
-    if nodeIP == pareServerIp and processID != 'NULL' and killNode == 'YES':
+    if is_local_server(nodeIP) and processID != 'NULL' and killNode == 'YES':
         killResult = os.system('kill ' + processID + ' ')
         turnWhile = True
         while turnWhile:
@@ -1542,7 +1599,7 @@ def killNode(nodeIP, nodeNumber, portNumber):
                 turnWhile = False
 
         sleep(2)
-    elif nodeIP != pareServerIp and processID != 'NULL' and killNode == 'YES':
+    elif not is_local_server(nodeIP) and processID != 'NULL' and killNode == 'YES':
         killResult = os.system(
             'ssh -q -o "StrictHostKeyChecking no"  ' + pareOSUser + '@' + nodeIP + ' -C  "kill  ' + processID + '"')
         turnWhile = True
@@ -1590,7 +1647,7 @@ def kill_node_non_interactive(nodeIP, nodeNumber, portNumber):
 
         logWrite(pareLogFile, f'Stopping Redis node {nodeIP}:{portNumber} (process ID: {processID})')
 
-        if nodeIP == pareServerIp:
+        if is_local_server(nodeIP):
             # Local node
             killResult = os.system(f'kill {processID}')
             wait_for_process_end(processID)
@@ -1661,7 +1718,7 @@ if 'pareLogFile' not in globals():
     pareLogFile = "/tmp/paredicma.log"
 
 def redisBinaryCopier(myServerIP, myRedisVersion):
-    if myServerIP == pareServerIp:
+    if is_local_server(myServerIP):
         # Check if the directory exists locally
         if not makeDir(redisBinaryDir):
             return False
@@ -1701,7 +1758,7 @@ def redisNewBinaryCopier(myServerIP, myRedisVersion):
     global redisVersion
     redisBinaryDir = redisBinaryDir.replace('redis-' + redisVersion, 'redis-' + myRedisVersion)
 
-    if myServerIP == pareServerIp:
+    if is_local_server(myServerIP):
         # Check if the directory exists locally
         if not makeDir(redisBinaryDir):
             logWrite(pareLogFile,
@@ -1814,7 +1871,7 @@ def redisConfMaker(nodeIP, nodeNumber, portNumber, maxMemorySize):
 
     targetDir = redisConfigDir + 'node' + nodeNumber + '/'
 
-    if nodeIP == pareServerIp:
+    if is_local_server(nodeIP):
         # First verify target directory exists
         if not os.path.exists(targetDir):
             try:
@@ -1884,7 +1941,7 @@ def redisDirMaker(nodeIP, nodeNumber):
     """
     directoryDone = True
 
-    if nodeIP == pareServerIp:
+    if is_local_server(nodeIP):
         # Local server
         directories = [
             redisDataDir,

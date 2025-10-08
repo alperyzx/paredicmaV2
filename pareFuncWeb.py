@@ -17,6 +17,63 @@ from time import sleep
 import sys
 
 
+def is_local_server(serverIP):
+    """
+    Comprehensive check if a server IP refers to the local machine.
+    
+    This function checks multiple conditions to determine if an IP address
+    refers to the local server where the application is running:
+    1. Direct match with configured pareServerIp
+    2. Localhost addresses (127.0.0.1, localhost)
+    3. Match with any local network interface IP addresses
+    
+    Args:
+        serverIP: The IP address or hostname to check
+        
+    Returns:
+        True if the IP refers to the local server, False otherwise
+    """
+    # Check if it matches the configured server IP
+    if serverIP == pareServerIp:
+        return True
+    
+    # Check for localhost addresses
+    if serverIP in ['127.0.0.1', 'localhost', '::1']:
+        return True
+    
+    # Get all local IP addresses from network interfaces
+    try:
+        # Get the hostname
+        hostname = socket.gethostname()
+        
+        # Get all IP addresses associated with the hostname
+        local_ips = socket.gethostbyname_ex(hostname)[2]
+        
+        # Also add the result of gethostbyname for the hostname
+        local_ips.append(socket.gethostbyname(hostname))
+        
+        # Check if serverIP matches any local IP
+        if serverIP in local_ips:
+            return True
+            
+        # Additional check: try to resolve the serverIP and compare
+        try:
+            # If serverIP is a hostname, resolve it
+            resolved_ip = socket.gethostbyname(serverIP)
+            if resolved_ip in local_ips or resolved_ip == pareServerIp:
+                return True
+        except socket.gaierror:
+            # If we can't resolve, continue with other checks
+            pass
+            
+    except Exception as e:
+        # If we can't determine local IPs, fall back to pareServerIp check only
+        print(f"Warning: Could not determine local IPs: {e}")
+        pass
+    
+    return False
+
+
 def nodeInfo_wv(redisNode, cmd):
     nodeIP, nodePort = redisNode.split(':')
     retVal = 'Unknown'
@@ -43,8 +100,20 @@ def serverInfo_wv(serverIP):
         except socket.herror:
             server_name = "Unknown"  # Handle the case where hostname lookup fails
 
-        # Check SSH availability
-        if is_ssh_available(serverIP):
+        # Check if it's local server or SSH is available
+        if is_local_server(serverIP):
+            html_content = f"""
+            <h2>Server Information ({serverIP} - {server_name})</h2>
+            <h3>CPU Cores</h3>
+            <pre>{getcmdOutput_wv(serverIP, "numactl --hardware")}</pre>
+            <h3>Memory Usage</h3>
+            <pre>{getcmdOutput_wv(serverIP, "free -g")}</pre>
+            <h3>Disk Usage</h3>
+            <pre>{getcmdOutput_wv(serverIP, "df -h")}</pre>
+            <h3>Redis Nodes</h3>
+            {getredisnodeInfo_wv(serverIP)}
+            """
+        elif is_ssh_available(serverIP):
             html_content = f"""
             <h2>Server Information ({serverIP} - {server_name})</h2>
             <h3>CPU Cores</h3>
@@ -65,12 +134,16 @@ def serverInfo_wv(serverIP):
 
 
 def getcmdOutput_wv(serverIP, command):
-        if serverIP == pareServerIp:
-            status, output = subprocess.getstatusoutput(command)
-        else:
-            ssh_command = f'ssh -q -o "StrictHostKeyChecking no" {pareOSUser}@{serverIP} -C "{command}"'
-            status, output = subprocess.getstatusoutput(ssh_command)
-        return output if status == 0 else f"Error executing command: {command}"
+    """
+    Execute a command on a server (local or remote).
+    Uses direct execution for local server, SSH for remote servers.
+    """
+    if is_local_server(serverIP):
+        status, output = subprocess.getstatusoutput(command)
+    else:
+        ssh_command = f'ssh -q -o "StrictHostKeyChecking no" {pareOSUser}@{serverIP} -C "{command}"'
+        status, output = subprocess.getstatusoutput(ssh_command)
+    return output if status == 0 else f"Error executing command: {command}"
 
 
 def getredisnodeInfo_wv(serverIP):
@@ -1238,19 +1311,8 @@ def show_redis_log_wv(redisNode, line_count=50):
             return f"<p style='color: red;'>Error: Server {nodeIP} is not reachable.</p>"
 
         # Get the log content
-        # Check if node is on local server
-        import socket
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(('8.8.8.8', 80))
-            local_ip = s.getsockname()[0]
-            s.close()
-        except Exception:
-            local_ip = '127.0.0.1'
-
-        is_local = nodeIP in [pareServerIp, local_ip, '127.0.0.1', 'localhost']
-
-        if is_local:
+        # Check if node is on local server using the comprehensive detection
+        if is_local_server(nodeIP):
             # Local server
             cmd = f"tail -n {line_count} {log_file_path}"
             status, output = subprocess.getstatusoutput(cmd)
@@ -2310,23 +2372,12 @@ def redisNewBinaryCopier_wv(redis_version):
             if node[4]:  # Only consider active nodes
                 unique_servers.add(node[0][0])
 
-        # Get local IP to skip the server where this script is running
-        import socket
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(('8.8.8.8', 80))
-            local_ip = s.getsockname()[0]
-            s.close()
-        except Exception:
-            local_ip = '127.0.0.1'
-
-        # Remove the host server from the list (either by pareServerIp or local IP)
-        servers_to_skip = {pareServerIp, local_ip, '127.0.0.1'}
+        # Remove the local server from the list (binaries already there)
         skipped_servers = 0
         for server_ip in list(unique_servers):
-            if server_ip in servers_to_skip:
+            if is_local_server(server_ip):
                 unique_servers.remove(server_ip)
-                results.append(f"<p>⏭️ Skipping host server {server_ip} as binaries are already there</p>")
+                results.append(f"<p>⏭️ Skipping local server {server_ip} as binaries are already there</p>")
                 skipped_servers += 1
 
         # Copy binaries to each unique server
@@ -2482,7 +2533,7 @@ def restartAllSlaves_wv(wait_seconds=60, redis_version=None):
                     # Update the configuration file path
                     conf_file = f"{redisConfigDir}{pareOSUser}_redisN{node['node_index']}_P{node['port']}.conf"
                     
-                    if node['ip'] == pareServerIp:
+                    if is_local_server(node['ip']):
                         # Local server
                         cmd = f"sed -i 's|^dir .*|dir {redisDataDir}{pareOSUser}_redisN{node['node_index']}_P{node['port']}/|' {conf_file} && " + \
                               f"grep -q '^server-binary' {conf_file} && " + \
