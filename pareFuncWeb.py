@@ -589,13 +589,20 @@ def node_action_wv(redisNode, action, confirmed=False):
             if status_span:
                 result_message += f" Final status: {status_span}."
 
-            # Format captured logs
+            # Format captured logs - only show if there are actual logs
             log_output = "<br>".join(log_messages).replace('\n', '<br>')  # Ensure newlines are breaks
+            
+            # Only include logs section if there's actual content
+            logs_section = ""
+            if log_output.strip():
+                logs_section = f"""
+                <h4>Logs:</h4>
+                <pre style='padding: 10px; border: 1px solid #ccc;'>{log_output}</pre>
+                """
 
             return f"""
                 <p>{result_message}</p>
-                <h4>Logs:</h4>
-                <pre style='padding: 10px; border: 1px solid #ccc;'>{log_output if log_output else "No specific log output captured."}</pre>
+                {logs_section}
                 """
 
         except Exception as e:

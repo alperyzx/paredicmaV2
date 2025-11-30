@@ -166,74 +166,323 @@ def list_nodes():
             media_type="text/html"
         )
 
-    # Prepare data structures for each node type
-    master_nodes = []
-    slave_nodes = []
+    # Prepare data structures - now organize by master with their replicas
+    masters = {}  # master_id -> {address, node_id, slots, replicas: []}
     down_nodes = []
     unknown_nodes = []
 
-    # Parse the output to categorize nodes
+    # First pass: identify all masters
     for line in output.strip().split('\n'):
         parts = line.split()
         if len(parts) < 8:
             continue
 
         node_id = parts[0]
-        address = parts[1].split('@')[0]  # Remove cluster bus port if present
-        node_ip, node_port = address.split(':')
-        role_status = parts[2]  # Contains role and possibly "fail" flag
+        address = parts[1].split('@')[0]
+        role_status = parts[2]
+        
+        is_master = "master" in role_status
+        is_fail = "fail" in role_status or ("disconnected" in parts[7] if len(parts) > 7 else False)
 
-        # Determine node status and role
+        if is_master and not is_fail:
+            # Extract slot range if available
+            slots = ' '.join([p for p in parts[8:] if '-' in p or p.isdigit()]) if len(parts) > 8 else ''
+            masters[node_id] = {
+                'address': address,
+                'node_id': node_id,
+                'slots': slots,
+                'replicas': []
+            }
+
+    # Second pass: assign slaves to their masters and identify down/unknown nodes
+    for line in output.strip().split('\n'):
+        parts = line.split()
+        if len(parts) < 8:
+            continue
+
+        node_id = parts[0]
+        address = parts[1].split('@')[0]
+        role_status = parts[2]
+        
         is_master = "master" in role_status
         is_slave = "slave" in role_status
-        is_fail = "fail" in role_status or "disconnected" in parts[7] if len(parts) > 7 else False
-
-        node_address = f"{node_ip}:{node_port}"
+        is_fail = "fail" in role_status or ("disconnected" in parts[7] if len(parts) > 7 else False)
 
         if is_fail:
-            if is_slave and len(parts) > 3:  # Down slave node
-                master_id = parts[3]
-                down_nodes.append((node_address, node_id[:8], master_id[:8], "slave"))
-            elif is_master:  # Down master node
-                down_nodes.append((node_address, node_id[:8], None, "master"))
-            else:  # Down node with unknown role
-                down_nodes.append((node_address, node_id[:8], None, "unknown"))
-        elif is_master:
-            master_nodes.append((node_address, node_id[:8]))
+            master_id = parts[3] if len(parts) > 3 and is_slave else None
+            role = "slave" if is_slave else "master" if is_master else "unknown"
+            down_nodes.append({
+                'address': address,
+                'node_id': node_id,
+                'master_id': master_id if master_id and master_id != '-' else None,
+                'role': role
+            })
         elif is_slave:
-            master_id = parts[3] if len(parts) > 3 else "Unknown"
-            slave_nodes.append((node_address, master_id[:8]))
-        else:
-            unknown_nodes.append((node_address, node_id[:8]))
+            master_id = parts[3] if len(parts) > 3 else None
+            if master_id and master_id in masters:
+                masters[master_id]['replicas'].append({
+                    'address': address,
+                    'node_id': node_id
+                })
+        elif not is_master:
+            unknown_nodes.append({
+                'address': address,
+                'node_id': node_id
+            })
 
-    # Generate HTML table for the response
+    # Generate HTML with side-by-side master/replica layout
     html = f"""
     {css_style}
+    <style>
+        .node-card {{
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            overflow: hidden;
+            background: #fff;
+        }}
+        .master-header {{
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+            color: white;
+            padding: 12px 15px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+        .master-address {{
+            font-size: 1.1em;
+        }}
+        .master-id {{
+            font-size: 0.85em;
+            opacity: 0.9;
+            font-family: monospace;
+        }}
+        .slot-info {{
+            font-size: 0.85em;
+            background: rgba(255,255,255,0.2);
+            padding: 3px 8px;
+            border-radius: 4px;
+        }}
+        .replicas-container {{
+            padding: 10px 15px;
+            background: #f9f9f9;
+        }}
+        .replica-row {{
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            margin: 5px 0;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-left: 4px solid #4CAF50;
+            border-radius: 4px;
+        }}
+        .replica-icon {{
+            color: #4CAF50;
+            margin-right: 10px;
+            font-size: 1.2em;
+        }}
+        .replica-address {{
+            flex-grow: 1;
+            font-weight: 500;
+        }}
+        .replica-id {{
+            font-size: 0.85em;
+            color: #666;
+            font-family: monospace;
+        }}
+        .no-replicas {{
+            color: #999;
+            font-style: italic;
+            padding: 10px;
+        }}
+        .down-section, .unknown-section {{
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+        }}
+        .down-section {{
+            background: #ffebee;
+            border: 1px solid #ffcdd2;
+        }}
+        .unknown-section {{
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+        }}
+        .section-title {{
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }}
+        .down-section .section-title {{
+            color: #c62828;
+        }}
+        .unknown-section .section-title {{
+            color: #757575;
+        }}
+        .down-node, .unknown-node {{
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-size: 0.95em;
+        }}
+        .down-node {{
+            background: #fff;
+            border-left: 4px solid #f44336;
+        }}
+        .unknown-node {{
+            background: #fff;
+            border-left: 4px solid #9e9e9e;
+        }}
+        .summary-bar {{
+            display: flex;
+            gap: 20px;
+            padding: 15px;
+            background: #e3f2fd;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }}
+        .summary-item {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }}
+        .summary-count {{
+            font-size: 1.5em;
+            font-weight: bold;
+        }}
+        .summary-label {{
+            color: #666;
+        }}
+        @media (prefers-color-scheme: dark) {{
+            .node-card {{
+                background: #1e1e1e;
+                border-color: #444;
+            }}
+            .master-header {{
+                background: linear-gradient(135deg, #1565C0 0%, #0D47A1 100%);
+            }}
+            .replicas-container {{
+                background: #252525;
+            }}
+            .replica-row {{
+                background: #1e1e1e;
+                border-color: #444;
+            }}
+            .replica-id {{
+                color: #aaa;
+            }}
+            .no-replicas {{
+                color: #777;
+            }}
+            .down-section {{
+                background: #2d1a1a;
+                border-color: #5c2828;
+            }}
+            .unknown-section {{
+                background: #252525;
+                border-color: #444;
+            }}
+            .down-node, .unknown-node {{
+                background: #1e1e1e;
+            }}
+            .summary-bar {{
+                background: #1a3a5c;
+            }}
+            .summary-label {{
+                color: #aaa;
+            }}
+        }}
+    </style>
     <html>
     <title>Node List</title>
     <body>
         <h2>Cluster Node Status</h2>
-        <table class="cluster-info-table" style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-            <tr>
-                <th style="padding: 10px; color: #2196F3; text-align: left;">Master Nodes</th>
-            </tr>
-            {"".join(f'<tr><td style="padding: 8px; border: 1px solid #ddd;">{node[0]} (ID: {node[1]}...)</td></tr>' for node in master_nodes) if master_nodes else '<tr><td style="padding: 8px; border: 1px solid #ddd; color: #777;">No master nodes found</td></tr>'}
+        
+        <div class="summary-bar">
+            <div class="summary-item">
+                <span class="summary-count" style="color: #2196F3;">{len(masters)}</span>
+                <span class="summary-label">Masters</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-count" style="color: #4CAF50;">{sum(len(m['replicas']) for m in masters.values())}</span>
+                <span class="summary-label">Replicas</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-count" style="color: #f44336;">{len(down_nodes)}</span>
+                <span class="summary-label">Down</span>
+            </div>
+        </div>
+    """
 
-            <tr>
-                <th style="padding: 10px; color: #4CAF50; text-align: left;">Slave Nodes</th>
-            </tr>
-            {"".join(f'<tr><td style="padding: 8px; border: 1px solid #ddd;">{node[0]} (Master: {node[1]}...)</td></tr>' for node in slave_nodes) if slave_nodes else '<tr><td style="padding: 8px; border: 1px solid #ddd; color: #777;">No slave nodes found</td></tr>'}
+    # Generate cards for each master with its replicas
+    for master_id, master in masters.items():
+        replicas_html = ""
+        if master['replicas']:
+            for replica in master['replicas']:
+                replicas_html += f"""
+                <div class="replica-row">
+                    <span class="replica-icon">↳</span>
+                    <span class="replica-address">{replica['address']}</span>
+                    <span class="replica-id">{replica['node_id']}</span>
+                </div>
+                """
+        else:
+            replicas_html = '<div class="no-replicas">No replicas</div>'
 
-            <tr>
-                <th style="padding: 10px; color: #f44336; text-align: left;">Down Nodes</th>
-            </tr>
-            {"".join(f'<tr><td style="padding: 8px; border: 1px solid #ddd;">{node[0]} (ID: {node[1]}...) {f"(Was Slave of: {node[2]}...)" if node[3] == "slave" else f"(Was Master)" if node[3] == "master" else ""}</td></tr>' for node in down_nodes) if down_nodes else '<tr><td style="padding: 8px; border: 1px solid #ddd; color: #777;">No down nodes detected</td></tr>'}
+        html += f"""
+        <div class="node-card">
+            <div class="master-header">
+                <div>
+                    <div class="master-address">🔷 {master['address']}</div>
+                    <div class="master-id">{master['node_id']}</div>
+                </div>
+                <div class="slot-info">{master['slots'] if master['slots'] else 'No slots'}</div>
+            </div>
+            <div class="replicas-container">
+                {replicas_html}
+            </div>
+        </div>
+        """
 
-            <tr>
-                <th style="padding: 10px; color: #9E9E9E; text-align: left;">Unknown Status</th>
-            </tr>
-            {"".join(f'<tr><td style="padding: 8px; border: 1px solid #ddd;">{node[0]} (ID: {node[1]}...)</td></tr>' for node in unknown_nodes) if unknown_nodes else '<tr><td style="padding: 8px; border: 1px solid #ddd; color: #777;">No nodes with unknown status</td></tr>'}
-        </table>
+    # Add down nodes section if any
+    if down_nodes:
+        html += """
+        <div class="down-section">
+            <div class="section-title">❌ Down Nodes</div>
+        """
+        for node in down_nodes:
+            role_info = ""
+            if node['role'] == 'slave' and node['master_id']:
+                role_info = f" (Was replica of {node['master_id']})"
+            elif node['role'] == 'master':
+                role_info = " (Was master)"
+            html += f"""
+            <div class="down-node">
+                {node['address']} <span style="color: #999;">({node['node_id']}){role_info}</span>
+            </div>
+            """
+        html += "</div>"
+
+    # Add unknown nodes section if any
+    if unknown_nodes:
+        html += """
+        <div class="unknown-section">
+            <div class="section-title">❓ Unknown Status</div>
+        """
+        for node in unknown_nodes:
+            html += f"""
+            <div class="unknown-node">
+                {node['address']} <span style="color: #999;">({node['node_id']})</span>
+            </div>
+            """
+        html += "</div>"
+
+    html += """
     </body>
     </html>
     """
@@ -628,7 +877,7 @@ css_style = """
             margin-right: 10px;
         }
         input[type="text"], input[type="number"], select {
-            width: 180px;
+            width: 200px;
             padding: 8px; /* Increased padding */
             border: 1px solid #cccccc;
             border-radius: 5px;
@@ -1842,16 +2091,18 @@ async def manager():
     <button class="collapsible">1 - Start/Stop/Restart Redis Node</button>
     <div class="content">
         <form id="node-action-form" onsubmit="performNodeAction(event)">
-            <label for="redisNodeAction">Select Node:</label>
-            <select id="redisNodeAction" name="redisNode">
-                {''.join([f"<option value='{node}'>{node}</option>" for node in nodeList])}
-            </select>
-            <br>
-            <label for="action"><input class="manager-button" type="submit" value="Perform Action"></label>
-            <select id="action" name="action">
+            <label for="action">Select Action:</label>
+            <select id="action" name="action" onchange="updateNodeListByAction()">
                 {''.join([f"<option value='{action.lower()}'>{action}</option>" for action in actionsAvailable])}
             </select>
             <br><br>
+            <label for="redisNodeAction">Select Node:</label>
+            <select id="redisNodeAction" name="redisNode">
+                <option value="">Loading nodes...</option>
+            </select>
+            <span id="nodeLoadingSpinner" style="display: none; margin-left: 10px;">⏳</span>
+            <br><br>
+            <input class="manager-button" type="submit" value="Perform Action">
         </form>
         <div id="node-action-result" style="margin-top: 10px;"></div>
     </div>
@@ -1969,6 +2220,50 @@ async def manager():
             }});
         }});
 
+        // Function to update node list based on selected action
+        function updateNodeListByAction() {{
+            const action = document.getElementById('action').value;
+            const nodeSelect = document.getElementById('redisNodeAction');
+            const spinner = document.getElementById('nodeLoadingSpinner');
+            
+            // Show loading state
+            nodeSelect.innerHTML = '<option value="">Loading nodes...</option>';
+            nodeSelect.disabled = true;
+            spinner.style.display = 'inline';
+            
+            fetch('/manager/get-nodes-by-action/?action=' + encodeURIComponent(action))
+                .then(response => response.json())
+                .then(data => {{
+                    nodeSelect.innerHTML = '';
+                    if (data.nodes && data.nodes.length > 0) {{
+                        data.nodes.forEach(node => {{
+                            const option = document.createElement('option');
+                            option.value = node.address;
+                            option.textContent = node.address + (node.role ? ' (' + node.role + ')' : '');
+                            nodeSelect.appendChild(option);
+                        }});
+                    }} else {{
+                        const option = document.createElement('option');
+                        option.value = '';
+                        option.textContent = data.message || 'No nodes available for this action';
+                        nodeSelect.appendChild(option);
+                    }}
+                    nodeSelect.disabled = false;
+                    spinner.style.display = 'none';
+                }})
+                .catch(error => {{
+                    nodeSelect.innerHTML = '<option value="">Error loading nodes</option>';
+                    nodeSelect.disabled = false;
+                    spinner.style.display = 'none';
+                    console.error('Error fetching nodes:', error);
+                }});
+        }}
+        
+        // Initialize node list on page load
+        document.addEventListener('DOMContentLoaded', function() {{
+            updateNodeListByAction();
+        }});
+
         // Add event delegation for confirmation buttons
         document.addEventListener('click', function(e) {{
             // Handle confirmation buttons
@@ -1987,7 +2282,11 @@ async def manager():
         }});
 
         function confirmNodeAction(redisNode, action) {{
-            document.getElementById('node-action-result').innerHTML = "<p>Processing request...</p>";
+            const submitBtn = document.querySelector('#node-action-form input[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.value = 'Processing...';
+            submitBtn.classList.add('btn-disabled');
+            document.getElementById('node-action-result').innerHTML = '';
             
             // Log the values to help debug
             console.log("Confirming action for node:", redisNode, "action:", action);
@@ -1996,9 +2295,16 @@ async def manager():
                 .then(response => response.text())
                 .then(data => {{
                     document.getElementById('node-action-result').innerHTML = data;
+                    // Refresh the node list after action completes
+                    setTimeout(updateNodeListByAction, 1000);
                 }})
                 .catch(error => {{
                     document.getElementById('node-action-result').innerHTML = "<p style='color: red;'>Error: " + error + "</p>";
+                }})
+                .finally(() => {{
+                    submitBtn.disabled = false;
+                    submitBtn.value = 'Perform Action';
+                    submitBtn.classList.remove('btn-disabled');
                 }});
         }}
         
@@ -2008,18 +2314,29 @@ async def manager():
 
         function performNodeAction(event) {{
             event.preventDefault();
+            const submitBtn = document.querySelector('#node-action-form input[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.value = 'Processing...';
+            submitBtn.classList.add('btn-disabled');
+            document.getElementById('node-action-result').innerHTML = '';
+            
             const formData = new FormData(document.getElementById('node-action-form'));
             const params = new URLSearchParams(formData).toString();
-            
-            document.getElementById('node-action-result').innerHTML = "<p>Processing request...</p>";
             
             fetch('/manager/node-action/?' + params)
                 .then(response => response.text())
                 .then(data => {{
                     document.getElementById('node-action-result').innerHTML = data;
+                    // Refresh the node list after action completes
+                    setTimeout(updateNodeListByAction, 1000);
                 }})
                 .catch(error => {{
                     document.getElementById('node-action-result').innerHTML = "<p style='color: red;'>Error performing action: " + error + "</p>";
+                }})
+                .finally(() => {{
+                    submitBtn.disabled = false;
+                    submitBtn.value = 'Perform Action';
+                    submitBtn.classList.remove('btn-disabled');
                 }});
         }}
 
@@ -2154,6 +2471,57 @@ async def manager():
     </html>
     """
     return HTMLResponse(content=html_content)
+
+
+@app.get("/manager/get-nodes-by-action/")
+async def get_nodes_by_action(action: str):
+    """
+    Returns a list of nodes filtered by the action type:
+    - start: returns only DOWN nodes (not responding to ping)
+    - stop/restart: returns only RUNNING nodes (responding to ping)
+    """
+    from fastapi.responses import JSONResponse
+    
+    running_nodes = []
+    down_nodes = []
+    
+    for pareNode in pareNodes:
+        node_ip = pareNode[0][0]
+        port_number = pareNode[1][0]
+        address = f"{node_ip}:{port_number}"
+        
+        if pareNode[4]:  # If node is configured as active
+            is_running = pingredisNode(node_ip, port_number)
+            
+            if is_running:
+                # Get role (master/slave)
+                role = slaveORMasterNode(node_ip, port_number)
+                role_text = "master" if role == 'M' else "replica" if role == 'S' else ""
+                running_nodes.append({"address": address, "role": role_text})
+            else:
+                down_nodes.append({"address": address, "role": "down"})
+    
+    action_lower = action.lower()
+    
+    if action_lower == "start":
+        # For start action, show only down nodes
+        if down_nodes:
+            return JSONResponse(content={"nodes": down_nodes, "message": None})
+        else:
+            return JSONResponse(content={"nodes": [], "message": "All nodes are running"})
+    
+    elif action_lower in ["stop", "restart"]:
+        # For stop/restart actions, show only running nodes
+        if running_nodes:
+            return JSONResponse(content={"nodes": running_nodes, "message": None})
+        else:
+            return JSONResponse(content={"nodes": [], "message": "No running nodes found"})
+    
+    else:
+        # Unknown action, return all nodes
+        all_nodes = running_nodes + down_nodes
+        return JSONResponse(content={"nodes": all_nodes, "message": None})
+
 
 @app.get("/manager/node-action/", response_class=HTMLResponse)
 async def manager_node_action(redisNode: str, action: str, confirmed: bool = False):
@@ -2492,12 +2860,32 @@ async def maintain():
 
     <button class="collapsible">5 - Maintain Server</button>
     <div class="content">
-        <div style="text-align: center; padding: 20px; color: #888;">
-            <p><i class="fas fa-tools"></i> This feature is not implemented yet.</p>
-            <p>Perform server maintenance operations.</p>
-            <button onclick="fetchNotImplemented('server-maintain')" class="btn-disabled">Maintain Server</button>
+        <h3>Reassign Slave to Another Master</h3>
+        <p>Change a slave node's master assignment. This is useful when rebalancing replicas across masters.</p>
+        
+        <div style="margin-bottom: 15px;">
+            <button class="maintenance-button" onclick="loadSlavesAndMasters()">Load Slaves & Masters</button>
+            <span id="reassign-loading" style="display: none; margin-left: 10px;">⏳ Loading...</span>
         </div>
-        <div id="server-maintain-result" style="margin-top: 10px;"></div>
+        
+        <form id="reassign-slave-form" onsubmit="reassignSlave(event)">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <label for="slaveNodeSelect" style="width: 150px;">Select Slave:</label>
+                <select id="slaveNodeSelect" name="slaveNode" required style="width: 350px;">
+                    <option value="">-- Click "Load Slaves & Masters" first --</option>
+                </select>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <label for="newMasterSelect" style="width: 150px;">New Master:</label>
+                <select id="newMasterSelect" name="newMaster" required style="width: 350px;">
+                    <option value="">-- Click "Load Slaves & Masters" first --</option>
+                </select>
+            </div>
+            <div style="display: flex; justify-content: flex-start; margin-top: 15px;">
+                <input id="reassign-submit-btn" class="maintenance-button" type="submit" value="Reassign Slave" style="width: auto;">
+            </div>
+        </form>
+        <div id="reassign-slave-result" style="margin-top: 10px;"></div>
     </div>
 
     <button class="collapsible">6 - Migrate Data From Remote Redis</button>
@@ -2739,6 +3127,130 @@ async def maintain():
         
         function cancelDeleteNode() {{
             document.getElementById('delete-node-result').innerHTML = "<p>Node deletion cancelled.</p>";
+        }}
+        
+        // Reassign Slave Functions
+        function loadSlavesAndMasters() {{
+            const loadingSpan = document.getElementById('reassign-loading');
+            loadingSpan.style.display = 'inline';
+            
+            fetch('/maintain/get-slaves-and-masters/')
+                .then(response => response.json())
+                .then(data => {{
+                    loadingSpan.style.display = 'none';
+                    
+                    if (data.error) {{
+                        document.getElementById('reassign-slave-result').innerHTML = 
+                            `<div class="error-box"><p>${{data.error}}</p></div>`;
+                        return;
+                    }}
+                    
+                    // Populate slave dropdown
+                    const slaveSelect = document.getElementById('slaveNodeSelect');
+                    slaveSelect.innerHTML = '<option value="">-- Select a slave node --</option>';
+                    data.slaves.forEach(slave => {{
+                        const option = document.createElement('option');
+                        option.value = slave.node_id;
+                        option.textContent = `${{slave.address}} → Master: ${{slave.current_master_address}}`;
+                        option.dataset.address = slave.address;
+                        option.dataset.currentMasterId = slave.current_master_id;
+                        slaveSelect.appendChild(option);
+                    }});
+                    
+                    // Populate master dropdown
+                    const masterSelect = document.getElementById('newMasterSelect');
+                    masterSelect.innerHTML = '<option value="">-- Select a new master --</option>';
+                    data.masters.forEach(master => {{
+                        const option = document.createElement('option');
+                        option.value = master.node_id;
+                        option.textContent = `${{master.address}} (Slots: ${{master.slots || 'N/A'}})`;
+                        option.dataset.address = master.address;
+                        masterSelect.appendChild(option);
+                    }});
+                    
+                    if (data.slaves.length === 0) {{
+                        document.getElementById('reassign-slave-result').innerHTML = 
+                            `<div class="warning-box"><p>No slave nodes found in the cluster.</p></div>`;
+                    }}
+                }})
+                .catch(error => {{
+                    loadingSpan.style.display = 'none';
+                    document.getElementById('reassign-slave-result').innerHTML = 
+                        `<div class="error-box"><p>Error loading nodes: ${{error}}</p></div>`;
+                }});
+        }}
+        
+        function reassignSlave(event) {{
+            event.preventDefault();
+            
+            const slaveSelect = document.getElementById('slaveNodeSelect');
+            const masterSelect = document.getElementById('newMasterSelect');
+            
+            const slaveNodeId = slaveSelect.value;
+            const newMasterId = masterSelect.value;
+            
+            if (!slaveNodeId || !newMasterId) {{
+                document.getElementById('reassign-slave-result').innerHTML = 
+                    `<div class="warning-box"><p>Please select both a slave node and a new master.</p></div>`;
+                return;
+            }}
+            
+            // Get additional info for display
+            const slaveOption = slaveSelect.options[slaveSelect.selectedIndex];
+            const masterOption = masterSelect.options[masterSelect.selectedIndex];
+            const slaveAddress = slaveOption.dataset.address;
+            const currentMasterId = slaveOption.dataset.currentMasterId;
+            const newMasterAddress = masterOption.dataset.address;
+            
+            // Check if trying to reassign to the same master
+            if (currentMasterId === newMasterId) {{
+                document.getElementById('reassign-slave-result').innerHTML = 
+                    `<div class="warning-box"><p>The slave is already assigned to this master. Please select a different master.</p></div>`;
+                return;
+            }}
+            
+            // Show confirmation modal
+            showConfirmModal(
+                'Reassign Slave Node',
+                '🔄',
+                `<p>Are you sure you want to reassign this slave node?</p>
+                 <ul>
+                    <li><strong>Slave:</strong> <span class="node-address">${{slaveAddress}}</span></li>
+                    <li><strong>New Master:</strong> <span class="node-address">${{newMasterAddress}}</span></li>
+                 </ul>
+                 <p>The slave will replicate data from the new master.</p>`,
+                'Reassign',
+                function() {{
+                    executeReassignSlave(slaveNodeId, newMasterId, slaveAddress, newMasterAddress);
+                }},
+                false
+            );
+        }}
+        
+        function executeReassignSlave(slaveNodeId, newMasterId, slaveAddress, newMasterAddress) {{
+            const submitBtn = document.getElementById('reassign-submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.value = 'Processing...';
+            submitBtn.classList.add('btn-disabled');
+            
+            document.getElementById('reassign-slave-result').innerHTML = '';
+            
+            fetch(`/maintain/reassign-slave/?slaveNodeId=${{encodeURIComponent(slaveNodeId)}}&newMasterId=${{encodeURIComponent(newMasterId)}}`)
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('reassign-slave-result').innerHTML = data;
+                    // Reload the slaves and masters list after successful operation
+                    setTimeout(loadSlavesAndMasters, 1000);
+                }})
+                .catch(error => {{
+                    document.getElementById('reassign-slave-result').innerHTML = 
+                        `<div class="error-box"><p>Error reassigning slave: ${{error}}</p></div>`;
+                }})
+                .finally(() => {{
+                    submitBtn.disabled = false;
+                    submitBtn.value = 'Reassign Slave';
+                    submitBtn.classList.remove('btn-disabled');
+                }});
         }}
         
         function fetchNotImplemented(feature) {{
@@ -3793,6 +4305,191 @@ async def move_slots(fromNodeID: str, toNodeID: str, numberOfSlots: str):
         return HTMLResponse(content=f"""
         <div class="error-message">
             <h3>Error Moving Slots</h3>
+            <p>An unexpected error occurred: {str(e)}</p>
+            <pre style="font-size: 12px;">{trace}</pre>
+        </div>
+        """)
+
+
+@app.get("/maintain/get-slaves-and-masters/")
+async def get_slaves_and_masters():
+    """
+    Returns a JSON list of all slave nodes and master nodes in the cluster.
+    Used for the reassign slave feature.
+    """
+    from fastapi.responses import JSONResponse
+    
+    try:
+        # Find a working node to query cluster info
+        contact_node = None
+        for pareNode in pareNodes:
+            nodeIP = pareNode[0][0]
+            portNumber = pareNode[1][0]
+            if pareNode[4] and pingredisNode(nodeIP, portNumber):
+                contact_node = (nodeIP, portNumber)
+                break
+        
+        if not contact_node:
+            return JSONResponse(content={"error": "No active Redis node found to query cluster information."})
+        
+        # Query cluster nodes
+        cluster_cmd = f"{redisConnectCmd(contact_node[0], contact_node[1], 'CLUSTER NODES')}"
+        status, output = subprocess.getstatusoutput(cluster_cmd)
+        
+        if status != 0:
+            return JSONResponse(content={"error": f"Failed to get cluster nodes: {output}"})
+        
+        masters = []
+        slaves = []
+        master_addresses = {}  # node_id -> address mapping for masters
+        
+        # First pass: collect all masters
+        for line in output.strip().split('\n'):
+            parts = line.split()
+            if len(parts) < 8:
+                continue
+            
+            node_id = parts[0]
+            address = parts[1].split('@')[0]
+            role_status = parts[2]
+            
+            is_master = "master" in role_status
+            is_fail = "fail" in role_status
+            
+            if is_master and not is_fail:
+                slots = ' '.join([p for p in parts[8:] if '-' in p or p.isdigit()]) if len(parts) > 8 else ''
+                masters.append({
+                    "node_id": node_id,
+                    "address": address,
+                    "slots": slots
+                })
+                master_addresses[node_id] = address
+        
+        # Second pass: collect all slaves
+        for line in output.strip().split('\n'):
+            parts = line.split()
+            if len(parts) < 8:
+                continue
+            
+            node_id = parts[0]
+            address = parts[1].split('@')[0]
+            role_status = parts[2]
+            master_id = parts[3] if len(parts) > 3 else None
+            
+            is_slave = "slave" in role_status
+            is_fail = "fail" in role_status
+            
+            if is_slave and not is_fail:
+                current_master_address = master_addresses.get(master_id, "Unknown")
+                slaves.append({
+                    "node_id": node_id,
+                    "address": address,
+                    "current_master_id": master_id,
+                    "current_master_address": current_master_address
+                })
+        
+        return JSONResponse(content={
+            "masters": masters,
+            "slaves": slaves
+        })
+        
+    except Exception as e:
+        import traceback
+        return JSONResponse(content={"error": f"Error: {str(e)}"})
+
+
+@app.get("/maintain/reassign-slave/", response_class=HTMLResponse)
+async def reassign_slave(slaveNodeId: str, newMasterId: str):
+    """
+    Reassigns a slave node to a new master using CLUSTER REPLICATE command.
+    """
+    try:
+        # Find the slave node's address
+        slave_address = None
+        for pareNode in pareNodes:
+            nodeIP = pareNode[0][0]
+            portNumber = pareNode[1][0]
+            if pareNode[4] and pingredisNode(nodeIP, portNumber):
+                # Query cluster nodes to find the slave's address
+                cluster_cmd = f"{redisConnectCmd(nodeIP, portNumber, 'CLUSTER NODES')}"
+                status, output = subprocess.getstatusoutput(cluster_cmd)
+                
+                if status == 0:
+                    for line in output.strip().split('\n'):
+                        parts = line.split()
+                        if len(parts) >= 2 and parts[0] == slaveNodeId:
+                            slave_address = parts[1].split('@')[0]
+                            break
+                break
+        
+        if not slave_address:
+            return HTMLResponse(content="""
+            <div class="error-box">
+                <p>Could not find the slave node in the cluster.</p>
+            </div>
+            """)
+        
+        # Parse slave address
+        slave_ip, slave_port = slave_address.split(':')
+        
+        # Check if the slave node is running
+        if not pingredisNode(slave_ip, slave_port):
+            return HTMLResponse(content=f"""
+            <div class="error-box">
+                <p>The slave node {slave_address} is not responding. Please ensure it's running.</p>
+            </div>
+            """)
+        
+        # Execute CLUSTER REPLICATE command on the slave node
+        replicate_cmd = f"{redisConnectCmd(slave_ip, slave_port, f'CLUSTER REPLICATE {newMasterId}')}"
+        status, output = subprocess.getstatusoutput(replicate_cmd)
+        
+        if status != 0 or "OK" not in output.upper():
+            return HTMLResponse(content=f"""
+            <div class="error-box">
+                <h4>Failed to Reassign Slave</h4>
+                <p>The CLUSTER REPLICATE command failed.</p>
+                <pre>{output}</pre>
+            </div>
+            """)
+        
+        # Verify the reassignment by checking the new master
+        # Wait a moment for the change to propagate
+        import time
+        time.sleep(0.5)
+        
+        # Get the new master's address for display
+        new_master_address = "Unknown"
+        for pareNode in pareNodes:
+            nodeIP = pareNode[0][0]
+            portNumber = pareNode[1][0]
+            if pareNode[4] and pingredisNode(nodeIP, portNumber):
+                cluster_cmd = f"{redisConnectCmd(nodeIP, portNumber, 'CLUSTER NODES')}"
+                status, output = subprocess.getstatusoutput(cluster_cmd)
+                if status == 0:
+                    for line in output.strip().split('\n'):
+                        parts = line.split()
+                        if len(parts) >= 2 and parts[0] == newMasterId:
+                            new_master_address = parts[1].split('@')[0]
+                            break
+                break
+        
+        return HTMLResponse(content=f"""
+        <div class="success-box">
+            <h4>✓ Slave Reassigned Successfully</h4>
+            <p>Slave node <strong>{slave_address}</strong> is now replicating from master <strong>{new_master_address}</strong>.</p>
+            <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                Note: It may take a few moments for the replication to synchronize fully.
+            </p>
+        </div>
+        """)
+        
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return HTMLResponse(content=f"""
+        <div class="error-box">
+            <h4>Error Reassigning Slave</h4>
             <p>An unexpected error occurred: {str(e)}</p>
             <pre style="font-size: 12px;">{trace}</pre>
         </div>
