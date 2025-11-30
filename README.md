@@ -1,5 +1,5 @@
 # Python Automatic REDIs Cluster MAnager & MAker
-## Version: 3
+## Version: 3.0
 #### UpdateDate				: 30.11.2025
 #### UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) 
 #### Release Note			: Cluster Maker Feature was added to Web View.
