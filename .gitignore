@@ -1,7 +1,8 @@
-/redis-*.tar.gz
+/redis*
 /paredicma.done
 /pareNodeList.py
 /pareConfig.py
 /*.log
 __pycache__/
 *.pyc
+*pid
