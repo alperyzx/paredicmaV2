@@ -3032,7 +3032,7 @@ def get_cluster_preview_wv(replication_number=1):
             <h5>Node Distribution:</h5>
             <table class="node-table" style="width: 100%; border-collapse: collapse;">
                 <thead>
-                    <tr style="background-color: #f8f9fa;">
+                    <tr class="table-header">
                         <th style="padding: 8px; border: 1px solid #ddd;">#</th>
                         <th style="padding: 8px; border: 1px solid #ddd;">IP Address</th>
                         <th style="padding: 8px; border: 1px solid #ddd;">Port</th>
@@ -3076,7 +3076,7 @@ def get_cluster_preview_wv(replication_number=1):
                 </tbody>
             </table>
             
-            <div class="note" style="margin-top: 15px; padding: 10px; background-color: #fff3cd; border-left: 4px solid #ffc107;">
+            <div class="note-box">
                 <strong>Note:</strong> Redis Cluster automatically distributes masters and replicas. 
                 The actual role assignment may differ from the preview to optimize for fault tolerance.
             </div>
@@ -3257,7 +3257,7 @@ def validate_cluster_nodes_wv():
             
             <h5 style="margin-top: 15px;">Node Details:</h5>
             <table style="width: 100%; margin: 10px 0; border-collapse: collapse; font-size: 0.9em;">
-                <tr style="background-color: #f5f5f5;">
+                <tr class="table-header">
                     <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">#</th>
                     <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Node</th>
                     <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">ICMP</th>
@@ -3296,20 +3296,20 @@ def validate_cluster_nodes_wv():
         
         # Info box explaining port requirements
         html += """
-            <div style="margin-top: 15px; padding: 10px; background-color: #e7f3ff; border-left: 4px solid #2196F3; font-size: 0.9em;">
+            <div class="info-box">
                 <strong>ℹ️ Port Requirements:</strong>
-                <ul style="margin: 5px 0 0 0; padding-left: 20px;">
+                <ul>
                     <li><strong>ICMP:</strong> Server must respond to ping</li>
                     <li><strong>Node Port:</strong> TCP port for Redis client connections (e.g., 6379)</li>
                     <li><strong>Bus Port:</strong> TCP port for cluster node-to-node communication (node port + 10000, e.g., 16379)</li>
                 </ul>
-                <p style="margin: 10px 0 0 0; color: #666;"><em>Note: Ports showing ⚠️ are expected if nodes haven't been started yet.</em></p>
+                <p class="note"><em>Note: Ports showing ⚠️ are expected if nodes haven't been started yet.</em></p>
             </div>
         """
         
         if results['errors']:
             html += """
-            <div class="errors" style="margin-top: 10px; padding: 10px; background-color: #f8d7da; border-left: 4px solid red;">
+            <div class="error-box">
                 <strong>Errors:</strong>
                 <ul>
             """
@@ -3319,7 +3319,7 @@ def validate_cluster_nodes_wv():
         
         if results['warnings'] and len(results['warnings']) <= 10:
             html += """
-            <div class="warnings" style="margin-top: 10px; padding: 10px; background-color: #fff3cd; border-left: 4px solid orange;">
+            <div class="warning-box">
                 <strong>Warnings:</strong>
                 <ul>
             """
@@ -3329,7 +3329,7 @@ def validate_cluster_nodes_wv():
         elif results['warnings']:
             # Too many warnings, show summary
             html += f"""
-            <div class="warnings" style="margin-top: 10px; padding: 10px; background-color: #fff3cd; border-left: 4px solid orange;">
+            <div class="warning-box">
                 <strong>Warnings:</strong> {len(results['warnings'])} port warnings (nodes not started yet)
             </div>
             """
@@ -3610,7 +3610,7 @@ def create_cluster_wv(replication_number, skip_compile=False, skip_start=False, 
                 <div class="cluster-creation-result error-message">
                     <h4 style="color: red;">❌ Cluster Creation Failed</h4>
                     {''.join(steps_html)}
-                    <div class="errors" style="margin-top: 15px; padding: 10px; background-color: #f8d7da; border-left: 4px solid red;">
+                    <div class="error-box">
                         <strong>Errors:</strong>
                         <ul>
                             {''.join(f'<li>{e}</li>' for e in errors)}
@@ -3623,7 +3623,7 @@ def create_cluster_wv(replication_number, skip_compile=False, skip_start=False, 
                 <div class="cluster-creation-result success-message">
                     <h4 style="color: #28a745;">✅ Redis Cluster Created Successfully!</h4>
                     {''.join(steps_html)}
-                    <div class="summary" style="margin-top: 15px; padding: 15px; background-color: #d4edda; border-left: 4px solid #28a745;">
+                    <div class="success-box">
                         <strong>Summary:</strong>
                         <ul>
                             <li>Active Nodes: {len(active_nodes)}</li>
@@ -3642,7 +3642,7 @@ def create_cluster_wv(replication_number, skip_compile=False, skip_start=False, 
                 <div class="log-messages" style="margin-top: 15px;">
                     <details>
                         <summary style="cursor: pointer; font-weight: bold;">📋 Log Messages ({len(log_messages)})</summary>
-                        <pre style="max-height: 300px; overflow-y: auto; padding: 10px; background-color: #f8f9fa;">{'<br>'.join(log_messages)}</pre>
+                        <pre class="log-pre">{'<br>'.join(log_messages)}</pre>
                     </details>
                 </div>
                 """

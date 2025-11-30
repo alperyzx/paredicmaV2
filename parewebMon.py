@@ -807,6 +807,73 @@ css_style = """
              border-radius: 3px;
              color: #c7254e; /* Example color for code */
         }
+        
+        /* Info box styles */
+        .info-box {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            font-size: 0.9em;
+        }
+        .info-box ul {
+            margin: 5px 0 0 0;
+            padding-left: 20px;
+        }
+        .info-box .note {
+            margin: 10px 0 0 0;
+            color: #666;
+        }
+        
+        /* Error box styles */
+        .error-box {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8d7da;
+            border-left: 4px solid red;
+        }
+        
+        /* Warning box styles */
+        .warning-box {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #fff3cd;
+            border-left: 4px solid orange;
+        }
+        
+        /* Note box styles (amber/warning color for notes) */
+        .note-box {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+        }
+        
+        /* Table header row */
+        .table-header {
+            background-color: #f5f5f5;
+        }
+        .table-header th {
+            padding: 8px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        
+        /* Success box styles */
+        .success-box {
+            margin-top: 15px;
+            padding: 15px;
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+        
+        /* Log messages pre block */
+        .log-pre {
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: #f8f9fa;
+        }
 
         /* Dark mode styles */
         @media (prefers-color-scheme: dark) {
@@ -921,6 +988,59 @@ css_style = """
             /* Make slave nodes more readable in dark mode */
             [style*="color: #001f3f"] {
                 color: #4a9cf7 !important; /* Lighter blue color for better contrast in dark mode */
+            }
+            
+            /* Info box dark mode */
+            .info-box {
+                background-color: #1a3a5c;
+                border-left-color: #4dabf7;
+                color: #e0e0e0;
+            }
+            .info-box .note {
+                color: #aaa;
+            }
+            
+            /* Error box dark mode */
+            .error-box {
+                background-color: #4a1a1a;
+                border-left-color: #ff6b6b;
+                color: #f0a0a0;
+            }
+            
+            /* Warning box dark mode */
+            .warning-box {
+                background-color: #4a3a1a;
+                border-left-color: #ffa500;
+                color: #ffe0a0;
+            }
+            
+            /* Note box dark mode */
+            .note-box {
+                background-color: #4a3a1a;
+                border-left-color: #ffc107;
+                color: #ffe0a0;
+            }
+            
+            /* Table header dark mode */
+            .table-header {
+                background-color: #2a2a2a;
+            }
+            .table-header th {
+                border-color: #444;
+                color: #e0e0e0;
+            }
+            
+            /* Success box dark mode */
+            .success-box {
+                background-color: #1a4a2a;
+                border-left-color: #28a745;
+                color: #a0f0a0;
+            }
+            
+            /* Log messages pre block dark mode */
+            .log-pre {
+                background-color: #2a2a2a;
+                color: #ccc;
             }
         }
         
@@ -2701,7 +2821,7 @@ async def maintain():
                 
                 // Show success message
                 const infoElement = document.createElement('div');
-                infoElement.innerHTML = `<div style="margin-top: 10px; padding: 8px; background-color: #dff0d8; color: #3c763d; border-radius: 4px;">
+                infoElement.innerHTML = `<div class="info-box" style="margin-top: 10px;">
                     Node IDs have been loaded into the dropdowns. Select source and destination nodes to move slots.
                 </div>`;
                 
@@ -2731,7 +2851,7 @@ async def maintain():
             
             // Show error message
             const errorElement = document.createElement('div');
-            errorElement.innerHTML = `<div style="margin-top: 10px; padding: 8px; background-color: #f2dede; color: #a94442; border-radius: 4px;">
+            errorElement.innerHTML = `<div class="error-box" style="margin-top: 10px;">
                 Could not extract node IDs from the response. Please refresh and try again.
             </div>`;
             
@@ -3329,7 +3449,7 @@ function updateRedisConfig() {{
     // Validate version input
     if (!newVersionField.value.trim()) {{
         resultElement.innerHTML = `
-            <div style="color: #856404; background-color: #fff3cd; padding: 10px; border-left: 4px solid #856404;">
+            <div class="warning-box">
                 Please enter a valid Redis version.
             </div>
         `;
@@ -3348,7 +3468,7 @@ function updateRedisConfig() {{
         }})
         .catch(error => {{
             resultElement.innerHTML = `
-                <div style="color: #721c24; background-color: #f8d7da; padding: 10px; border-left: 4px solid #721c24;">
+                <div class="error-box">
                     Error updating configuration: ${{error.message}}
                 </div>
             `;
