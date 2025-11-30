@@ -1,6 +1,20 @@
 # Python Automatic REDIs Cluster MAnager & MAker
-#### Author				: Mustafa YAVUZ
-#### E-mail				: msyavuz@gmail.com, paredicma@gmail.com
+## Version: 3.0
+#### UpdateDate				: 30.11.2025
+#### UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) 
+#### Release Note			: Cluster Maker Feature was added to Web View.
+
+
+## Version: 2.5
+#### UpdateDate				: 05.05.2025
+#### UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) 
+#### Release Note			: Enhanced Management and Maintenance features, including Redis Cluster Upgrade.
+
+
+## Version: 2.1
+#### UpdateDate				: 27.02.2024
+#### UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) 
+#### Release Note			: Web View Support with FastAPI (Monitoring Section)
 
 ## Version: 2.0 
 #### UpdateDate				: 07.12.2023
@@ -9,19 +23,13 @@
 #### Software Requirement	: Python3.x or above, sshd( with passwordless ssh-keygen auth. between servers ), numactl 
 #### OS System 				: Redhat/Centos 7+ ( possible Ubuntu, debian )
 
-## Version: 2.1
-#### UpdateDate				: 27.02.2024
-#### UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) 
-#### Release Note			: Web View Support with FastAPI (Monitoring Section)
+## Version: 1.0 
+#### Author				: Mustafa YAVUZ
+#### E-mail				: msyavuz@gmail.com, paredicma@gmail.com
 
-## Version: 2.5
-#### UpdateDate				: 05.05.2025
-#### UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) 
-#### Release Note			: Enhanced Management and Maintenance features, including Redis Cluster Upgrade.
 
 ## Python Automatic REDIs Cluster MAnager&MAker
-This program is developed by Mustafa YAVUZ (msyavuz@gmail.com) to make Redis Cluster installation, managament, upgrade and maintanence easier, especially for non-Docker environments.
-It includes current redis tar file. If You have, you can try paredicma with newer version redis, with changing redis tar file.
+This program was developed to make Redis Cluster installation, managament, upgrade and maintanence easier, especially for non-Docker environments. 
 
 ## Prerequirements:
 sshd ( with passwordless ssh-keygen auth. between servers ),
@@ -44,7 +52,8 @@ Configure pareConfig.py file, according to your cluster
 
 ## 4 - run program
 cli: python3.x paredicma-cli.py
-webview: python3.x parewebMon.py
+webview: ./run.sh
+see docs
 
 ## 5- enjoy it :)
 
@@ -142,4 +151,4 @@ If you choose #4
 
 
 
-© 2023 GitHub, Inc.
+© 2026 GitHub, Inc.
