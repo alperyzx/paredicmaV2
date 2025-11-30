@@ -926,15 +926,17 @@ css_style = """
         
         /* Added styles for slot information display */
         .cluster-info-table {
-            width: 100%;
+            width: auto;
+            max-width: 100%;
             border-collapse: collapse;
-            margin-bottom: 15px;
+            margin-bottom: 8px;
             font-size: 14px;
         }
         .cluster-info-table th, .cluster-info-table td {
-            padding: 8px;
+            padding: 5px 8px;
             text-align: left;
             border: 1px solid #ddd;
+            white-space: nowrap;
         }
         .cluster-info-table th {
             background-color: #f2f2f2;
@@ -956,10 +958,10 @@ css_style = """
         }
         .cluster-check {
             background-color: #f9f9f9;
-            padding: 10px;
+            padding: 8px;
             border: 1px solid #e9ecef;
             border-radius: 4px;
-            margin: 10px 0;
+            margin: 5px 0;
             font-family: monospace;
             white-space: pre-wrap;
         }
@@ -968,10 +970,10 @@ css_style = """
             font-weight: bold;
         }
         .section-title {
-            margin-top: 20px;
-            margin-bottom: 10px;
+            margin-top: 15px;
+            margin-bottom: 5px;
             border-bottom: 1px solid #e9ecef;
-            padding-bottom: 5px;
+            padding-bottom: 3px;
         }
         .log-section {
             margin-top: 15px;
@@ -1046,6 +1048,280 @@ css_style = """
                 background-color: #990000;
             }
         }
+        
+        /* Version control table row styles for master/replica */
+        .version-master-row {
+            background-color: rgba(33, 150, 243, 0.15);
+            font-weight: 500;
+        }
+        .version-master-row td {
+            color: #1565c0;
+        }
+        .version-replica-row {
+            background-color: rgba(76, 175, 80, 0.1);
+        }
+        .version-replica-row td {
+            color: #2e7d32;
+        }
+        
+        /* Dark mode for version control rows */
+        @media (prefers-color-scheme: dark) {
+            .version-master-row {
+                background-color: rgba(33, 150, 243, 0.25);
+            }
+            .version-master-row td {
+                color: #64b5f6;
+            }
+            .version-replica-row {
+                background-color: rgba(76, 175, 80, 0.15);
+            }
+            .version-replica-row td {
+                color: #81c784;
+            }
+        }
+        
+        /* Version control warning icon with hover tooltip */
+        .warning-icon-container {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+        }
+        .warning-icon {
+            font-size: 1.2em;
+        }
+        .restart-tooltip {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            padding: 10px 15px;
+            border-radius: 6px;
+            z-index: 1000;
+            min-width: 200px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        .restart-tooltip::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
+        }
+        .restart-tooltip p {
+            margin: 0 0 10px 0;
+            font-size: 0.9em;
+        }
+        .restart-btn {
+            background-color: #800000;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background-color 0.2s;
+        }
+        .restart-btn:hover {
+            background-color: #a00000;
+        }
+        .warning-icon-container:hover .restart-tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        /* Dark mode for warning icon tooltip */
+        @media (prefers-color-scheme: dark) {
+            .restart-tooltip {
+                background-color: #1e1e1e;
+                border: 1px solid #444;
+            }
+            .restart-tooltip::after {
+                border-color: #1e1e1e transparent transparent transparent;
+            }
+            .restart-btn {
+                background-color: #990000;
+            }
+            .restart-btn:hover {
+                background-color: #b30000;
+            }
+        }
+        
+        /* Custom Modal Dialog Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-dialog {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            max-width: 450px;
+            width: 90%;
+            transform: scale(0.9);
+            transition: transform 0.3s;
+            overflow: hidden;
+        }
+        .modal-overlay.active .modal-dialog {
+            transform: scale(1);
+        }
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .modal-header.warning {
+            background-color: #fff3cd;
+            border-bottom-color: #ffc107;
+        }
+        .modal-header.danger {
+            background-color: #f8d7da;
+            border-bottom-color: #dc3545;
+        }
+        .modal-header .modal-icon {
+            font-size: 28px;
+        }
+        .modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+        }
+        .modal-header.warning h3 {
+            color: #856404;
+        }
+        .modal-header.danger h3 {
+            color: #721c24;
+        }
+        .modal-body {
+            padding: 20px;
+            color: #555;
+            line-height: 1.6;
+        }
+        .modal-body p {
+            margin: 0 0 12px 0;
+        }
+        .modal-body ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .modal-body li {
+            margin-bottom: 6px;
+        }
+        .modal-body .node-address {
+            font-family: monospace;
+            background-color: #f5f5f5;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .modal-footer {
+            padding: 15px 20px;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            background-color: #f9f9f9;
+        }
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .modal-btn-cancel {
+            background-color: #e0e0e0;
+            color: #333;
+        }
+        .modal-btn-cancel:hover {
+            background-color: #d0d0d0;
+        }
+        .modal-btn-confirm {
+            background-color: #800000;
+            color: white;
+        }
+        .modal-btn-confirm:hover {
+            background-color: #a00000;
+        }
+        .modal-btn-confirm.danger {
+            background-color: #dc3545;
+        }
+        .modal-btn-confirm.danger:hover {
+            background-color: #c82333;
+        }
+        
+        /* Dark mode for modal */
+        @media (prefers-color-scheme: dark) {
+            .modal-dialog {
+                background-color: #1e1e1e;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+            }
+            .modal-header {
+                border-bottom-color: #444;
+            }
+            .modal-header.warning {
+                background-color: #332a1a;
+                border-bottom-color: #b38600;
+            }
+            .modal-header.danger {
+                background-color: #351e1e;
+                border-bottom-color: #dc3545;
+            }
+            .modal-header h3 {
+                color: #e0e0e0;
+            }
+            .modal-header.warning h3 {
+                color: #ffd700;
+            }
+            .modal-header.danger h3 {
+                color: #ff6b6b;
+            }
+            .modal-body {
+                color: #bbb;
+            }
+            .modal-body .node-address {
+                background-color: #333;
+                color: #4fc3f7;
+            }
+            .modal-footer {
+                background-color: #252525;
+                border-top-color: #444;
+            }
+            .modal-btn-cancel {
+                background-color: #444;
+                color: #e0e0e0;
+            }
+            .modal-btn-cancel:hover {
+                background-color: #555;
+            }
+        }
     </style>
 """
 
@@ -1061,13 +1337,13 @@ async def welcome_page():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Paredicma - Redis Cluster Management</title>
+        <title>Paredicma - {projectName} - Redis Cluster Management</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
     <body>
         <div class="welcome-container">
             <div class="welcome-header">
-                <h1>Paredicma</h1>
+                <h1>Paredicma - {projectName}</h1>
                 <div class="welcome-description">
                     Redis Cluster Management Tool
                 </div>
@@ -1110,8 +1386,8 @@ async def welcome_page():
                 <div class="section-card maker-card">
                     <h2 class="card-header">Maker</h2>
                     <div class="card-content">
-                        <p>Create a redis cluster, check requirements</p>
-                        <p>Not Implemented Yet.</p>
+                        <p>Create a new Redis cluster from scratch. Configure nodes, set replication, and initialize the cluster.</p>
+                        <p>Validate nodes, preview configuration, and monitor cluster creation progress.</p>
                     </div>
                     <div class="card-footer">
                         <a href="/maker" class="card-button">Go to Maker</a>
@@ -1154,10 +1430,10 @@ async def monitor():
     {css_style}
     <html>
     <head>
-        <title>Redis Cluster Monitor</title>
+        <title>Redis Cluster Monitor - {projectName}</title>
     </head>
     <body>
-    <h1 class="monitor-title">Redis Cluster Monitor</h1>
+    <h1 class="monitor-title">Redis Cluster Monitor - {projectName}</h1>
     <div class="nav-buttons">
         <a href="/manager" class="manager-nav">Go to Manager</a>
         <a href="/maintain" class="maintenance-nav">Go to Maintenance</a>
@@ -1433,10 +1709,10 @@ async def manager():
     {css_style}
     <html>
     <head>
-        <title>Redis Cluster Manager</title>
+        <title>Redis Cluster Manager - {projectName}</title>
     </head>
     <body>
-    <h1 class="manager-title">Redis Cluster Manager</h1>
+    <h1 class="manager-title">Redis Cluster Manager - {projectName}</h1>
     <div class="nav-buttons">
         <a href="/monitor" class="monitor-nav">Go to Monitor</a>
         <a href="/maintain" class="maintenance-nav">Go to Maintenance</a>
@@ -1686,11 +1962,28 @@ async def manager():
             
                 // Add confirmation dialog if master nodes will be restarted
                 if (restartMastersChecked) {{
-                    if (!confirm("WARNING: You are about to restart master nodes which will trigger failover. This may cause temporary service interruption. Continue?")) {{
-                        return;
-                    }}
+                    showConfirmModal(
+                        '⚠️ Restart Master Nodes?',
+                        '🔄',
+                        `<p style="color: #dc3545; font-weight: 600;">WARNING: You are about to restart master nodes!</p>
+                        <p style="margin-top: 10px;">This will trigger <strong>failover</strong> on each master node.</p>
+                        <p style="margin-top: 15px;"><strong>Impact:</strong></p>
+                        <ul style="margin-top: 5px;">
+                            <li>Temporary service interruption</li>
+                            <li>Cluster topology will change</li>
+                            <li>Connected clients will be disconnected</li>
+                        </ul>`,
+                        'Continue Restart',
+                        function() {{ executeRollingRestart(formData); }},
+                        true
+                    );
+                    return;
                 }}
             
+                executeRollingRestart(formData);
+            }}
+            
+        function executeRollingRestart(formData) {{
                 const params = new URLSearchParams(formData);
             
                 // Show initial status message
@@ -1892,10 +2185,10 @@ async def maintain():
     {css_style}
     <html>
     <head>
-        <title>Redis Cluster Maintenance</title>
+        <title>Redis Cluster Maintenance - {projectName}</title>
     </head>
     <body>
-    <h1 class="maintenance-title">Redis Cluster Maintenance</h1>
+    <h1 class="maintenance-title">Redis Cluster Maintenance - {projectName}</h1>
     <div class="nav-buttons">
         <a href="/monitor" class="monitor-nav">Go to Monitor</a>
         <a href="/manager" class="manager-nav">Go to Manager</a>
@@ -2107,6 +2400,40 @@ async def maintain():
         <div id="slot-balancer-result" style="margin-top: 10px;"></div>
     </div>
 
+    <!-- Custom Modal Dialog for Restart Confirmation -->
+    <div id="restart-modal" class="modal-overlay">
+        <div class="modal-dialog">
+            <div id="modal-header" class="modal-header warning">
+                <span class="modal-icon">⚠️</span>
+                <h3 id="modal-title">Confirm Restart</h3>
+            </div>
+            <div class="modal-body">
+                <div id="modal-body-content"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-cancel" onclick="closeRestartModal()">Cancel</button>
+                <button id="modal-confirm-btn" class="modal-btn modal-btn-confirm">🔄 Restart Node</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Confirmation Modal -->
+    <div id="confirm-modal" class="modal-overlay">
+        <div class="modal-dialog">
+            <div id="confirm-modal-header" class="modal-header">
+                <span id="confirm-modal-icon" class="modal-icon">ℹ️</span>
+                <h3 id="confirm-modal-title">Confirm Action</h3>
+            </div>
+            <div class="modal-body">
+                <div id="confirm-modal-body"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-cancel" onclick="closeConfirmModal()">Cancel</button>
+                <button id="confirm-modal-btn" class="modal-btn modal-btn-confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const collapsibles = document.querySelectorAll(".collapsible");
         collapsibles.forEach(button => {{
@@ -2204,10 +2531,14 @@ async def maintain():
                // Check if download was successful
                if (html.includes('Successfully downloaded') || html.includes('already exists')) {{
                    // Ask the user if they want to extract and compile
-                   if (confirm('Download successful. Do you want to extract and compile this Redis package?')) {{
-                       // Start the extract compile process with progress bar
-                       extractCompileRedisWithProgress(redisFilename);
-                   }}
+                   showConfirmModal(
+                       'Extract and Compile?',
+                       '📦',
+                       `<p>Download successful!</p><p style="margin-top: 10px;">Do you want to extract and compile this Redis package?</p><p style="margin-top: 15px; color: #666; font-size: 0.9em;"><strong>Note:</strong> This process may take a few minutes.</p>`,
+                       'Extract & Compile',
+                       function() {{ extractCompileRedisWithProgress(redisFilename); }},
+                       false
+                   );
                }}
            }})
            .catch(error => {{
@@ -2486,10 +2817,14 @@ async def maintain():
                 // If upload was successful, ask user if they want to extract and compile
                 if (html.includes('Successfully uploaded') || html.includes('file-exists-message')) {{
                     // Ask the user if they want to extract and compile
-                    if (confirm('File is available. Do you want to extract and compile this Redis package?')) {{
-                        // Start extraction with progress bar
-                        extractCompileRedisWithProgress(file.name);
-                    }}
+                    showConfirmModal(
+                        'Extract and Compile?',
+                        '📦',
+                        `<p>File uploaded successfully!</p><p style="margin-top: 10px;">Do you want to extract and compile this Redis package?</p><p style="margin-top: 15px; color: #666; font-size: 0.9em;"><strong>Note:</strong> This process may take a few minutes.</p>`,
+                        'Extract & Compile',
+                        function() {{ extractCompileRedisWithProgress(file.name); }},
+                        false
+                    );
                 }}
             }})
             .catch(error => {{
@@ -2735,6 +3070,244 @@ async def maintain():
             resultElement.innerHTML = `<div class="error-message">Error verifying Redis binary: ${{error.message}}</div>`;
         }});
    }}
+
+// Modal functions for restart confirmation
+let pendingRestartNode = null;
+let pendingRestartIsMaster = false;
+
+function showRestartModal(nodeAddress, isMaster) {{
+    pendingRestartNode = nodeAddress;
+    pendingRestartIsMaster = isMaster;
+    
+    const modal = document.getElementById('restart-modal');
+    const header = document.getElementById('modal-header');
+    const title = document.getElementById('modal-title');
+    const bodyContent = document.getElementById('modal-body-content');
+    const confirmBtn = document.getElementById('modal-confirm-btn');
+    
+    if (isMaster) {{
+        header.className = 'modal-header danger';
+        title.textContent = '⚠️ Restart Master Node?';
+        confirmBtn.className = 'modal-btn modal-btn-confirm danger';
+        bodyContent.innerHTML = `
+            <p><strong>You are about to restart a MASTER node:</strong></p>
+            <p><span class="node-address">${{nodeAddress}}</span></p>
+            <p style="color: #dc3545; font-weight: 500;">This will trigger a FAILOVER!</p>
+            <p>One of its replicas will be promoted to master.</p>
+            <p style="margin-top: 15px;"><strong>Impact:</strong></p>
+            <ul>
+                <li>Brief service interruption for keys on this shard</li>
+                <li>Cluster topology will change</li>
+                <li>Connected clients will be disconnected</li>
+            </ul>
+        `;
+    }} else {{
+        header.className = 'modal-header warning';
+        title.textContent = 'Restart Replica Node?';
+        confirmBtn.className = 'modal-btn modal-btn-confirm';
+        bodyContent.innerHTML = `
+            <p>You are about to restart replica node:</p>
+            <p><span class="node-address">${{nodeAddress}}</span></p>
+            <p style="margin-top: 15px;">This will temporarily disconnect clients connected to this node.</p>
+            <p>The cluster will continue to function normally.</p>
+        `;
+    }}
+    
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+}}
+
+function closeRestartModal() {{
+    const modal = document.getElementById('restart-modal');
+    modal.classList.remove('active');
+    document.body.style.overflow = ''; // Restore scrolling
+    pendingRestartNode = null;
+    pendingRestartIsMaster = false;
+}}
+
+// Generic confirmation modal
+let pendingConfirmCallback = null;
+
+function showConfirmModal(title, icon, content, confirmBtnText, confirmCallback, isDanger = false) {{
+    pendingConfirmCallback = confirmCallback;
+    
+    const modal = document.getElementById('confirm-modal');
+    const header = document.getElementById('confirm-modal-header');
+    const modalIcon = document.getElementById('confirm-modal-icon');
+    const modalTitle = document.getElementById('confirm-modal-title');
+    const bodyContent = document.getElementById('confirm-modal-body');
+    const confirmBtn = document.getElementById('confirm-modal-btn');
+    
+    modalIcon.textContent = icon;
+    modalTitle.textContent = title;
+    bodyContent.innerHTML = content;
+    confirmBtn.textContent = confirmBtnText;
+    
+    if (isDanger) {{
+        header.className = 'modal-header danger';
+        confirmBtn.className = 'modal-btn modal-btn-confirm danger';
+    }} else {{
+        header.className = 'modal-header warning';
+        confirmBtn.className = 'modal-btn modal-btn-confirm';
+    }}
+    
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}}
+
+function closeConfirmModal() {{
+    const modal = document.getElementById('confirm-modal');
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+    pendingConfirmCallback = null;
+}}
+
+function executeConfirmAction() {{
+    if (pendingConfirmCallback) {{
+        const callback = pendingConfirmCallback;
+        closeConfirmModal();
+        callback();
+    }}
+}}
+
+function confirmRestart() {{
+    if (!pendingRestartNode) return;
+    
+    const nodeAddress = pendingRestartNode;
+    const isMaster = pendingRestartIsMaster;
+    
+    closeRestartModal();
+    executeNodeRestart(nodeAddress, isMaster);
+}}
+
+// Initialize modal event handlers when DOM is ready
+function initModalHandlers() {{
+    // Attach confirm handler to restart modal button
+    const confirmBtn = document.getElementById('modal-confirm-btn');
+    if (confirmBtn) {{
+        confirmBtn.addEventListener('click', confirmRestart);
+    }}
+
+    // Close restart modal when clicking outside
+    const modal = document.getElementById('restart-modal');
+    if (modal) {{
+        modal.addEventListener('click', function(e) {{
+            if (e.target === this) {{
+                closeRestartModal();
+            }}
+        }});
+    }}
+    
+    // Attach confirm handler to generic confirm modal button
+    const confirmModalBtn = document.getElementById('confirm-modal-btn');
+    if (confirmModalBtn) {{
+        confirmModalBtn.addEventListener('click', executeConfirmAction);
+    }}
+    
+    // Close confirm modal when clicking outside
+    const confirmModal = document.getElementById('confirm-modal');
+    if (confirmModal) {{
+        confirmModal.addEventListener('click', function(e) {{
+            if (e.target === this) {{
+                closeConfirmModal();
+            }}
+        }});
+    }}
+}}
+
+// Close modals with Escape key
+document.addEventListener('keydown', function(e) {{
+    if (e.key === 'Escape') {{
+        const restartModal = document.getElementById('restart-modal');
+        if (restartModal && restartModal.classList.contains('active')) {{
+            closeRestartModal();
+            return;
+        }}
+        const confirmModal = document.getElementById('confirm-modal');
+        if (confirmModal && confirmModal.classList.contains('active')) {{
+            closeConfirmModal();
+        }}
+    }}
+}});
+
+// Initialize handlers when DOM is ready
+if (document.readyState === 'loading') {{
+    document.addEventListener('DOMContentLoaded', initModalHandlers);
+}} else {{
+    initModalHandlers();
+}}
+
+// Show modal from Version Control section
+function restartNodeFromVersion(nodeAddress, isMaster) {{
+    showRestartModal(nodeAddress, isMaster);
+}}
+
+// Execute the actual restart (called after modal confirmation)
+function executeNodeRestart(nodeAddress, isMaster) {{
+    // Find the warning icon container for this node and show loading state
+    const container = document.getElementById('redis-version-control-container');
+    const warningContainers = container.querySelectorAll('.warning-icon-container');
+    let targetContainer = null;
+    
+    // Find the container that has a button with this node address
+    warningContainers.forEach(wc => {{
+        const btn = wc.querySelector('.restart-btn');
+        if (btn && btn.onclick.toString().includes(nodeAddress)) {{
+            targetContainer = wc;
+        }}
+    }});
+    
+    // Update the specific warning icon to show loading
+    if (targetContainer) {{
+        targetContainer.innerHTML = `<span style="color: #856404;">⏳</span>`;
+    }}
+    
+    // Add a status message above the table
+    const statusDiv = document.createElement('div');
+    statusDiv.id = 'restart-status-msg';
+    const statusColor = isMaster ? 'background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24;' : 'background-color: #fff3cd; border: 1px solid #ffc107; color: #856404;';
+    statusDiv.style.cssText = `padding: 10px; margin-bottom: 10px; border-radius: 5px; ${{statusColor}}`;
+    statusDiv.innerHTML = isMaster 
+        ? `<strong>⏳ Restarting MASTER node ${{nodeAddress}}... (failover in progress)</strong>`
+        : `<strong>⏳ Restarting node ${{nodeAddress}}...</strong>`;
+    
+    // Insert status at the top of the container
+    const existingStatus = document.getElementById('restart-status-msg');
+    if (existingStatus) {{
+        existingStatus.remove();
+    }}
+    container.insertBefore(statusDiv, container.firstChild);
+    
+    // Call the restart endpoint
+    fetch(`/manager/node-action/?redisNode=${{encodeURIComponent(nodeAddress)}}&action=restart&confirmed=true`)
+        .then(response => response.text())
+        .then(html => {{
+            // Update status message to show success
+            const statusMsg = document.getElementById('restart-status-msg');
+            if (statusMsg) {{
+                statusMsg.style.cssText = 'padding: 10px; margin-bottom: 10px; border-radius: 5px; background-color: #dff0d8; border: 1px solid #5cb85c; color: #3c763d;';
+                statusMsg.innerHTML = isMaster
+                    ? `<strong>✓ Master node ${{nodeAddress}} restarted successfully!</strong> Failover completed. Refreshing version data...`
+                    : `<strong>✓ Node ${{nodeAddress}} restarted successfully!</strong> Refreshing version data...`;
+            }}
+            // Reload version control data after a short delay
+            setTimeout(() => {{
+                loadRedisVersionControl(true);
+            }}, 2000);
+        }})
+        .catch(error => {{
+            // Update status message to show error
+            const statusMsg = document.getElementById('restart-status-msg');
+            if (statusMsg) {{
+                statusMsg.style.cssText = 'padding: 10px; margin-bottom: 10px; border-radius: 5px; background-color: #f2dede; border: 1px solid #d9534f; color: #a94442;';
+                statusMsg.innerHTML = `<strong>❌ Error restarting node:</strong> ${{error.message}}`;
+            }}
+            // Reload to restore the warning icon
+            setTimeout(() => {{
+                loadRedisVersionControl(true);
+            }}, 3000);
+        }});
+}}
     
     // Fetch current Redis version when page loads
 document.addEventListener('DOMContentLoaded', function() {{
@@ -2782,9 +3355,12 @@ function updateRedisConfig() {{
         }});
 }}
 
-function loadRedisVersionControl() {{
+function loadRedisVersionControl(preserveScroll = false) {{
     const versionControlContainer = document.getElementById('redis-version-control-container');
     if (!versionControlContainer) return;
+
+    // Save scroll position if preserveScroll is true
+    const scrollTop = preserveScroll ? window.scrollY || document.documentElement.scrollTop : 0;
 
     versionControlContainer.innerHTML = '<div class=\"loading\">Loading version data...</div>';
 
@@ -2792,6 +3368,10 @@ function loadRedisVersionControl() {{
         .then(response => response.text())
         .then(html => {{
             versionControlContainer.innerHTML = html;
+            // Restore scroll position if we were preserving it
+            if (preserveScroll) {{
+                window.scrollTo(0, scrollTop);
+            }}
         }})
         .catch(error => {{
             versionControlContainer.innerHTML = `
@@ -2799,6 +3379,10 @@ function loadRedisVersionControl() {{
                     <p>Failed to load Redis version information: ${{error}}</p>
                 </div>
             `;
+            // Restore scroll position even on error
+            if (preserveScroll) {{
+                window.scrollTo(0, scrollTop);
+            }}
         }});
 }}
 
@@ -3296,6 +3880,738 @@ async def redis_version_control():
             """
         )
 
+
+# #############################################
+# Maker Section - Create Redis Cluster
+# #############################################
+
+@app.get("/maker", response_class=HTMLResponse)
+async def maker():
+    """
+    Displays the Redis Cluster Maker UI for creating a new cluster.
+    """
+    # Ensure we have the latest node list
+    import importlib
+    importlib.reload(sys.modules['pareNodeList'])
+    from pareNodeList import pareNodes as fresh_pareNodes
+
+    # Update the global pareNodes
+    global pareNodes
+    pareNodes = fresh_pareNodes
+
+    # Count active nodes
+    active_nodes = [node for node in pareNodes if node[4]]
+    total_nodes = len(active_nodes)
+    
+    # Calculate max replicas possible
+    max_replicas = (total_nodes // 3) - 1 if total_nodes >= 3 else 0
+    
+    # Build replication options
+    replication_options = ""
+    for i in range(max(0, max_replicas + 1)):
+        required = 3 * (1 + i)
+        disabled = "disabled" if total_nodes < required else ""
+        if i == 0:
+            label = f"0 replicas (no redundancy) - requires 3 nodes"
+        elif i == 1:
+            label = f"1 replica (recommended) - requires 6 nodes"
+        else:
+            label = f"{i} replicas - requires {required} nodes"
+        selected = "selected" if i == 1 and total_nodes >= 6 else ""
+        replication_options += f'<option value="{i}" {disabled} {selected}>{label}</option>'
+    
+    # If no valid options, add a placeholder
+    if not replication_options:
+        replication_options = '<option value="" disabled selected>Not enough nodes (minimum 3 required)</option>'
+
+    # Check if cluster already exists
+    cluster_exists = os.path.isfile('paredicma.done')
+    cluster_status_class = "warning" if cluster_exists else "info"
+    cluster_status_icon = "⚠️" if cluster_exists else "ℹ️"
+    cluster_status_msg = "A cluster already exists. Remove 'paredicma.done' to recreate." if cluster_exists else "No cluster exists. Ready to create a new cluster."
+    create_btn_disabled = "disabled" if cluster_exists else ""
+
+    # Get available Redis versions
+    from pareFuncWeb import get_available_redis_versions_wv
+    versions_info = get_available_redis_versions_wv()
+    compiled_versions = versions_info.get('compiled', [])
+    tarball_versions = versions_info.get('tarballs', [])
+    current_version = versions_info.get('current', redisVersion)
+    
+    # Build version options for the dropdown
+    version_options = f'<option value="{current_version}" selected>{current_version} (configured)</option>'
+    
+    # Add compiled versions (excluding current)
+    for v in compiled_versions:
+        if v != current_version:
+            version_options += f'<option value="{v}">{v} (compiled)</option>'
+    
+    # Add tarball versions that aren't compiled yet
+    for v in tarball_versions:
+        if v not in compiled_versions and v != current_version:
+            version_options += f'<option value="{v}">{v} (needs compilation)</option>'
+
+    # Generate the HTML content for the maker page
+    html_content = f"""
+    {css_style}
+    <html>
+    <head>
+        <title>Redis Cluster Maker - {projectName}</title>
+        <style>
+            .status-box {{
+                padding: 15px;
+                margin: 15px 0;
+                border-radius: 5px;
+                border-left: 4px solid;
+            }}
+            .status-box.info {{
+                background-color: rgba(23, 162, 184, 0.1);
+                border-color: #17a2b8;
+            }}
+            .status-box.warning {{
+                background-color: rgba(255, 193, 7, 0.1);
+                border-color: #ffc107;
+            }}
+            .status-box.success {{
+                background-color: rgba(40, 167, 69, 0.1);
+                border-color: #28a745;
+            }}
+            .status-box.error {{
+                background-color: rgba(220, 53, 69, 0.1);
+                border-color: #dc3545;
+            }}
+            .config-table {{
+                width: 100%;
+                margin: 10px 0;
+            }}
+            .config-table td {{
+                padding: 8px;
+                border-bottom: 1px solid #eee;
+            }}
+            .config-table td:first-child {{
+                font-weight: bold;
+                width: 200px;
+            }}
+            .step-indicator {{
+                padding: 10px 15px;
+                margin: 5px 0;
+                border-left: 4px solid #6c757d;
+                background-color: rgba(108, 117, 125, 0.05);
+            }}
+            .step-indicator.success {{
+                border-color: #28a745;
+                background-color: rgba(40, 167, 69, 0.1);
+            }}
+            .step-indicator.error {{
+                border-color: #dc3545;
+                background-color: rgba(220, 53, 69, 0.1);
+            }}
+            .step-indicator.active {{
+                border-color: #17a2b8;
+                background-color: rgba(23, 162, 184, 0.1);
+            }}
+            .maker-button {{
+                padding: 10px 20px;
+                color: #ffffff;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                margin: 5px;
+                background-color: #28a745;
+            }}
+            .maker-button:hover {{
+                background-color: #218838;
+            }}
+            .maker-button:disabled {{
+                background-color: #6c757d;
+                cursor: not-allowed;
+            }}
+            .maker-button.secondary {{
+                background-color: #6c757d;
+            }}
+            .maker-button.secondary:hover {{
+                background-color: #5a6268;
+            }}
+            .preview-table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin: 10px 0;
+            }}
+            .preview-table th, .preview-table td {{
+                padding: 8px;
+                border: 1px solid #ddd;
+                text-align: left;
+            }}
+            .preview-table th {{
+                background-color: #f8f9fa;
+            }}
+            @media (prefers-color-scheme: dark) {{
+                .status-box.info {{
+                    background-color: rgba(23, 162, 184, 0.2);
+                }}
+                .status-box.warning {{
+                    background-color: rgba(255, 193, 7, 0.2);
+                }}
+                .status-box.success {{
+                    background-color: rgba(40, 167, 69, 0.2);
+                }}
+                .status-box.error {{
+                    background-color: rgba(220, 53, 69, 0.2);
+                }}
+                .preview-table th {{
+                    background-color: #333;
+                }}
+                .preview-table th, .preview-table td {{
+                    border-color: #444;
+                }}
+            }}
+        </style>
+    </head>
+    <body>
+    <h1 class="maintenance-title">Redis Cluster Maker - {projectName}</h1>
+    <div class="nav-buttons">
+        <a href="/monitor" class="monitor-nav">Go to Monitor</a>
+        <a href="/manager" class="manager-nav">Go to Manager</a>
+        <a href="/maintain" class="maintenance-nav">Go to Maintenance</a>
+    </div>
+    <hr>
+
+    <!-- Cluster Status -->
+    <div class="status-box {cluster_status_class}">
+        <strong>{cluster_status_icon} Cluster Status:</strong> {cluster_status_msg}
+    </div>
+
+    <button class="collapsible">0 - Download/Upload Redis Package</button>
+    <div class="content">
+        <h3>Choose a Redis tarball from local machine or download from redis.io</h3>
+        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+            <form id="maker-upload-redis-form" enctype="multipart/form-data" style="margin: 0; display: inline-block;">
+                <button class="maker-button secondary" type="button" onclick="document.getElementById('maker_redis_file').click()">Upload local file</button>
+                <input type="file" id="maker_redis_file" name="upload_file" accept=".tar.gz" required style="display: none;" onchange="makerUploadRedisPackage()">
+            </form>
+            <span>OR</span>
+            <form id="maker-download-redis-form" onsubmit="makerDownloadRedisVersion(event)" style="margin: 0; display: inline-flex; align-items: center; gap: 10px;">
+                <button id="maker-download-redis-button" class="maker-button secondary" type="submit">Download from redis.io</button>
+                <input type="text" id="maker_redis_filename" name="redis_filename" required placeholder="e.g., redis-7.2.4.tar.gz" style="width:180px; padding: 8px;">
+            </form>
+        </div>
+        <span id="maker-filename-validation-msg" style="color: red; font-size: 0.9em; display: block; margin-bottom: 10px;"></span>
+        
+        <!-- Extract and compile section (hidden by default) -->
+        <div id="maker-extract-compile-container" style="display: none; margin-top: 15px;">
+            <button id="maker-extract-compile-button" class="maker-button" onclick="makerExtractCompileRedis()">Extract & Compile Package</button>
+            <span id="maker-selected-tarfile-display" style="margin-left: 10px; font-style: italic;"></span>
+        </div>
+        
+        <!-- Progress bar container -->
+        <div id="maker-progress-container" style="display: none; margin-top: 15px;">
+            <div style="margin-bottom: 5px;">Extracting and compiling Redis package... (this may take a few minutes)</div>
+            <div class="progress-bar-container" style="width: 100%; background-color: #e0e0e0; border-radius: 5px; height: 20px;">
+                <div id="maker-progress-bar" class="progress-bar" style="width: 0%; height: 100%; background-color: #28a745; border-radius: 5px; transition: width 0.5s;"></div>
+            </div>
+            <div id="maker-progress-status" style="margin-top: 5px; font-size: 0.9em;">Starting extraction...</div>
+        </div>
+        
+        <!-- Results will appear here -->
+        <div id="maker-download-result" style="margin-top: 15px;"></div>
+        
+        <!-- Deploy to remote servers section -->
+        <div id="maker-deploy-container" style="display: none; margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+            <h3>Deploy Redis Binary to Remote Servers</h3>
+            <p>Compile Redis on remote servers with different CPU architectures:</p>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <button id="maker-deploy-button" class="maker-button" onclick="makerDeployToRemote()">Deploy to Remote Servers</button>
+                <input type="text" id="maker_deploy_version" placeholder="e.g., 7.2.4" style="width: 100px; padding: 8px;">
+            </div>
+            <div id="maker-deploy-result" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+
+    <button class="collapsible">1 - Check Cluster Status</button>
+    <div class="content">
+        <p>Check if a Redis cluster already exists and view current status.</p>
+        <div class="button-container">
+            <button class="maker-button secondary" onclick="checkClusterStatus()">Check Status</button>
+        </div>
+        <div id="cluster-status-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <button class="collapsible">2 - Validate Nodes</button>
+    <div class="content">
+        <p>Validate all configured nodes before cluster creation. Checks server reachability and configuration.</p>
+        <div class="button-container">
+            <button class="maker-button secondary" onclick="validateNodes()">Validate All Nodes</button>
+        </div>
+        <div id="validate-nodes-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <button class="collapsible">3 - Preview Cluster Configuration</button>
+    <div class="content">
+        <p>Preview how the cluster will be configured with your current settings.</p>
+        <div style="margin-bottom: 15px;">
+            <label for="preview_replication">Replication Factor:</label>
+            <select id="preview_replication" name="preview_replication" style="padding: 8px; margin-left: 10px;">
+                {replication_options}
+            </select>
+        </div>
+        <div class="button-container">
+            <button class="maker-button secondary" onclick="previewCluster()">Preview Configuration</button>
+        </div>
+        <div id="preview-cluster-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <button class="collapsible">4 - Create Redis Cluster</button>
+    <div class="content">
+        <h3>Create New Redis Cluster</h3>
+        
+        <div class="status-box info">
+            <strong>Current Configuration:</strong>
+            <table class="config-table">
+                <tr><td>Configured Redis Version:</td><td>{redisVersion}</td></tr>
+                <tr><td>Cluster Mode:</td><td>{redisCluster}</td></tr>
+                <tr><td>Authentication:</td><td>{'Enabled' if redisPwdAuthentication == 'on' else 'Disabled'}</td></tr>
+                <tr><td>Auto Compile:</td><td>{'Yes' if doCompile else 'No'}</td></tr>
+                <tr><td>Auto Start Nodes:</td><td>{'Yes' if doStartNodes else 'No'}</td></tr>
+                <tr><td>Active Nodes:</td><td>{total_nodes}</td></tr>
+            </table>
+        </div>
+
+        <form id="create-cluster-form" onsubmit="createCluster(event)">
+            <div style="margin-bottom: 15px;">
+                <label for="redis_version_select" style="display: block; margin-bottom: 5px;"><strong>Redis Version:</strong></label>
+                <select id="redis_version_select" name="redis_version" style="padding: 8px; width: 300px;">
+                    {version_options}
+                </select>
+                <p style="font-size: 0.9em; color: #6c757d; margin-top: 5px;">
+                    Select the Redis version to use. Use section "0 - Download/Upload Redis Package" to add more versions.
+                </p>
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label for="replication_number" style="display: block; margin-bottom: 5px;"><strong>Replication Factor:</strong></label>
+                <select id="replication_number" name="replication_number" style="padding: 8px; width: 300px;">
+                    {replication_options}
+                </select>
+                <p style="font-size: 0.9em; color: #6c757d; margin-top: 5px;">
+                    Active nodes available: {total_nodes}
+                </p>
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label>
+                    <input type="checkbox" id="skip_compile" name="skip_compile" {'checked' if not doCompile else ''}>
+                    Skip compilation (use existing binaries)
+                </label>
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label>
+                    <input type="checkbox" id="skip_start" name="skip_start">
+                    Skip starting nodes (assume already running)
+                </label>
+            </div>
+
+            <div class="button-container" style="margin-top: 20px;">
+                <button type="submit" class="maker-button" {create_btn_disabled}>
+                    🚀 Create Cluster
+                </button>
+            </div>
+        </form>
+        
+        <div id="create-cluster-result" style="margin-top: 15px;"></div>
+    </div>
+
+    <script>
+        const collapsibles = document.querySelectorAll(".collapsible");
+        collapsibles.forEach(button => {{
+            button.addEventListener("click", function() {{
+                this.classList.toggle("active");
+                const content = this.nextElementSibling;
+                if (content.style.display === "block") {{
+                    content.style.display = "none";
+                }} else {{
+                    content.style.display = "block";
+                }}
+            }});
+        }});
+
+        function checkClusterStatus() {{
+            document.getElementById('cluster-status-result').innerHTML = "<p>Checking cluster status...</p>";
+            fetch('/maker/check-status/')
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('cluster-status-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('cluster-status-result').innerHTML = 
+                        "<p style='color: red;'>Error checking status: " + error + "</p>";
+                }});
+        }}
+
+        function validateNodes() {{
+            document.getElementById('validate-nodes-result').innerHTML = "<p>Validating nodes...</p>";
+            fetch('/maker/validate-nodes/')
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('validate-nodes-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('validate-nodes-result').innerHTML = 
+                        "<p style='color: red;'>Error validating nodes: " + error + "</p>";
+                }});
+        }}
+
+        function previewCluster() {{
+            const replication = document.getElementById('preview_replication').value;
+            document.getElementById('preview-cluster-result').innerHTML = "<p>Generating preview...</p>";
+            fetch('/maker/preview/?replication_number=' + replication)
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('preview-cluster-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('preview-cluster-result').innerHTML = 
+                        "<p style='color: red;'>Error generating preview: " + error + "</p>";
+                }});
+        }}
+
+        function createCluster(event) {{
+            event.preventDefault();
+            
+            const form = document.getElementById('create-cluster-form');
+            const redisVersion = document.getElementById('redis_version_select').value;
+            const replication = document.getElementById('replication_number').value;
+            const skipCompile = document.getElementById('skip_compile').checked;
+            const skipStart = document.getElementById('skip_start').checked;
+            
+            // Confirm before creating
+            showConfirmModal(
+                'Create Redis Cluster?',
+                '🚀',
+                `<p>You are about to create a Redis cluster with:</p>
+                <ul style="margin-top: 10px;">
+                    <li><strong>Redis Version:</strong> ${{redisVersion}}</li>
+                    <li><strong>Replication Factor:</strong> ${{replication}}</li>
+                </ul>
+                <p style="margin-top: 15px; color: #666; font-size: 0.9em;"><strong>Note:</strong> This process may take several minutes.</p>`,
+                'Create Cluster',
+                function() {{ executeCreateCluster(redisVersion, replication, skipCompile, skipStart); }},
+                false
+            );
+        }}
+        
+        function executeCreateCluster(redisVersion, replication, skipCompile, skipStart) {{
+            document.getElementById('create-cluster-result').innerHTML = `
+                <div class="status-box info">
+                    <h4>🔄 Creating Cluster with Redis ${{redisVersion}}...</h4>
+                    <p>This process may take several minutes. Please wait...</p>
+                    <div class="progress-bar-container" style="margin-top: 10px;">
+                        <div class="progress-bar" style="width: 0%; animation: progress 120s linear forwards;"></div>
+                    </div>
+                </div>
+                <style>
+                    @keyframes progress {{
+                        from {{ width: 0%; }}
+                        to {{ width: 95%; }}
+                    }}
+                </style>
+            `;
+            
+            const params = new URLSearchParams({{
+                redis_version: redisVersion,
+                replication_number: replication,
+                skip_compile: skipCompile,
+                skip_start: skipStart
+            }});
+            
+            fetch('/maker/create-cluster/?' + params)
+                .then(response => response.text())
+                .then(data => {{
+                    document.getElementById('create-cluster-result').innerHTML = data;
+                }})
+                .catch(error => {{
+                    document.getElementById('create-cluster-result').innerHTML = 
+                        "<div class='status-box error'><p>Error creating cluster: " + error + "</p></div>";
+                }});
+        }}
+
+        // ===== Download/Upload Redis Package Functions =====
+        
+        let makerSelectedTarfile = '';
+        
+        function makerValidateRedisFilename() {{
+            const input = document.getElementById('maker_redis_filename');
+            const filename = input.value.trim();
+            const isValid = filename.startsWith('redis-') && filename.endsWith('.tar.gz');
+            const validationMsg = document.getElementById('maker-filename-validation-msg');
+            
+            if (isValid) {{
+                validationMsg.textContent = '';
+            }} else if (filename !== '') {{
+                validationMsg.textContent = 'Must start with "redis-" and end with ".tar.gz"';
+            }} else {{
+                validationMsg.textContent = '';
+            }}
+            return isValid;
+        }}
+        
+        document.getElementById('maker_redis_filename').addEventListener('input', makerValidateRedisFilename);
+        
+        function makerDownloadRedisVersion(event) {{
+            event.preventDefault();
+            
+            if (!makerValidateRedisFilename()) {{
+                document.getElementById('maker-download-result').innerHTML = 
+                    '<div class="status-box error"><p>Invalid filename format. Must start with "redis-" and end with ".tar.gz"</p></div>';
+                return;
+            }}
+            
+            const filename = document.getElementById('maker_redis_filename').value.trim();
+            document.getElementById('maker-download-result').innerHTML = '<p>Downloading ' + filename + '...</p>';
+            
+            fetch('/maintain/download-redis/?redis_filename=' + encodeURIComponent(filename))
+                .then(response => response.text())
+                .then(html => {{
+                    document.getElementById('maker-download-result').innerHTML = html;
+                    
+                    if (html.includes('Successfully downloaded') || html.includes('already exists')) {{
+                        makerSelectedTarfile = filename;
+                        document.getElementById('maker-extract-compile-container').style.display = 'block';
+                        document.getElementById('maker-selected-tarfile-display').textContent = filename;
+                        
+                        // Extract version and set deploy field
+                        const version = filename.replace('redis-', '').replace('.tar.gz', '');
+                        document.getElementById('maker_deploy_version').value = version;
+                    }}
+                }})
+                .catch(error => {{
+                    document.getElementById('maker-download-result').innerHTML = 
+                        '<div class="status-box error"><p>Error: ' + error.message + '</p></div>';
+                }});
+        }}
+        
+        function makerUploadRedisPackage() {{
+            const fileInput = document.getElementById('maker_redis_file');
+            const file = fileInput.files[0];
+            
+            if (!file) return;
+            
+            if (!file.name.startsWith('redis-') || !file.name.endsWith('.tar.gz')) {{
+                document.getElementById('maker-download-result').innerHTML = 
+                    '<div class="status-box error"><p>Invalid filename. Must start with "redis-" and end with ".tar.gz"</p></div>';
+                return;
+            }}
+            
+            document.getElementById('maker-download-result').innerHTML = '<p>Uploading ' + file.name + '...</p>';
+            
+            const formData = new FormData();
+            formData.append('upload_file', file);
+            
+            fetch('/maintain/upload-redis/', {{
+                method: 'POST',
+                body: formData
+            }})
+            .then(response => response.text())
+            .then(html => {{
+                document.getElementById('maker-download-result').innerHTML = html;
+                
+                if (html.includes('successfully') || html.includes('Success')) {{
+                    makerSelectedTarfile = file.name;
+                    document.getElementById('maker-extract-compile-container').style.display = 'block';
+                    document.getElementById('maker-selected-tarfile-display').textContent = file.name;
+                    
+                    // Extract version and set deploy field
+                    const version = file.name.replace('redis-', '').replace('.tar.gz', '');
+                    document.getElementById('maker_deploy_version').value = version;
+                }}
+            }})
+            .catch(error => {{
+                document.getElementById('maker-download-result').innerHTML = 
+                    '<div class="status-box error"><p>Upload error: ' + error.message + '</p></div>';
+            }});
+        }}
+        
+        function makerExtractCompileRedis() {{
+            if (!makerSelectedTarfile) {{
+                document.getElementById('maker-download-result').innerHTML = 
+                    '<div class="status-box error"><p>No Redis package selected.</p></div>';
+                return;
+            }}
+            
+            // Show progress bar
+            document.getElementById('maker-progress-container').style.display = 'block';
+            document.getElementById('maker-progress-bar').style.width = '0%';
+            document.getElementById('maker-progress-status').textContent = 'Extracting...';
+            
+            // Simulate progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {{
+                if (progress < 90) {{
+                    progress += Math.random() * 10;
+                    document.getElementById('maker-progress-bar').style.width = progress + '%';
+                    if (progress < 30) {{
+                        document.getElementById('maker-progress-status').textContent = 'Extracting...';
+                    }} else if (progress < 80) {{
+                        document.getElementById('maker-progress-status').textContent = 'Compiling Redis... (this takes a while)';
+                    }} else {{
+                        document.getElementById('maker-progress-status').textContent = 'Finalizing...';
+                    }}
+                }}
+            }}, 2000);
+            
+            fetch('/maintain/extract-compile-redis/?redis_tarfile=' + encodeURIComponent(makerSelectedTarfile))
+                .then(response => response.text())
+                .then(html => {{
+                    clearInterval(progressInterval);
+                    document.getElementById('maker-progress-bar').style.width = '100%';
+                    document.getElementById('maker-progress-status').textContent = 'Complete!';
+                    
+                    setTimeout(() => {{
+                        document.getElementById('maker-progress-container').style.display = 'none';
+                        document.getElementById('maker-download-result').innerHTML = html;
+                        
+                        if (html.includes('successfully') || html.includes('Success') || html.includes('compiled')) {{
+                            document.getElementById('maker-deploy-container').style.display = 'block';
+                        }}
+                    }}, 500);
+                }})
+                .catch(error => {{
+                    clearInterval(progressInterval);
+                    document.getElementById('maker-progress-container').style.display = 'none';
+                    document.getElementById('maker-download-result').innerHTML = 
+                        '<div class="status-box error"><p>Compilation error: ' + error.message + '</p></div>';
+                }});
+        }}
+        
+        function makerDeployToRemote() {{
+            const version = document.getElementById('maker_deploy_version').value.trim();
+            
+            if (!version || !/^\\d+\\.\\d+\\.\\d+$/.test(version)) {{
+                document.getElementById('maker-deploy-result').innerHTML = 
+                    '<div class="status-box error"><p>Please enter a valid version (e.g., 7.2.4)</p></div>';
+                return;
+            }}
+            
+            document.getElementById('maker-deploy-result').innerHTML = 
+                '<p>Deploying Redis ' + version + ' to remote servers (compiling on each server)...</p>';
+            
+            fetch('/maintain/copy-redis-binaries/?redis_version=' + encodeURIComponent(version))
+                .then(response => response.text())
+                .then(html => {{
+                    document.getElementById('maker-deploy-result').innerHTML = html;
+                }})
+                .catch(error => {{
+                    document.getElementById('maker-deploy-result').innerHTML = 
+                        '<div class="status-box error"><p>Deploy error: ' + error.message + '</p></div>';
+                }});
+        }}
+    </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
+
+
+@app.get("/maker/check-status/", response_class=HTMLResponse)
+async def maker_check_status():
+    """
+    Check if a Redis cluster already exists.
+    """
+    try:
+        from pareFuncWeb import check_cluster_exists_wv
+        result = check_cluster_exists_wv()
+        return HTMLResponse(content=result['html'])
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return HTMLResponse(
+            content=f"""
+            <div class="error-message">
+                <h4>Error</h4>
+                <p>Failed to check cluster status: {str(e)}</p>
+                <pre>{trace}</pre>
+            </div>
+            """
+        )
+
+
+@app.get("/maker/validate-nodes/", response_class=HTMLResponse)
+async def maker_validate_nodes():
+    """
+    Validate all nodes before cluster creation.
+    """
+    try:
+        from pareFuncWeb import validate_cluster_nodes_wv
+        result = validate_cluster_nodes_wv()
+        return HTMLResponse(content=result['html'])
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return HTMLResponse(
+            content=f"""
+            <div class="error-message">
+                <h4>Error</h4>
+                <p>Failed to validate nodes: {str(e)}</p>
+                <pre>{trace}</pre>
+            </div>
+            """
+        )
+
+
+@app.get("/maker/preview/", response_class=HTMLResponse)
+async def maker_preview(replication_number: int = 1):
+    """
+    Preview cluster configuration before creation.
+    """
+    try:
+        from pareFuncWeb import get_cluster_preview_wv
+        result = get_cluster_preview_wv(replication_number)
+        return HTMLResponse(content=result)
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return HTMLResponse(
+            content=f"""
+            <div class="error-message">
+                <h4>Error</h4>
+                <p>Failed to generate preview: {str(e)}</p>
+                <pre>{trace}</pre>
+            </div>
+            """
+        )
+
+
+@app.get("/maker/create-cluster/", response_class=HTMLResponse)
+async def maker_create_cluster(
+    redis_version: str = None,
+    replication_number: int = 1,
+    skip_compile: bool = False,
+    skip_start: bool = False
+):
+    """
+    Create the Redis cluster with specified Redis version.
+    """
+    try:
+        from pareFuncWeb import create_cluster_wv
+        result = create_cluster_wv(replication_number, skip_compile, skip_start, redis_version)
+        return HTMLResponse(content=result)
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return HTMLResponse(
+            content=f"""
+            <div class="error-message">
+                <h4>Error</h4>
+                <p>Failed to create cluster: {str(e)}</p>
+                <pre>{trace}</pre>
+            </div>
+            """
+        )
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host=(pareServerIp), port=(pareWebPort))
+    import os
+    port = int(os.environ.get('PARE_WEB_PORT', 8000))
+    host = os.environ.get('PARE_SERVER_IP', '0.0.0.0')
+    uvicorn.run(app, host=host, port=port)

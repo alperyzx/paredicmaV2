@@ -4,6 +4,7 @@
 #author: alperyz
 
 import os
+import re
 import subprocess
 import traceback
 
@@ -15,6 +16,63 @@ import socket
 from subprocess import getstatusoutput
 from time import sleep
 import sys
+
+
+def is_local_server(serverIP):
+    """
+    Comprehensive check if a server IP refers to the local machine.
+    
+    This function checks multiple conditions to determine if an IP address
+    refers to the local server where the application is running:
+    1. Direct match with configured pareServerIp
+    2. Localhost addresses (127.0.0.1, localhost)
+    3. Match with any local network interface IP addresses
+    
+    Args:
+        serverIP: The IP address or hostname to check
+        
+    Returns:
+        True if the IP refers to the local server, False otherwise
+    """
+    # Check if it matches the configured server IP
+    if serverIP == pareServerIp:
+        return True
+    
+    # Check for localhost addresses
+    if serverIP in ['127.0.0.1', 'localhost', '::1']:
+        return True
+    
+    # Get all local IP addresses from network interfaces
+    try:
+        # Get the hostname
+        hostname = socket.gethostname()
+        
+        # Get all IP addresses associated with the hostname
+        local_ips = socket.gethostbyname_ex(hostname)[2]
+        
+        # Also add the result of gethostbyname for the hostname
+        local_ips.append(socket.gethostbyname(hostname))
+        
+        # Check if serverIP matches any local IP
+        if serverIP in local_ips:
+            return True
+            
+        # Additional check: try to resolve the serverIP and compare
+        try:
+            # If serverIP is a hostname, resolve it
+            resolved_ip = socket.gethostbyname(serverIP)
+            if resolved_ip in local_ips or resolved_ip == pareServerIp:
+                return True
+        except socket.gaierror:
+            # If we can't resolve, continue with other checks
+            pass
+            
+    except Exception as e:
+        # If we can't determine local IPs, fall back to pareServerIp check only
+        print(f"Warning: Could not determine local IPs: {e}")
+        pass
+    
+    return False
 
 
 def nodeInfo_wv(redisNode, cmd):
@@ -43,8 +101,20 @@ def serverInfo_wv(serverIP):
         except socket.herror:
             server_name = "Unknown"  # Handle the case where hostname lookup fails
 
-        # Check SSH availability
-        if is_ssh_available(serverIP):
+        # Check if it's local server or SSH is available
+        if is_local_server(serverIP):
+            html_content = f"""
+            <h2>Server Information ({serverIP} - {server_name})</h2>
+            <h3>CPU Cores</h3>
+            <pre>{getcmdOutput_wv(serverIP, "numactl --hardware")}</pre>
+            <h3>Memory Usage</h3>
+            <pre>{getcmdOutput_wv(serverIP, "free -g")}</pre>
+            <h3>Disk Usage</h3>
+            <pre>{getcmdOutput_wv(serverIP, "df -h")}</pre>
+            <h3>Redis Nodes</h3>
+            {getredisnodeInfo_wv(serverIP)}
+            """
+        elif is_ssh_available(serverIP):
             html_content = f"""
             <h2>Server Information ({serverIP} - {server_name})</h2>
             <h3>CPU Cores</h3>
@@ -65,12 +135,16 @@ def serverInfo_wv(serverIP):
 
 
 def getcmdOutput_wv(serverIP, command):
-        if serverIP == pareServerIp:
-            status, output = subprocess.getstatusoutput(command)
-        else:
-            ssh_command = f'ssh -q -o "StrictHostKeyChecking no" {pareOSUser}@{serverIP} -C "{command}"'
-            status, output = subprocess.getstatusoutput(ssh_command)
-        return output if status == 0 else f"Error executing command: {command}"
+    """
+    Execute a command on a server (local or remote).
+    Uses direct execution for local server, SSH for remote servers.
+    """
+    if is_local_server(serverIP):
+        status, output = subprocess.getstatusoutput(command)
+    else:
+        ssh_command = f'ssh -q -o "StrictHostKeyChecking no" {pareOSUser}@{serverIP} -C "{command}"'
+        status, output = subprocess.getstatusoutput(ssh_command)
+    return output if status == 0 else f"Error executing command: {command}"
 
 
 def getredisnodeInfo_wv(serverIP):
@@ -141,21 +215,8 @@ def slotInfo_wv(nodeIP, portNumber):
                         }
 
             # Now create the consolidated table
-            html_content += """
-            <h3 class="section-title">Summary of Cluster</h3>
-            <table class="cluster-info-table">
-                <thead>
-                    <tr>
-                        <th>Node ID</th>
-                        <th>Endpoint</th>
-                        <th>Slot Range</th>
-                        <th>Slots</th>
-                        <th>Keys</th>
-                        <th>Replicas</th>
-                    </tr>
-                </thead>
-                <tbody>
-            """
+            html_content += '<h3 class="section-title" style="margin-top: 5px; margin-bottom: 2px;">Summary of Cluster</h3>'
+            html_content += '<table class="cluster-info-table"><thead><tr><th>Node ID</th><th>Endpoint</th><th>Slot Range</th><th>Slots</th><th>Keys</th><th>Replicas</th></tr></thead><tbody>'
 
             # Process and merge information from both sources
             for line in master_nodes_output.strip().split('\n'):
@@ -169,27 +230,19 @@ def slotInfo_wv(nodeIP, portNumber):
                     node_id_short = node_id[:8]  # Using first 8 chars as the shortened ID
                     stats = node_stats.get(node_id_short, {'keys': 'N/A', 'slots': 'N/A', 'slaves': 'N/A'})
 
-                    html_content += f"""
-                    <tr>
-                        <td><span class="node-id master-node">{node_id}</span></td>
-                        <td>{endpoint}</td>
-                        <td>{slot_range}</td>
-                        <td>{stats['slots']}</td>
-                        <td>{stats['keys']}</td>
-                        <td>{stats['slaves']}</td>
-                    </tr>
-                    """
+                    # Truncate node_id to first 12 chars for compact display
+                    node_id_display = node_id[:12] + '...' if len(node_id) > 12 else node_id
+                    html_content += f'<tr><td><span class="node-id master-node" title="{node_id}">{node_id_display}</span></td><td>{endpoint}</td><td>{slot_range}</td><td>{stats["slots"]}</td><td>{stats["keys"]}</td><td>{stats["slaves"]}</td></tr>'
 
-            html_content += """
-                </tbody>
-            </table>
-            """
+            html_content += '</tbody></table>'
             
             # Format the status lines
             status_lines = []
             for line in check_output.split('\n'):
                 if '[OK]' in line:
-                    status_lines.append(line)
+                    # Strip ANSI codes from status lines
+                    clean_line = re.sub(r'\x1b\[[0-9;]*m', '', line)
+                    status_lines.append(clean_line)
 
             if status_lines:
                 html_content += "<div class='cluster-check'>"
@@ -198,19 +251,20 @@ def slotInfo_wv(nodeIP, portNumber):
                 html_content += "</div>"
 
             # Format the detailed information - keep the detailed node information section
-            html_content += """
-            <h3 class="section-title">Detailed Cluster Status</h3>
-            <div class="cluster-check">
-            """
+            html_content += '<h3 class="section-title" style="margin-top: 20px; margin-bottom: 2px;">Detailed Cluster Status</h3>'
+            html_content += '<div class="cluster-check" style="padding: 3px 5px;">'
             
             # Extract detailed node information from the check output
             detailed_info = []
             in_detail_section = False
 
             for line in check_output.split('\n'):
-                if line.startswith('>>>'):
+                # Strip ANSI escape codes for detection but keep original line
+                clean_line = re.sub(r'\x1b\[[0-9;]*m', '', line)
+                if '>>>' in clean_line:
                     in_detail_section = True
-                detailed_info.append(line) if in_detail_section else None
+                if in_detail_section:
+                    detailed_info.append(line)
 
             # Master and slave tables
             master_nodes = []
@@ -218,7 +272,11 @@ def slotInfo_wv(nodeIP, portNumber):
             
             current_node = {}
             for i, line in enumerate(detailed_info):
-                if line.startswith('M:') or line.startswith('S:'):
+                # Strip ANSI codes and whitespace for pattern matching
+                clean_line = re.sub(r'\x1b\[[0-9;]*m', '', line)
+                stripped_line = clean_line.strip()
+                # Check for master or slave node lines (they may be indented)
+                if stripped_line.startswith('M:') or stripped_line.startswith('S:'):
                     if current_node:  # Save previous node if any
                         if current_node['type'] == 'M':
                             master_nodes.append(current_node)
@@ -226,24 +284,21 @@ def slotInfo_wv(nodeIP, portNumber):
                             slave_nodes.append(current_node)
                     
                     # Start new node
-                    node_type = 'M' if line.startswith('M:') else 'S'
-                    parts = line.strip()[2:].split()
+                    node_type = 'M' if stripped_line.startswith('M:') else 'S'
+                    parts = stripped_line[2:].strip().split()
                     if len(parts) >= 2:
                         node_id = parts[0]
                         endpoint = parts[1]
                         current_node = {'type': node_type, 'id': node_id, 'endpoint': endpoint, 'slots': '', 'replicas': '', 'replicates': ''}
                 
-                elif 'slots:' in line and current_node:
-                    slots_info = line.strip()
-                    current_node['slots'] = slots_info
+                elif 'slots:' in stripped_line and current_node:
+                    current_node['slots'] = stripped_line
                 
-                elif 'replica' in line and current_node:
-                    replicas_info = line.strip()
-                    current_node['replicas'] = replicas_info
+                elif 'additional replica' in stripped_line and current_node:
+                    current_node['replicas'] = stripped_line
                 
-                elif 'replicates' in line and current_node:
-                    replicates_info = line.strip()
-                    current_node['replicates'] = replicates_info
+                elif 'replicates' in stripped_line and current_node:
+                    current_node['replicates'] = stripped_line
             
             # Add the last node
             if current_node:
@@ -253,102 +308,63 @@ def slotInfo_wv(nodeIP, portNumber):
                     slave_nodes.append(current_node)
             
             # Format master nodes
-            html_content += """
-            <h4>Master Nodes</h4>
-            <table class="cluster-info-table">
-                <thead>
-                    <tr>
-                        <th>Node ID</th>
-                        <th>Endpoint</th>
-                        <th>Slots</th>
-                        <th>Replicas</th>
-                    </tr>
-                </thead>
-                <tbody>
-            """
+            html_content += '<h4 style="margin: 0 0 2px 0; font-size: 14px;">Master Nodes</h4>'
+            html_content += '<table class="cluster-info-table"><thead><tr><th>Node ID</th><th>Endpoint</th><th>Slots</th><th>Replicas</th></tr></thead><tbody>'
             
             for node in master_nodes:
                 slots_display = node['slots'].replace('slots:', '').strip()
-                replicas_display = node['replicas'].strip()
-                
-                html_content += f"""
-                <tr>
-                    <td><span class="node-id master-node">{node['id']}</span></td>
-                    <td>{node['endpoint']}</td>
-                    <td>{slots_display}</td>
-                    <td>{replicas_display}</td>
-                </tr>
-                """
+                replicas_display = node['replicas'].replace('additional ', '').strip()
+                # Truncate node_id to first 12 chars for compact display
+                node_id_display = node['id'][:12] + '...' if len(node['id']) > 12 else node['id']
+                html_content += f'<tr><td><span class="node-id master-node" title="{node["id"]}">{node_id_display}</span></td><td>{node["endpoint"]}</td><td>{slots_display}</td><td>{replicas_display}</td></tr>'
             
-            html_content += """
-                </tbody>
-            </table>
-            """
+            html_content += '</tbody></table>'
             
             # Format slave nodes
-            html_content += """
-            <h4>Replica Nodes</h4>
-            <table class="cluster-info-table">
-                <thead>
-                    <tr>
-                        <th>Node ID</th>
-                        <th>Endpoint</th>
-                        <th>Slots</th>
-                        <th>Replicates</th>
-                    </tr>
-                </thead>
-                <tbody>
-            """
+            html_content += '<h4 style="margin: 8px 0 2px 0; font-size: 14px;">Replica Nodes</h4>'
+            html_content += '<table class="cluster-info-table"><thead><tr><th>Node ID</th><th>Endpoint</th><th>Slots</th><th>Replicates</th></tr></thead><tbody>'
             
             for node in slave_nodes:
                 slots_display = node['slots'].replace('slots:', '').strip()
                 replicates_display = node['replicates'].replace('replicates', '').strip()
-                
-                html_content += f"""
-                <tr>
-                    <td><span class="node-id slave-node">{node['id']}</span></td>
-                    <td>{node['endpoint']}</td>
-                    <td>{slots_display}</td>
-                    <td><span class="node-id">{replicates_display}</span></td>
-                </tr>
-                """
+                # Truncate node_ids to first 12 chars for compact display
+                node_id_display = node['id'][:12] + '...' if len(node['id']) > 12 else node['id']
+                replicates_id_display = replicates_display[:12] + '...' if len(replicates_display) > 12 else replicates_display
+                html_content += f'<tr><td><span class="node-id slave-node" title="{node["id"]}">{node_id_display}</span></td><td>{node["endpoint"]}</td><td>{slots_display}</td><td><span class="node-id" title="{replicates_display}">{replicates_id_display}</span></td></tr>'
             
-            html_content += """
-                </tbody>
-            </table>
-            """
+            html_content += '</tbody></table>'
             
-            # Format the closing checks and status
-            status_sections = []
-            current_section = []
+            # Format the closing checks and status - with proper colors
+            html_content += '<div style="font-family: monospace; font-size: 12px; line-height: 1.4; margin-top: 15px;">'
             
             for line in detailed_info:
-                if line.startswith('[OK]') or line.startswith('[ERR]'):
-                    if current_section:
-                        status_sections.append('\n'.join(current_section))
-                        current_section = []
-                    status_sections.append(line)
-                elif line.startswith('>>>'):
-                    if current_section:
-                        status_sections.append('\n'.join(current_section))
-                    current_section = [line]
+                # Strip ANSI codes for display
+                clean_line = re.sub(r'\x1b\[[0-9;]*m', '', line)
+                
+                if not clean_line.strip():
+                    continue
+                    
+                # Color-code based on content
+                if '[OK]' in clean_line:
+                    html_content += f'<div style="color: #2dce89; font-weight: bold;">{clean_line}</div>'
+                elif '[ERR]' in clean_line:
+                    html_content += f'<div style="color: red; font-weight: bold;">{clean_line}</div>'
+                elif '>>>' in clean_line:
+                    html_content += f'<div style="color: #6c757d; font-weight: bold; margin-top: 5px;">{clean_line}</div>'
+                elif clean_line.strip().startswith('M:'):
+                    html_content += f'<div style="color: #007bff; font-weight: bold;">{clean_line}</div>'
+                elif clean_line.strip().startswith('S:'):
+                    html_content += f'<div style="color: #28a745;">{clean_line}</div>'
+                elif 'slots:' in clean_line or 'master' in clean_line or 'slave' in clean_line:
+                    html_content += f'<div style="color: #6c757d; margin-left: 15px;">{clean_line}</div>'
+                elif 'replica' in clean_line or 'replicates' in clean_line:
+                    html_content += f'<div style="color: #6c757d; margin-left: 15px;">{clean_line}</div>'
                 else:
-                    current_section.append(line)
+                    html_content += f'<div style="color: #6c757d;">{clean_line}</div>'
             
-            if current_section:
-                status_sections.append('\n'.join(current_section))
+            html_content += '</div>'
             
-            for section in status_sections:
-                if '[OK]' in section:
-                    html_content += f'<div class="status-ok">{section}</div>'
-                elif '>>>' in section:
-                    html_content += f'<div>{section}</div>'
-                else:
-                    html_content += f'<div>{section}</div>'
-            
-            html_content += """
-            </div>
-            """
+            html_content += '</div>'
             
         except subprocess.CalledProcessError as e:
             html_content += f"<p style='color: red;'>Error retrieving cluster status: {str(e)}</p>"
@@ -1238,7 +1254,8 @@ def show_redis_log_wv(redisNode, line_count=50):
             return f"<p style='color: red;'>Error: Server {nodeIP} is not reachable.</p>"
 
         # Get the log content
-        if nodeIP == pareServerIp:
+        # Check if node is on local server using the comprehensive detection
+        if is_local_server(nodeIP):
             # Local server
             cmd = f"tail -n {line_count} {log_file_path}"
             status, output = subprocess.getstatusoutput(cmd)
@@ -2028,7 +2045,7 @@ def download_redis_version_wv(redis_filename: str):
     try:
         # Check if the file exists on the remote server
         print(f"Checking availability: {download_url}")
-        check_process = subprocess.run(check_command, capture_output=True, text=True, check=False)
+        check_process = subprocess.run(check_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=False)
         if check_process.returncode != 0:
             error_message = f"File not found at {download_url} or network error."
             if "404 Not Found" in check_process.stderr:
@@ -2043,7 +2060,7 @@ def download_redis_version_wv(redis_filename: str):
 
         # If check passes, proceed with download
         print(f"Attempting to download: {download_url} to {download_dir}")
-        download_process = subprocess.run(download_command, capture_output=True, text=True, check=True)
+        download_process = subprocess.run(download_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True)
 
         # Verify download
         if os.path.exists(download_path):
@@ -2253,7 +2270,8 @@ def extract_compile_redis_wv(redis_tarfile):
 def redisNewBinaryCopier_wv(redis_version):
     """
     Copies newly compiled Redis binaries to all servers in the cluster.
-    Copies to each unique server IP only once, skipping pareServerIp.
+    For local servers: copies binaries directly.
+    For remote servers: compiles Redis on the remote server to handle different architectures.
 
     Args:
         redis_version: The version of Redis to copy (e.g., 7.2.4)
@@ -2274,8 +2292,9 @@ def redisNewBinaryCopier_wv(redis_version):
 
         # Construct source directory path
         source_dir = f"{redisBinaryBase}redis-{redis_version}/"
+        tar_file = f"redis-{redis_version}.tar.gz"
 
-        # Check if the source directory exists
+        # Check if the source directory exists (local compilation)
         if not os.path.exists(source_dir):
             return f"""
             <div class="error-message">
@@ -2291,6 +2310,7 @@ def redisNewBinaryCopier_wv(redis_version):
         successful_copies = 0
         failed_copies = 0
         skipped_servers = 0
+        remote_compiled = 0
 
         # Collect unique server IPs to avoid redundant copying
         unique_servers = set()
@@ -2298,49 +2318,78 @@ def redisNewBinaryCopier_wv(redis_version):
             if node[4]:  # Only consider active nodes
                 unique_servers.add(node[0][0])
 
-        # Remove the host server from the list
-        if pareServerIp in unique_servers:
-            unique_servers.remove(pareServerIp)
-            results.append(f"<p>⏭️ Skipping host server {pareServerIp} as binaries are already there</p>")
+        # Separate local and remote servers
+        local_servers = []
+        remote_servers = []
+        
+        for server_ip in unique_servers:
+            if is_local_server(server_ip):
+                local_servers.append(server_ip)
+            else:
+                remote_servers.append(server_ip)
+
+        # Handle local servers - binaries already compiled locally
+        for server_ip in local_servers:
+            results.append(f"<p>⏭️ Skipping local server {server_ip} - binaries already compiled locally</p>")
             skipped_servers += 1
 
-        # Copy binaries to each unique server
-        for server_ip in unique_servers:
+        # Handle remote servers - need to compile on remote due to architecture differences
+        for server_ip in remote_servers:
             # Check if server is reachable
             if not pingServer(server_ip):
                 results.append(f"<p style='color: orange;'>⚠️ Server {server_ip} is not reachable</p>")
                 failed_copies += 1
                 continue
 
-            # Create destination directory on remote server
-            dest_dir = f"{redisBinaryBase}redis-{redis_version}"
-            mkdir_cmd = f"ssh {pareOSUser}@{server_ip} 'mkdir -p {dest_dir}'"
-            mkdir_status, mkdir_output = subprocess.getstatusoutput(mkdir_cmd)
-
-            if mkdir_status != 0:
-                results.append(f"<p style='color: red;'>❌ Failed to create directory on {server_ip}: {mkdir_output}</p>")
-                failed_copies += 1
-                continue
-
-            # Use rsync to copy files to the remote server
-            rsync_cmd = f"rsync -a --delete {source_dir} {pareOSUser}@{server_ip}:{dest_dir}/"
-            copy_status, copy_output = subprocess.getstatusoutput(rsync_cmd)
-
-            if copy_status != 0:
-                results.append(f"<p style='color: red;'>❌ Failed to copy Redis {redis_version} to {server_ip}: {copy_output}</p>")
-                failed_copies += 1
+            # Check if tar file exists locally
+            if os.path.isfile(tar_file):
+                # Compile on remote server (handles different CPU architectures)
+                results.append(f"<p>🔧 Compiling Redis {redis_version} on remote server {server_ip}...</p>")
+                
+                compile_result = compile_redis_remote_wv(server_ip, tar_file, redis_version)
+                
+                if compile_result['success']:
+                    results.append(f"<p style='color: green;'>✅ Successfully compiled Redis {redis_version} on {server_ip}</p>")
+                    successful_copies += 1
+                    remote_compiled += 1
+                else:
+                    results.append(f"<p style='color: red;'>❌ Failed to compile Redis {redis_version} on {server_ip}: {compile_result.get('message', 'Unknown error')}</p>")
+                    failed_copies += 1
             else:
-                results.append(f"<p style='color: green;'>✅ Successfully copied Redis {redis_version} to {server_ip}</p>")
-                successful_copies += 1
+                # Fallback: try to copy binaries (may fail on different architectures)
+                results.append(f"<p style='color: orange;'>⚠️ Tar file not found, attempting binary copy to {server_ip} (may fail on different architectures)...</p>")
+                
+                # Create destination directory on remote server
+                dest_dir = f"{redisBinaryBase}redis-{redis_version}"
+                mkdir_cmd = f"ssh {pareOSUser}@{server_ip} 'mkdir -p {dest_dir}'"
+                mkdir_status, mkdir_output = subprocess.getstatusoutput(mkdir_cmd)
+
+                if mkdir_status != 0:
+                    results.append(f"<p style='color: red;'>❌ Failed to create directory on {server_ip}: {mkdir_output}</p>")
+                    failed_copies += 1
+                    continue
+
+                # Use rsync to copy files to the remote server
+                rsync_cmd = f"rsync -a --delete {source_dir} {pareOSUser}@{server_ip}:{dest_dir}/"
+                copy_status, copy_output = subprocess.getstatusoutput(rsync_cmd)
+
+                if copy_status != 0:
+                    results.append(f"<p style='color: red;'>❌ Failed to copy Redis {redis_version} to {server_ip}: {copy_output}</p>")
+                    failed_copies += 1
+                else:
+                    results.append(f"<p style='color: green;'>✅ Successfully copied Redis {redis_version} to {server_ip}</p>")
+                    results.append(f"<p style='color: orange;'>⚠️ Warning: If {server_ip} has a different CPU architecture, you may see 'Exec format error'. In that case, manually compile Redis on that server.</p>")
+                    successful_copies += 1
 
         # Generate the summary report
         summary = f"""
         <div class="results-summary">
-            <h4>Binary Copy Summary</h4>
-            <p>Total unique servers: {len(unique_servers) + skipped_servers}</p>
-            <p>Successfully copied to: {successful_copies} servers</p>
-            <p>Failed to copy to: {failed_copies} servers</p>
-            <p>Skipped servers: {skipped_servers}</p>
+            <h4>Binary Distribution Summary</h4>
+            <p>Total unique servers: {len(unique_servers)}</p>
+            <p>Local servers (skipped - already compiled): {skipped_servers}</p>
+            <p>Remote servers compiled: {remote_compiled}</p>
+            <p>Successfully processed: {successful_copies} servers</p>
+            <p>Failed: {failed_copies} servers</p>
         </div>
         """
 
@@ -2361,7 +2410,7 @@ def redisNewBinaryCopier_wv(redis_version):
         return f"""
         <div class="error-message">
             <h4 style="color: orange; font-weight: bold;">Unexpected Error</h4>
-            <p>An error occurred while copying Redis binaries:</p>
+            <p>An error occurred while distributing Redis binaries:</p>
             <p style="color: orange;">{str(e)}</p>
             <pre style="padding: 10px; border-left: 4px solid orange;">{trace}</pre>
         </div>
@@ -2457,7 +2506,7 @@ def restartAllSlaves_wv(wait_seconds=60, redis_version=None):
                     # Update the configuration file path
                     conf_file = f"{redisConfigDir}{pareOSUser}_redisN{node['node_index']}_P{node['port']}.conf"
                     
-                    if node['ip'] == pareServerIp:
+                    if is_local_server(node['ip']):
                         # Local server
                         cmd = f"sed -i 's|^dir .*|dir {redisDataDir}{pareOSUser}_redisN{node['node_index']}_P{node['port']}/|' {conf_file} && " + \
                               f"grep -q '^server-binary' {conf_file} && " + \
@@ -2769,19 +2818,38 @@ def redisNodesVersionControl_wv():
                 "error": "status-error"
             }.get(node["status"], "")
 
-            status_icon = {
-                "ok": "✓",
-                "warning": "⚠️",
-                "error": "❌"
-            }.get(node["status"], "?")
+            # Create status cell with hover tooltip for warning status
+            if node["status"] == "warning":
+                node_address = f"{node['ip']}:{node['port']}"
+                is_master = "true" if node["role"] == "Master" else "false"
+                status_cell = f'''
+                    <div class="warning-icon-container">
+                        <span class="warning-icon">⚠️</span>
+                        <div class="restart-tooltip">
+                            <p>Node needs restart to apply new version</p>
+                            <button class="restart-btn" onclick="restartNodeFromVersion('{node_address}', {is_master})">
+                                🔄 Restart Node
+                            </button>
+                        </div>
+                    </div>
+                '''
+            elif node["status"] == "ok":
+                status_cell = "✓"
+            elif node["status"] == "error":
+                status_cell = "❌"
+            else:
+                status_cell = "?"
+
+            # Add role-based styling class
+            role_class = "version-master-row" if node["role"] == "Master" else "version-replica-row"
 
             html_output += f"""
-                <tr class="{status_class}">
+                <tr class="{status_class} {role_class}">
                     <td>{node["node_id"]}</td>
                     <td>{node["ip"]}:{node["port"]}</td>
-                    <td>{node["role"]}</td>
+                    <td><strong>{node["role"]}</strong></td>
                     <td>{node["version"]}</td>
-                    <td>{status_icon}</td>
+                    <td>{status_cell}</td>
                 </tr>
             """
 
@@ -2803,3 +2871,1088 @@ def redisNodesVersionControl_wv():
             <pre>{trace}</pre>
         </div>
         """
+
+
+# ============================================================================
+# CLUSTER MAKER FUNCTIONS - Web Interface for Creating Redis Cluster
+# ============================================================================
+
+def get_available_redis_versions_wv():
+    """
+    Get list of available Redis versions (compiled versions in redisBinaryBase).
+    Also checks for tar.gz files that could be compiled.
+    
+    Returns:
+        dict with 'compiled' and 'available' lists
+    """
+    import re
+    compiled_versions = []
+    tarball_versions = []
+    
+    try:
+        # Check for compiled Redis versions in redisBinaryBase
+        if os.path.exists(redisBinaryBase):
+            for item in os.listdir(redisBinaryBase):
+                if item.startswith('redis-') and os.path.isdir(os.path.join(redisBinaryBase, item)):
+                    # Check if it's actually compiled (has redis-server binary)
+                    binary_path = os.path.join(redisBinaryBase, item, 'src', 'redis-server')
+                    if os.path.exists(binary_path):
+                        version = item.replace('redis-', '')
+                        if re.match(r'^\d+\.\d+\.\d+$', version):
+                            compiled_versions.append(version)
+        
+        # Check for available tar.gz files in current directory
+        for item in os.listdir('.'):
+            if item.startswith('redis-') and item.endswith('.tar.gz'):
+                version = item.replace('redis-', '').replace('.tar.gz', '')
+                if re.match(r'^\d+\.\d+\.\d+$', version):
+                    tarball_versions.append(version)
+        
+        # Sort versions (newest first)
+        compiled_versions.sort(key=lambda v: [int(x) for x in v.split('.')], reverse=True)
+        tarball_versions.sort(key=lambda v: [int(x) for x in v.split('.')], reverse=True)
+        
+        return {
+            'compiled': compiled_versions,
+            'tarballs': tarball_versions,
+            'current': redisVersion
+        }
+    except Exception as e:
+        return {
+            'compiled': [],
+            'tarballs': [],
+            'current': redisVersion,
+            'error': str(e)
+        }
+
+
+def check_cluster_exists_wv():
+    """
+    Check if a Redis cluster has already been created.
+    
+    Returns:
+        dict: {
+            'exists': bool - True if cluster exists,
+            'message': str - Status message,
+            'html': str - HTML formatted status
+        }
+    """
+    cluster_exists = os.path.isfile('paredicma.done')
+    
+    if cluster_exists:
+        return {
+            'exists': True,
+            'message': 'Redis cluster already exists',
+            'html': f"""
+            <div class="warning-message">
+                <h4 style="color: orange;">⚠️ Cluster Already Exists</h4>
+                <p>A Redis cluster has already been created. The marker file <code>paredicma.done</code> exists.</p>
+                <p>To recreate the cluster, you must first remove this file manually:</p>
+                <pre style="padding: 10px; border-left: 4px solid orange;">rm paredicma.done</pre>
+            </div>
+            """
+        }
+    else:
+        return {
+            'exists': False,
+            'message': 'No cluster exists yet',
+            'html': f"""
+            <div class="info-message">
+                <h4 style="color: #17a2b8;">ℹ️ Ready for Cluster Creation</h4>
+                <p>No existing cluster detected. You can proceed with cluster creation.</p>
+            </div>
+            """
+        }
+
+
+def get_cluster_preview_wv(replication_number=1):
+    """
+    Get a preview of the cluster configuration before creation.
+    Shows which nodes will be masters and which will be replicas.
+    
+    Args:
+        replication_number: Number of replicas per master (0, 1, 2, etc.)
+        
+    Returns:
+        HTML formatted cluster preview
+    """
+    try:
+        replication_number = int(replication_number)
+        
+        # Count active nodes
+        active_nodes = [node for node in pareNodes if node[4]]
+        total_nodes = len(active_nodes)
+        
+        # Redis cluster requires minimum 3 masters
+        min_masters = 3
+        nodes_per_shard = 1 + replication_number  # 1 master + N replicas
+        required_nodes = min_masters * nodes_per_shard
+        
+        # Check if we have enough nodes
+        if total_nodes < required_nodes:
+            return f"""
+            <div class="error-message">
+                <h4 style="color: red;">❌ Insufficient Nodes</h4>
+                <p>You need at least <strong>{required_nodes}</strong> nodes for this configuration:</p>
+                <ul>
+                    <li>Minimum masters required: {min_masters}</li>
+                    <li>Replicas per master: {replication_number}</li>
+                    <li>Total nodes needed: {min_masters} × (1 + {replication_number}) = {required_nodes}</li>
+                    <li>Available active nodes: {total_nodes}</li>
+                </ul>
+                <p>Please add more nodes or reduce the replication factor.</p>
+            </div>
+            """
+        
+        # Calculate actual distribution
+        num_masters = total_nodes // nodes_per_shard
+        num_replicas = num_masters * replication_number
+        slots_per_master = 16384 // num_masters
+        
+        # Get unique servers
+        servers = list(set([node[0][0] for node in active_nodes]))
+        
+        # Build preview HTML
+        html = f"""
+        <div class="cluster-preview">
+            <h4 style="color: #28a745;">📊 Cluster Configuration Preview</h4>
+            
+            <div class="config-summary" style="padding: 15px; margin: 10px 0; border-left: 4px solid #28a745;">
+                <table class="config-table" style="width: 100%;">
+                    <tr><td><strong>Total Active Nodes:</strong></td><td>{total_nodes}</td></tr>
+                    <tr><td><strong>Master Nodes:</strong></td><td>{num_masters}</td></tr>
+                    <tr><td><strong>Replica Nodes:</strong></td><td>{num_replicas}</td></tr>
+                    <tr><td><strong>Replication Factor:</strong></td><td>{replication_number}</td></tr>
+                    <tr><td><strong>Slots per Master:</strong></td><td>~{slots_per_master}</td></tr>
+                    <tr><td><strong>Unique Servers:</strong></td><td>{len(servers)}</td></tr>
+                    <tr><td><strong>Redis Version:</strong></td><td>{redisVersion}</td></tr>
+                </table>
+            </div>
+            
+            <h5>Node Distribution:</h5>
+            <table class="node-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background-color: #f8f9fa;">
+                        <th style="padding: 8px; border: 1px solid #ddd;">#</th>
+                        <th style="padding: 8px; border: 1px solid #ddd;">IP Address</th>
+                        <th style="padding: 8px; border: 1px solid #ddd;">Port</th>
+                        <th style="padding: 8px; border: 1px solid #ddd;">Max Memory</th>
+                        <th style="padding: 8px; border: 1px solid #ddd;">CPU Cores</th>
+                        <th style="padding: 8px; border: 1px solid #ddd;">Expected Role</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        
+        for idx, node in enumerate(active_nodes):
+            node_ip = node[0][0]
+            node_port = node[1][0]
+            cpu_cores = node[2][0]
+            max_mem = node[3][0]
+            
+            # Determine expected role (Redis distributes automatically, this is approximate)
+            if replication_number == 0:
+                expected_role = "Master"
+                role_color = "#28a745"
+            elif idx < num_masters:
+                expected_role = "Master (likely)"
+                role_color = "#28a745"
+            else:
+                expected_role = "Replica (likely)"
+                role_color = "#6c757d"
+            
+            html += f"""
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{idx + 1}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{node_ip}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{node_port}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{max_mem}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{cpu_cores}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; color: {role_color};">{expected_role}</td>
+                </tr>
+            """
+        
+        html += """
+                </tbody>
+            </table>
+            
+            <div class="note" style="margin-top: 15px; padding: 10px; background-color: #fff3cd; border-left: 4px solid #ffc107;">
+                <strong>Note:</strong> Redis Cluster automatically distributes masters and replicas. 
+                The actual role assignment may differ from the preview to optimize for fault tolerance.
+            </div>
+        </div>
+        """
+        
+        return html
+        
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return f"""
+        <div class="error-message">
+            <h4>Error Generating Preview</h4>
+            <p>An error occurred: {str(e)}</p>
+            <pre>{trace}</pre>
+        </div>
+        """
+
+
+def check_tcp_port(host, port, timeout=2):
+    """
+    Check if a TCP port is open on the given host.
+    
+    Args:
+        host: IP address or hostname
+        port: Port number to check
+        timeout: Connection timeout in seconds
+        
+    Returns:
+        True if port is open, False otherwise
+    """
+    import socket
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((host, int(port)))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
+
+
+def validate_cluster_nodes_wv():
+    """
+    Validate all nodes before cluster creation.
+    Checks server reachability (ICMP), TCP port connectivity, and Redis cluster bus port.
+    
+    Returns:
+        dict with validation results and HTML output
+    """
+    try:
+        results = {
+            'valid': True,
+            'total_nodes': 0,
+            'reachable_servers': 0,
+            'unreachable_servers': [],
+            'active_nodes': 0,
+            'inactive_nodes': 0,
+            'port_checks': {
+                'passed': 0,
+                'failed': 0
+            },
+            'bus_port_checks': {
+                'passed': 0,
+                'failed': 0
+            },
+            'warnings': [],
+            'errors': [],
+            'node_details': []  # Detailed per-node results
+        }
+        
+        servers_checked = {}
+        active_nodes = []
+        
+        for idx, node in enumerate(pareNodes):
+            node_ip = node[0][0]
+            node_port = node[1][0]
+            is_active = node[4]
+            
+            results['total_nodes'] += 1
+            
+            if not is_active:
+                results['inactive_nodes'] += 1
+                continue
+                
+            results['active_nodes'] += 1
+            active_nodes.append(node)
+            
+            node_detail = {
+                'index': idx + 1,
+                'ip': node_ip,
+                'port': node_port,
+                'bus_port': int(node_port) + 10000,
+                'icmp': False,
+                'tcp_port': False,
+                'tcp_bus_port': False,
+                'status': 'unknown'
+            }
+            
+            # Check server reachability via ICMP (once per server)
+            if node_ip not in servers_checked:
+                if pingServer(node_ip):
+                    servers_checked[node_ip] = True
+                    results['reachable_servers'] += 1
+                    node_detail['icmp'] = True
+                else:
+                    servers_checked[node_ip] = False
+                    results['unreachable_servers'].append(node_ip)
+                    results['errors'].append(f"Server {node_ip} is unreachable (ICMP ping failed)")
+                    results['valid'] = False
+            else:
+                node_detail['icmp'] = servers_checked[node_ip]
+            
+            # Only check TCP ports if server is reachable
+            if servers_checked.get(node_ip, False):
+                # Check Redis node port (TCP)
+                if check_tcp_port(node_ip, node_port):
+                    results['port_checks']['passed'] += 1
+                    node_detail['tcp_port'] = True
+                else:
+                    results['port_checks']['failed'] += 1
+                    node_detail['tcp_port'] = False
+                    # Port not open is a warning for new cluster (ports won't be open until nodes start)
+                    results['warnings'].append(f"Node {node_ip}:{node_port} - TCP port {node_port} is not open (expected if node not started)")
+                
+                # Check Redis cluster bus port (node_port + 10000)
+                bus_port = int(node_port) + 10000
+                if check_tcp_port(node_ip, bus_port):
+                    results['bus_port_checks']['passed'] += 1
+                    node_detail['tcp_bus_port'] = True
+                else:
+                    results['bus_port_checks']['failed'] += 1
+                    node_detail['tcp_bus_port'] = False
+                    # Bus port not open is a warning for new cluster
+                    results['warnings'].append(f"Node {node_ip}:{node_port} - Cluster bus port {bus_port} is not open (expected if node not started)")
+            
+            # Determine overall node status
+            if node_detail['icmp']:
+                if node_detail['tcp_port'] and node_detail['tcp_bus_port']:
+                    node_detail['status'] = 'ready'
+                elif not node_detail['tcp_port'] and not node_detail['tcp_bus_port']:
+                    node_detail['status'] = 'not_started'
+                else:
+                    node_detail['status'] = 'partial'
+            else:
+                node_detail['status'] = 'unreachable'
+            
+            results['node_details'].append(node_detail)
+        
+        # Minimum node check
+        if results['active_nodes'] < 3:
+            results['errors'].append(f"Minimum 3 nodes required. Only {results['active_nodes']} active nodes found.")
+            results['valid'] = False
+        
+        # Build HTML output
+        if results['valid']:
+            status_class = "success-message"
+            status_icon = "✅"
+            status_text = "All Validations Passed"
+        else:
+            status_class = "error-message"
+            status_icon = "❌"
+            status_text = "Validation Failed"
+        
+        html = f"""
+        <div class="{status_class}">
+            <h4>{status_icon} {status_text}</h4>
+            
+            <table class="validation-table" style="width: 100%; margin: 10px 0; border-collapse: collapse;">
+                <tr><td style="padding: 5px; border-bottom: 1px solid #ddd;"><strong>Total Nodes in Config:</strong></td><td style="padding: 5px; border-bottom: 1px solid #ddd;">{results['total_nodes']}</td></tr>
+                <tr><td style="padding: 5px; border-bottom: 1px solid #ddd;"><strong>Active Nodes:</strong></td><td style="padding: 5px; border-bottom: 1px solid #ddd;">{results['active_nodes']}</td></tr>
+                <tr><td style="padding: 5px; border-bottom: 1px solid #ddd;"><strong>Inactive Nodes:</strong></td><td style="padding: 5px; border-bottom: 1px solid #ddd;">{results['inactive_nodes']}</td></tr>
+                <tr><td style="padding: 5px; border-bottom: 1px solid #ddd;"><strong>Servers Reachable (ICMP):</strong></td><td style="padding: 5px; border-bottom: 1px solid #ddd;">{results['reachable_servers']} / {len(servers_checked)}</td></tr>
+                <tr><td style="padding: 5px; border-bottom: 1px solid #ddd;"><strong>Node Ports Open (TCP):</strong></td><td style="padding: 5px; border-bottom: 1px solid #ddd;">{results['port_checks']['passed']} / {results['port_checks']['passed'] + results['port_checks']['failed']}</td></tr>
+                <tr><td style="padding: 5px; border-bottom: 1px solid #ddd;"><strong>Bus Ports Open (TCP):</strong></td><td style="padding: 5px; border-bottom: 1px solid #ddd;">{results['bus_port_checks']['passed']} / {results['bus_port_checks']['passed'] + results['bus_port_checks']['failed']}</td></tr>
+            </table>
+            
+            <h5 style="margin-top: 15px;">Node Details:</h5>
+            <table style="width: 100%; margin: 10px 0; border-collapse: collapse; font-size: 0.9em;">
+                <tr style="background-color: #f5f5f5;">
+                    <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">#</th>
+                    <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Node</th>
+                    <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">ICMP</th>
+                    <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Port</th>
+                    <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Bus Port</th>
+                    <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Status</th>
+                </tr>
+        """
+        
+        for detail in results['node_details']:
+            icmp_icon = "✅" if detail['icmp'] else "❌"
+            port_icon = "✅" if detail['tcp_port'] else "⚠️"
+            bus_icon = "✅" if detail['tcp_bus_port'] else "⚠️"
+            
+            if detail['status'] == 'ready':
+                status_badge = '<span style="background-color: #28a745; color: white; padding: 2px 8px; border-radius: 3px;">Ready</span>'
+            elif detail['status'] == 'not_started':
+                status_badge = '<span style="background-color: #ffc107; color: black; padding: 2px 8px; border-radius: 3px;">Not Started</span>'
+            elif detail['status'] == 'partial':
+                status_badge = '<span style="background-color: #fd7e14; color: white; padding: 2px 8px; border-radius: 3px;">Partial</span>'
+            else:
+                status_badge = '<span style="background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 3px;">Unreachable</span>'
+            
+            html += f"""
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{detail['index']}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{detail['ip']}:{detail['port']}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">{icmp_icon}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; text-align: center;" title="TCP {detail['port']}">{port_icon}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; text-align: center;" title="TCP {detail['bus_port']}">{bus_icon}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{status_badge}</td>
+                </tr>
+            """
+        
+        html += "</table>"
+        
+        # Info box explaining port requirements
+        html += """
+            <div style="margin-top: 15px; padding: 10px; background-color: #e7f3ff; border-left: 4px solid #2196F3; font-size: 0.9em;">
+                <strong>ℹ️ Port Requirements:</strong>
+                <ul style="margin: 5px 0 0 0; padding-left: 20px;">
+                    <li><strong>ICMP:</strong> Server must respond to ping</li>
+                    <li><strong>Node Port:</strong> TCP port for Redis client connections (e.g., 6379)</li>
+                    <li><strong>Bus Port:</strong> TCP port for cluster node-to-node communication (node port + 10000, e.g., 16379)</li>
+                </ul>
+                <p style="margin: 10px 0 0 0; color: #666;"><em>Note: Ports showing ⚠️ are expected if nodes haven't been started yet.</em></p>
+            </div>
+        """
+        
+        if results['errors']:
+            html += """
+            <div class="errors" style="margin-top: 10px; padding: 10px; background-color: #f8d7da; border-left: 4px solid red;">
+                <strong>Errors:</strong>
+                <ul>
+            """
+            for error in results['errors']:
+                html += f"<li>{error}</li>"
+            html += "</ul></div>"
+        
+        if results['warnings'] and len(results['warnings']) <= 10:
+            html += """
+            <div class="warnings" style="margin-top: 10px; padding: 10px; background-color: #fff3cd; border-left: 4px solid orange;">
+                <strong>Warnings:</strong>
+                <ul>
+            """
+            for warning in results['warnings']:
+                html += f"<li>{warning}</li>"
+            html += "</ul></div>"
+        elif results['warnings']:
+            # Too many warnings, show summary
+            html += f"""
+            <div class="warnings" style="margin-top: 10px; padding: 10px; background-color: #fff3cd; border-left: 4px solid orange;">
+                <strong>Warnings:</strong> {len(results['warnings'])} port warnings (nodes not started yet)
+            </div>
+            """
+        
+        html += "</div>"
+        
+        results['html'] = html
+        return results
+        
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return {
+            'valid': False,
+            'errors': [str(e)],
+            'html': f"""
+            <div class="error-message">
+                <h4>❌ Validation Error</h4>
+                <p>An error occurred during validation: {str(e)}</p>
+                <pre>{trace}</pre>
+            </div>
+            """
+        }
+
+
+def create_cluster_wv(replication_number, skip_compile=False, skip_start=False, redis_version=None):
+    """
+    Web interface version of pareClusterMaker.
+    Creates Redis cluster with step-by-step progress reporting.
+    
+    Args:
+        replication_number: Number of replicas per master (0, 1, 2, etc.)
+        skip_compile: If True, skip Redis compilation (use existing binaries)
+        skip_start: If True, skip starting nodes (assume already running)
+        redis_version: Redis version to use (if None, uses configured redisVersion)
+        
+    Returns:
+        HTML formatted result of the cluster creation process
+    """
+    global logWrite
+    
+    # Use specified version or fall back to configured version
+    selected_version = redis_version if redis_version else redisVersion
+    selected_tar_file = f"redis-{selected_version}.tar.gz"
+    
+    try:
+        replication_number = str(replication_number)
+        
+        # Check if cluster already exists
+        if os.path.isfile('paredicma.done'):
+            return f"""
+            <div class="error-message">
+                <h4 style="color: red;">❌ Cluster Already Exists</h4>
+                <p>A Redis cluster has already been created.</p>
+                <p>To recreate, remove the <code>paredicma.done</code> file first.</p>
+            </div>
+            """
+        
+        # Validate nodes first
+        validation = validate_cluster_nodes_wv()
+        if not validation['valid']:
+            return f"""
+            <div class="error-message">
+                <h4 style="color: red;">❌ Pre-flight Validation Failed</h4>
+                {validation['html']}
+            </div>
+            """
+        
+        # Validate replication number
+        if not replication_number.isdigit():
+            return f"""
+            <div class="error-message">
+                <h4 style="color: red;">❌ Invalid Replication Number</h4>
+                <p>Replication number must be a digit (0, 1, 2, etc.)</p>
+            </div>
+            """
+        
+        # Check node count for replication
+        active_nodes = [node for node in pareNodes if node[4]]
+        required_nodes = 3 * (1 + int(replication_number))
+        
+        if len(active_nodes) < required_nodes:
+            return f"""
+            <div class="error-message">
+                <h4 style="color: red;">❌ Insufficient Nodes</h4>
+                <p>You need at least {required_nodes} nodes for {replication_number} replica(s) per master.</p>
+                <p>Available: {len(active_nodes)} active nodes.</p>
+            </div>
+            """
+        
+        # Capture log messages
+        log_messages = []
+        original_logWrite = logWrite
+        
+        def capture_log(*args):
+            if len(args) >= 2:
+                log_messages.append(args[1])
+            original_logWrite(*args)
+        
+        logWrite = capture_log
+        
+        steps_html = []
+        errors = []
+        
+        try:
+            # Step 1: Create directories
+            steps_html.append("""
+            <div class="step" style="padding: 10px; margin: 5px 0; border-left: 4px solid #17a2b8;">
+                <strong>Step 1:</strong> Creating directories...
+            </div>
+            """)
+            
+            makeDir(pareTmpDir)
+            
+            node_number = 0
+            server_list = []
+            
+            for pareNode in pareNodes:
+                node_ip = pareNode[0][0]
+                port_number = pareNode[1][0]
+                max_memory_size = pareNode[3][0]
+                node_number += 1
+                
+                if pareNode[4]:
+                    server_list.append(node_ip)
+                    redisDirMaker(node_ip, str(node_number))
+                    redisConfMaker(node_ip, str(node_number), port_number, max_memory_size)
+            
+            unique_servers = list(set(server_list))
+            
+            steps_html.append(f"""
+            <div class="step success" style="padding: 10px; margin: 5px 0; border-left: 4px solid #28a745;">
+                ✓ Created directories and config files for {node_number} nodes on {len(unique_servers)} server(s)
+            </div>
+            """)
+            
+            # Step 2: Compile Redis (optional)
+            if doCompile and not skip_compile:
+                steps_html.append(f"""
+                <div class="step" style="padding: 10px; margin: 5px 0; border-left: 4px solid #17a2b8;">
+                    <strong>Step 2:</strong> Compiling Redis {selected_version}...
+                </div>
+                """)
+                
+                compile_result = compile_redis_wv(selected_tar_file, selected_version)
+                
+                if compile_result['success']:
+                    steps_html.append(f"""
+                    <div class="step success" style="padding: 10px; margin: 5px 0; border-left: 4px solid #28a745;">
+                        ✓ Redis {selected_version} compiled successfully (local)
+                    </div>
+                    """)
+                    
+                    # Copy binaries to local servers and compile on remote servers
+                    local_servers = []
+                    remote_servers = []
+                    
+                    for server in unique_servers:
+                        if is_local_server(server):
+                            local_servers.append(server)
+                            redisBinaryCopier(server, selected_version)
+                        else:
+                            remote_servers.append(server)
+                    
+                    if local_servers:
+                        steps_html.append(f"""
+                        <div class="step success" style="padding: 10px; margin: 5px 0; border-left: 4px solid #28a745;">
+                            ✓ Binaries copied to {len(local_servers)} local server(s)
+                        </div>
+                        """)
+                    
+                    # Compile on remote servers (different architecture)
+                    if remote_servers:
+                        steps_html.append(f"""
+                        <div class="step" style="padding: 10px; margin: 5px 0; border-left: 4px solid #17a2b8;">
+                            ⚙️ Compiling on {len(remote_servers)} remote server(s) (different architecture)...
+                        </div>
+                        """)
+                        
+                        remote_compile_success = True
+                        for remote_server in remote_servers:
+                            remote_result = compile_redis_remote_wv(remote_server, selected_tar_file, selected_version)
+                            if remote_result['success']:
+                                steps_html.append(f"""
+                                <div class="step success" style="padding: 10px; margin: 5px 0; border-left: 4px solid #28a745;">
+                                    ✓ Redis compiled successfully on {remote_server}
+                                </div>
+                                """)
+                            else:
+                                remote_compile_success = False
+                                errors.append(f"Remote compilation failed on {remote_server}: {remote_result.get('message', 'Unknown error')}")
+                                steps_html.append(f"""
+                                <div class="step error" style="padding: 10px; margin: 5px 0; border-left: 4px solid #dc3545;">
+                                    ❌ Failed to compile on {remote_server}: {remote_result.get('message', 'Unknown error')}
+                                </div>
+                                """)
+                else:
+                    errors.append(f"Compilation failed: {compile_result.get('message', 'Unknown error')}")
+            else:
+                steps_html.append("""
+                <div class="step skipped" style="padding: 10px; margin: 5px 0; border-left: 4px solid #6c757d;">
+                    ⏭ Step 2: Compilation skipped (using existing binaries)
+                </div>
+                """)
+            
+            # Step 3: Start nodes (optional)
+            if doStartNodes and not skip_start:
+                steps_html.append("""
+                <div class="step" style="padding: 10px; margin: 5px 0; border-left: 4px solid #17a2b8;">
+                    <strong>Step 3:</strong> Starting Redis nodes...
+                </div>
+                """)
+                
+                node_number = 0
+                started_nodes = 0
+                
+                for pareNode in pareNodes:
+                    node_ip = pareNode[0][0]
+                    port_number = pareNode[1][0]
+                    dedicate_cpu_cores = pareNode[2][0]
+                    node_number += 1
+                    
+                    if pareNode[4]:
+                        startNode(node_ip, str(node_number), port_number, dedicate_cpu_cores)
+                        started_nodes += 1
+                
+                # Wait for nodes to start
+                sleep(2)
+                
+                steps_html.append(f"""
+                <div class="step success" style="padding: 10px; margin: 5px 0; border-left: 4px solid #28a745;">
+                    ✓ Started {started_nodes} Redis nodes
+                </div>
+                """)
+            else:
+                steps_html.append("""
+                <div class="step skipped" style="padding: 10px; margin: 5px 0; border-left: 4px solid #6c757d;">
+                    ⏭ Step 3: Starting nodes skipped (assuming already running)
+                </div>
+                """)
+            
+            # Step 4: Create cluster
+            if redisCluster == 'on':
+                steps_html.append("""
+                <div class="step" style="padding: 10px; margin: 5px 0; border-left: 4px solid #17a2b8;">
+                    <strong>Step 4:</strong> Creating Redis Cluster...
+                </div>
+                """)
+                
+                nodes_string = ''
+                for pareNode in pareNodes:
+                    node_ip = pareNode[0][0]
+                    port_number = pareNode[1][0]
+                    if pareNode[4]:
+                        nodes_string += ' ' + node_ip + ':' + port_number
+                
+                # Execute cluster creation
+                cluster_result = make_redis_cluster_wv(nodes_string, replication_number, selected_version)
+                
+                if cluster_result['success']:
+                    # Create marker file
+                    os.system('touch paredicma.done')
+                    
+                    steps_html.append(f"""
+                    <div class="step success" style="padding: 10px; margin: 5px 0; border-left: 4px solid #28a745;">
+                        ✓ Redis Cluster created successfully with {replication_number} replica(s) per master
+                    </div>
+                    """)
+                else:
+                    errors.append(f"Cluster creation failed: {cluster_result.get('message', 'Unknown error')}")
+            
+            # Restore original logWrite
+            logWrite = original_logWrite
+            
+            # Build final result
+            if errors:
+                result_html = f"""
+                <div class="cluster-creation-result error-message">
+                    <h4 style="color: red;">❌ Cluster Creation Failed</h4>
+                    {''.join(steps_html)}
+                    <div class="errors" style="margin-top: 15px; padding: 10px; background-color: #f8d7da; border-left: 4px solid red;">
+                        <strong>Errors:</strong>
+                        <ul>
+                            {''.join(f'<li>{e}</li>' for e in errors)}
+                        </ul>
+                    </div>
+                </div>
+                """
+            else:
+                result_html = f"""
+                <div class="cluster-creation-result success-message">
+                    <h4 style="color: #28a745;">✅ Redis Cluster Created Successfully!</h4>
+                    {''.join(steps_html)}
+                    <div class="summary" style="margin-top: 15px; padding: 15px; background-color: #d4edda; border-left: 4px solid #28a745;">
+                        <strong>Summary:</strong>
+                        <ul>
+                            <li>Active Nodes: {len(active_nodes)}</li>
+                            <li>Unique Servers: {len(unique_servers)}</li>
+                            <li>Replication Factor: {replication_number}</li>
+                            <li>Redis Version: {selected_version}</li>
+                            <li>Marker File: paredicma.done created</li>
+                        </ul>
+                    </div>
+                </div>
+                """
+            
+            # Add log messages if any
+            if log_messages:
+                result_html += f"""
+                <div class="log-messages" style="margin-top: 15px;">
+                    <details>
+                        <summary style="cursor: pointer; font-weight: bold;">📋 Log Messages ({len(log_messages)})</summary>
+                        <pre style="max-height: 300px; overflow-y: auto; padding: 10px; background-color: #f8f9fa;">{'<br>'.join(log_messages)}</pre>
+                    </details>
+                </div>
+                """
+            
+            return result_html
+            
+        except Exception as e:
+            logWrite = original_logWrite
+            raise e
+            
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        return f"""
+        <div class="error-message">
+            <h4 style="color: red;">❌ Cluster Creation Failed</h4>
+            <p>An unexpected error occurred: {str(e)}</p>
+            <pre>{trace}</pre>
+        </div>
+        """
+
+
+def compile_redis_wv(tar_file, version):
+    """
+    Compile Redis for web interface (non-interactive version).
+    
+    Args:
+        tar_file: Redis tar.gz filename
+        version: Redis version string
+        
+    Returns:
+        dict with success status and message
+    """
+    try:
+        # Check if tar file exists
+        if not os.path.isfile(tar_file):
+            return {
+                'success': False,
+                'message': f'Redis tar file not found: {tar_file}'
+            }
+        
+        # Extract
+        extract_status, extract_output = subprocess.getstatusoutput(f'tar -xvf {tar_file}')
+        if extract_status != 0:
+            return {
+                'success': False,
+                'message': f'Failed to extract {tar_file}: {extract_output}'
+            }
+        
+        logWrite(pareLogFile, f':: {tar_file} was extracted.')
+        
+        # Compile
+        compile_output = subprocess.getoutput(f'cd redis-{version};make')
+        
+        if 'make test' not in compile_output and 'Error' in compile_output:
+            return {
+                'success': False,
+                'message': f'Compilation failed: {compile_output[-500:]}'  # Last 500 chars
+            }
+        
+        logWrite(pareLogFile, f':: Redis {version} compiled successfully.')
+        
+        return {
+            'success': True,
+            'message': f'Redis {version} compiled successfully'
+        }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'message': str(e)
+        }
+
+
+def compile_redis_remote_wv(server_ip, tar_file, version):
+    """
+    Compile Redis on a remote server for web interface.
+    This is necessary when remote servers have different CPU architectures.
+    
+    Args:
+        server_ip: IP address of the remote server
+        tar_file: Redis tar.gz filename
+        version: Redis version string
+        
+    Returns:
+        dict with success status and message
+    """
+    try:
+        if is_local_server(server_ip):
+            return {
+                'success': True,
+                'message': 'Local server - skipping remote compile'
+            }
+        
+        logWrite(pareLogFile, f':: {server_ip} :: Starting remote Redis compilation...')
+        
+        # Check if tar file exists locally
+        if not os.path.isfile(tar_file):
+            return {
+                'success': False,
+                'message': f'Redis tar file not found: {tar_file}'
+            }
+        
+        # Create binary base directory on remote server
+        if not makeRemoteDir(redisBinaryBase, server_ip):
+            return {
+                'success': False,
+                'message': f'Failed to create binary directory on {server_ip}'
+            }
+        
+        # Copy tar file to remote server
+        logWrite(pareLogFile, f':: {server_ip} :: Copying Redis tar file...')
+        
+        scp_status, scp_output = subprocess.getstatusoutput(
+            f'scp {tar_file} {pareOSUser}@{server_ip}:{redisBinaryBase}')
+        
+        if scp_status != 0:
+            return {
+                'success': False,
+                'message': f'Failed to copy tar file: {scp_output}'
+            }
+        
+        # Extract and compile on remote server
+        logWrite(pareLogFile, f':: {server_ip} :: Extracting and compiling Redis...')
+        
+        remote_compile_cmd = (
+            f'ssh -q -o "StrictHostKeyChecking no" {pareOSUser}@{server_ip} -C "'
+            f'cd {redisBinaryBase} && '
+            f'tar -xvf {tar_file} && '
+            f'cd redis-{version} && '
+            f'make"'
+        )
+        
+        compile_status, compile_output = subprocess.getstatusoutput(remote_compile_cmd)
+        
+        # Check for successful compilation
+        if 'make test' in compile_output or 'Hint: It' in compile_output:
+            # Verify the binary exists
+            verify_cmd = (
+                f'ssh -q -o "StrictHostKeyChecking no" {pareOSUser}@{server_ip} -C "'
+                f'test -x {redisBinaryBase}redis-{version}/src/redis-server && echo EXISTS"'
+            )
+            verify_status, verify_output = subprocess.getstatusoutput(verify_cmd)
+            
+            if 'EXISTS' in verify_output:
+                logWrite(pareLogFile, f':: {server_ip} :: Redis compiled and binary verified.')
+                return {
+                    'success': True,
+                    'message': f'Redis {version} compiled successfully on {server_ip}'
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': f'Compilation seemed successful but binary not found on {server_ip}'
+                }
+        else:
+            return {
+                'success': False,
+                'message': f'Compilation failed: {compile_output[-300:]}'
+            }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'message': str(e)
+        }
+
+
+def make_redis_cluster_wv(nodes_string, replication_number, redis_version=None):
+    """
+    Create Redis cluster for web interface.
+    
+    Args:
+        nodes_string: Space-separated list of node addresses (ip:port)
+        replication_number: Number of replicas per master
+        redis_version: Redis version to use (if None, uses configured version)
+        
+    Returns:
+        dict with success status and message
+    """
+    try:
+        # Determine binary directory based on version
+        if redis_version:
+            binary_dir = f"{redisBinaryBase}redis-{redis_version}/"
+        else:
+            binary_dir = redisBinaryDir
+        
+        # Build cluster create command
+        if replication_number == '0':
+            cluster_string = f"{binary_dir}src/redis-cli --cluster create {nodes_string} --cluster-yes"
+        else:
+            cluster_string = f"{binary_dir}src/redis-cli --cluster create {nodes_string} --cluster-replicas {replication_number} --cluster-yes"
+        
+        if redisPwdAuthentication == 'on':
+            cluster_string += f' -a {redisPwd}'
+        
+        logWrite(pareLogFile, f':: Cluster create string: {cluster_string}')
+        
+        # Execute cluster creation
+        status, output = subprocess.getstatusoutput(cluster_string)
+        
+        # Check for success indicators
+        if status == 0 and ('[OK]' in output or 'All 16384 slots covered' in output):
+            return {
+                'success': True,
+                'message': 'Cluster created successfully',
+                'output': output
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Cluster creation returned status {status}',
+                'output': output
+            }
+            
+    except Exception as e:
+        return {
+            'success': False,
+            'message': str(e)
+        }
+
+
+def get_cluster_creation_form_wv():
+    """
+    Returns HTML form for cluster creation with all options.
+    """
+    # Check if cluster exists
+    cluster_check = check_cluster_exists_wv()
+    
+    # Get node count for replication options
+    active_nodes = len([node for node in pareNodes if node[4]])
+    max_replicas = (active_nodes // 3) - 1 if active_nodes >= 3 else 0
+    
+    # Build replication options
+    replication_options = ""
+    for i in range(max_replicas + 1):
+        required = 3 * (1 + i)
+        disabled = "disabled" if active_nodes < required else ""
+        label = f"{i} replica(s) - requires {required} nodes"
+        if i == 0:
+            label = f"0 replicas (no redundancy) - requires 3 nodes"
+        elif i == 1:
+            label = f"1 replica (recommended) - requires 6 nodes"
+        replication_options += f'<option value="{i}" {disabled}>{label}</option>'
+    
+    html = f"""
+    <div class="cluster-creation-form">
+        <h3>🔧 Create Redis Cluster</h3>
+        
+        {cluster_check['html']}
+        
+        <div class="form-section" style="margin-top: 20px;">
+            <h4>Configuration</h4>
+            
+            <div class="form-group" style="margin: 15px 0;">
+                <label for="replication_number"><strong>Replication Factor:</strong></label>
+                <select id="replication_number" name="replication_number" style="padding: 8px; margin-left: 10px;">
+                    {replication_options}
+                </select>
+                <p style="font-size: 0.9em; color: #6c757d; margin-top: 5px;">
+                    Active nodes available: {active_nodes}
+                </p>
+            </div>
+            
+            <div class="form-group" style="margin: 15px 0;">
+                <label>
+                    <input type="checkbox" id="skip_compile" name="skip_compile" {'checked' if not doCompile else ''}>
+                    Skip compilation (use existing binaries)
+                </label>
+            </div>
+            
+            <div class="form-group" style="margin: 15px 0;">
+                <label>
+                    <input type="checkbox" id="skip_start" name="skip_start">
+                    Skip starting nodes (assume already running)
+                </label>
+            </div>
+        </div>
+        
+        <div class="form-section" style="margin-top: 20px;">
+            <h4>Current Configuration</h4>
+            <table style="width: 100%;">
+                <tr><td><strong>Redis Version:</strong></td><td>{redisVersion}</td></tr>
+                <tr><td><strong>Cluster Mode:</strong></td><td>{redisCluster}</td></tr>
+                <tr><td><strong>Authentication:</strong></td><td>{'Enabled' if redisPwdAuthentication == 'on' else 'Disabled'}</td></tr>
+                <tr><td><strong>Auto Compile:</strong></td><td>{'Yes' if doCompile else 'No'}</td></tr>
+                <tr><td><strong>Auto Start Nodes:</strong></td><td>{'Yes' if doStartNodes else 'No'}</td></tr>
+            </table>
+        </div>
+        
+        <div class="preview-section" id="cluster_preview" style="margin-top: 20px;">
+            <!-- Preview will be loaded here -->
+        </div>
+        
+        <div class="action-buttons" style="margin-top: 20px;">
+            <button type="button" id="btn_preview" class="btn btn-secondary" 
+                    onclick="previewCluster()" style="padding: 10px 20px; margin-right: 10px;">
+                👁 Preview Configuration
+            </button>
+            <button type="button" id="btn_validate" class="btn btn-info" 
+                    onclick="validateNodes()" style="padding: 10px 20px; margin-right: 10px;">
+                ✓ Validate Nodes
+            </button>
+            <button type="button" id="btn_create" class="btn btn-success" 
+                    onclick="createCluster()" style="padding: 10px 20px;" 
+                    {'disabled' if cluster_check['exists'] else ''}>
+                🚀 Create Cluster
+            </button>
+        </div>
+    </div>
+    """
+    
+    return html

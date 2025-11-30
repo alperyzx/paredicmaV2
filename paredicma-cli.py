@@ -601,7 +601,15 @@ def main():
                         else:
                             if compileRedis(newTarFile, newRedisVersion):
                                 for myServer in myServers:
-                                    noProblem = redisNewBinaryCopier(myServer, newRedisVersion)
+                                    if is_local_server(myServer):
+                                        # For local server, copy the compiled binary
+                                        noProblem = redisNewBinaryCopier(myServer, newRedisVersion)
+                                    else:
+                                        # For remote servers, compile on the remote server (different architecture)
+                                        logWrite(pareLogFile, bcolors.WARNING + f' :: Remote server detected: {myServer}. Compiling Redis on remote server...' + bcolors.ENDC)
+                                        noProblem = compileRedisRemote(myServer, newTarFile, newRedisVersion)
+                                        if not noProblem:
+                                            logWrite(pareLogFile, bcolors.FAIL + f' :: Failed to compile Redis on remote server {myServer}!' + bcolors.ENDC)
                                     if not noProblem:
                                         break
                             else:

@@ -27,9 +27,23 @@ def pareClusterMaker(redisReplicationNumber):
     if doCompile:
         redisTarFileName = redisTarFile
         redisCurrentVersion = redisVersion
+        
+        # Compile locally first
         if compileRedis(redisTarFileName, redisCurrentVersion):
             for myServer in myServers:
-                redisBinaryCopier(myServer, redisVersion)
+                if is_local_server(myServer):
+                    # For local server, just copy the compiled binary to the binary directory
+                    redisBinaryCopier(myServer, redisVersion)
+                else:
+                    # For remote servers, we need to compile on the remote server itself
+                    # because binaries are architecture-specific (Mac vs Linux, ARM vs x86)
+                    logWrite(pareLogFile, bcolors.WARNING + f' :: Remote server detected: {myServer}. Compiling Redis on remote server...' + bcolors.ENDC)
+                    if not compileRedisRemote(myServer, redisTarFileName, redisCurrentVersion):
+                        logWrite(pareLogFile, bcolors.FAIL + f' :: Failed to compile Redis on remote server {myServer}!' + bcolors.ENDC)
+                        # Ask user if they want to continue
+                        continueAnyway = input(bcolors.BOLD + f'\n Remote compilation failed on {myServer}. Continue anyway? (yes/no): ' + bcolors.ENDC)
+                        if continueAnyway.lower() != 'yes':
+                            return
         else:
             logWrite(pareLogFile, ' :: There is a problem. While compiling redis!!!')
     if doStartNodes:

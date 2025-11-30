@@ -6,3 +6,7 @@
 __pycache__/
 *.pyc
 *pid
+__pycache__
+redis*
+*.swp
+*.pid
