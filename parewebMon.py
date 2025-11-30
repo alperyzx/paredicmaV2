@@ -1398,7 +1398,7 @@ async def welcome_page():
             
             <div class="welcome-footer" style="margin-top: 40px; text-align: center; color: #777;">
                 <p>Select a section above to start working with your Redis cluster</p>
-                <p style="font-size: 12px;">Paredicma v2.5 - Redis Cluster Management Tool</p>
+                <p style="font-size: 12px;">Paredicma v3.0 - Redis Cluster Management Tool</p>
             </div>
         </div>
     </body>
