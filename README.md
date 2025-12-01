@@ -1,4 +1,40 @@
-# Python Automatic REDIs Cluster MAnager & MAker
+## Python Automatic REDIs Cluster MAnager & MAker
+
+#### Paredicma is a comprehensive web-based tool for monitoring, managing, and maintaining Redis clusters. It provides an intuitive interface to perform complex Redis cluster operations through a simple web UI.
+
+<img width="2048" height="2048" alt="image" src="https://github.com/user-attachments/assets/8f7fcbfb-03a0-4942-afca-0229d37218bf" />
+
+
+## Python Automatic REDIs Cluster MAnager&MAker
+This program was developed to make Redis Cluster installation, managament, upgrade and maintanence easier, especially for non-Docker environments. 
+
+## Prerequirements:
+sshd ( with passwordless ssh-keygen auth. between servers ),
+numactl( if you want to use dedicate cpu-core )
+
+cli: python 3.1 <br>
+webview: python 3.8, fastapi, uvicorn
+
+## 1- Download and extract :
+Download -> paredicmaV2-master.zip
+extract -> unzip paredicmaV2-master.zip
+cd paredicmaV2-master
+
+## 2- Installation :
+You do not need to install it, Just configure and run it.
+
+## 3- Configuration :
+Configure pareNodeList.py file, change ip, port, cpu core and max_memory per node, according to your cluster.
+Configure pareConfig.py file, according to your cluster
+
+## 4 - run program
+cli: python3.x paredicma-cli.py <br>
+webview: ./run.sh
+
+<img width="799" height="927" alt="image" src="https://github.com/user-attachments/assets/48357446-2c37-4bf2-990a-ffb993447c3a" />
+
+
+
 ## Version: 3.0
 #### UpdateDate				: 30.11.2025
 #### UpdatedBy				: ALPER YILDIZ (a.alper.yildiz@gmail.com) 
@@ -28,127 +64,6 @@
 #### E-mail				: msyavuz@gmail.com, paredicma@gmail.com
 
 
-## Python Automatic REDIs Cluster MAnager&MAker
-This program was developed to make Redis Cluster installation, managament, upgrade and maintanence easier, especially for non-Docker environments. 
-
-## Prerequirements:
-sshd ( with passwordless ssh-keygen auth. between servers ),
-numactl( if you want to use dedicate cpu-core )
-
-cli: python 3.1,
-webview: python 3.8, fastapi, uvicorn
-
-## 1- Download and extract :
-Download -> paredicmaV2-master.zip
-extract -> unzip paredicmaV2-master.zip
-cd paredicmaV2-master
-
-## 2- Installation :
-You do not need to install it, Just configure and run it.
-
-## 3- Configuration :
-Configure pareNodeList.py file, change ip, port, cpu core and max_memory per node, according to your cluster.
-Configure pareConfig.py file, according to your cluster
-
-## 4 - run program
-cli: python3.x paredicma-cli.py
-webview: ./run.sh
-see docs
-
-## 5- enjoy it :)
-
-		PAREDICMA CLI (Python Automatic REDIs Cluster MAker)
-        ------------------------------------------------
-        1 - Redis Cluster Monitor - ( paredicmon ) 
-        2 - Redis Cluster Manager - ( paredicman ) 
-        3 - Redis Cluster Upgrade&Migration&Maintenance - ( paredicmum ) 
-        4 - Redis Cluster Maker - ( paredicma  ) 
-        5 - Exit                                                                                                        
-
-        ------------------------------------------------
-        What would you like to do? 
-
-or If you have already made a cluster		
-		
-        PAREDICMA CLI (Python Automatic REDIs Cluster MAker)                
-        ------------------------------------------------
-        1 - Redis Cluster Monitor - ( paredicmon ) 
-        2 - Redis Cluster Manager - ( paredicman ) 
-        3 - Redis Cluster Upgrade & Migration & Maintenance - ( paredicmum ) 
-        NAP - Redis Cluster Maker - Already Done - ( paredicma  ) 
-        5 - Exit                                                                                   
-
-        ------------------------------------------------
-        What would you like to do? 
-
-If you choose #1		
-		
-        PAREDICMON - REDIS CLUSTER MONITOR
-        ------------------------------------------------
-          1 - Ping  Node(s)             
-          2 - List Nodes        
-          3 - node(s) Info     
-          4 - Server Info            
-          5 - Slots Info                
-          6 - Cluster State             
-          7 - Show Memory Usage         
-          8 - Not Designated            
-          9 - Main Menu                 
-         10 - Exit                      
-
-        ------------------------------------------------
-        What would you like to do? :
-
-If you choose #2		
-		
-		PAREDICMAN - REDIS CLUSTER MANAGER
-        ------------------------------------------------
-          1 - Start/Stop/Restart Redis Node     
-          2 - Switch Master/Slave Nodes
-          3 - Change Redis Configuration Parameter
-          4 - Save Redis Configuration to redis.conf  
-          5 - Rolling Restart                       
-          6 - Command for all nodes                         
-          7 - Show Redis Log File           
-          8 - Not Designated            
-          9 - Main Menu                 
-         10 - Exit                      
-
-        ------------------------------------------------
-        What would you like to do? :
-		
-If you choose #3
-		
-		PAREDICMUM - REDIS CLUSTER MIGRATION&UPGRADE&MAINTENANCE
-        ------------------------------------------------
-          1 - Add/Delete Redis Node        
-          2 - Move Slot(s)       
-          3 - Redis Cluster Nodes Version Upgrade 
-          4 - Redis Cluster Nodes Version Control
-          5 - Maintain Server                               
-          6 - Migrate Data From Remote Redis
-          7 - Cluster Slot(load) Balancer                           
-          8 - Not Designated                                                
-          9 - Main Menu                 
-         10 - Exit                      
-
-        ------------------------------------------------
-		What would you like to do? 
-		
-If you choose #4
-		
-		        PAREDICMA CLI (Python Automatic REDIs Cluster MAker)
-        ------------------------------------------------
-        1 - Redis Cluster Monitor - ( paredicmon ) 
-        2 - Redis Cluster Manager - ( paredicman ) 
-        3 - Redis Cluster Upgrade&Migration&Maintenance - ( paredicmum ) 
-        4 - Redis Cluster Maker - ( paredicma  ) 
-        5 - Exit                                                                                                        
-
-        ------------------------------------------------
-        What would you like to do? 4
-        Are you sure to make Redis Cluster (yes/no) ? 
-
-
+<br>
 
 © 2026 GitHub, Inc.
